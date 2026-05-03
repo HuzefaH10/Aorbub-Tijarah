@@ -9,6 +9,7 @@ import Inventory from './pages/Inventory';
 import CalendarPage from './pages/Calendar';
 import Settings from './pages/Settings';
 import HelpContact from './pages/HelpContact';
+import DataEntry from './pages/DataEntry';
 
 /* Protected route wrapper */
 function ProtectedRoute({ children }) {
@@ -36,6 +37,7 @@ export default function App() {
               <Route path="calendar" element={<CalendarPage />} />
               <Route path="settings" element={<Settings />} />
               <Route path="help" element={<HelpContact />} />
+              <Route path="data-entry" element={<DataEntry />} />
             </Route>
           </Routes>
         </BrowserRouter>
