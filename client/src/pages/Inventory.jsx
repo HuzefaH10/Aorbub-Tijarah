@@ -10,7 +10,7 @@ export default function Inventory() {
   const { products, addProduct, updateProduct, deleteProduct } = useProducts();
   const { entries } = useEntries();
   const { toast, showToast, hideToast } = useToast();
-  const blank = { name: '', category: '', unit: 'pcs', lowStockThreshold: '' };
+  const blank = { name: '', category: '', unit: 'pcs', quantity: '', lowStockThreshold: '' };
   const [f, setF] = useState(blank);
   const [editId, setEditId] = useState(null);
   const chartRef = useRef(); const cRef = useRef();
@@ -20,21 +20,21 @@ export default function Inventory() {
     e.preventDefault();
     if (!f.name || !f.category || !f.lowStockThreshold) { showToast('All fields required', 'error'); return; }
     try {
-      if (editId) { await updateProduct(editId, { name: f.name, category: f.category, unit: f.unit, lowStockThreshold: +f.lowStockThreshold }); setEditId(null); showToast('Product updated'); }
-      else { await addProduct({ name: f.name, category: f.category, unit: f.unit, lowStockThreshold: +f.lowStockThreshold }); showToast('Product added'); }
+      if (editId) { await updateProduct(editId, { name: f.name, category: f.category, unit: f.unit, quantity: +f.quantity, lowStockThreshold: +f.lowStockThreshold }); setEditId(null); showToast('Product updated'); }
+      else { await addProduct({ name: f.name, category: f.category, unit: f.unit, quantity: +f.quantity, lowStockThreshold: +f.lowStockThreshold }); showToast('Product added'); }
       setF(blank);
     } catch { showToast('Error saving', 'error'); }
   };
-  const startEdit = p => { setEditId(p.id); setF({ name: p.name, category: p.category, unit: p.unit, lowStockThreshold: p.lowStockThreshold }); };
+  const startEdit = p => { setEditId(p.id); setF({ name: p.name, category: p.category, unit: p.unit, quantity: p.quantity || '', lowStockThreshold: p.lowStockThreshold }); };
   const delProd = async (id) => { await deleteProduct(id); showToast('Deleted'); };
 
   const { stockData, outCount, lowCount, okCount, restockLog } = useMemo(() => {
-    const getStock = name => {
-      const pe = entries.filter(e => e.product === name).sort((a, b) => b.date?.localeCompare(a.date) || 0);
-      return pe.length ? pe[0].stockRemaining : 0;
+    const getStock = p => {
+      const pe = entries.filter(e => e.product === p.name).sort((a, b) => b.date?.localeCompare(a.date) || 0);
+      return pe.length ? pe[0].stockRemaining : (p.quantity || 0);
     };
     const stockData = products.map(p => {
-      const stock = getStock(p.name);
+      const stock = getStock(p);
       const status = stock === 0 ? 'out' : stock <= p.lowStockThreshold ? 'low' : 'ok';
       return { ...p, stock, status };
     });
@@ -68,10 +68,11 @@ export default function Inventory() {
 
       <Card>
         <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-4">{editId ? 'Edit' : 'Add'} Product</h3>
-        <form onSubmit={addProd} className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <form onSubmit={addProd} className="grid grid-cols-2 md:grid-cols-6 gap-3">
           <div><label className={labelCls}>Name</label><input value={f.name} onChange={e => setF(p => ({ ...p, name: e.target.value }))} className={inputCls} /></div>
           <div><label className={labelCls}>Category</label><input value={f.category} onChange={e => setF(p => ({ ...p, category: e.target.value }))} className={inputCls} /></div>
           <div><label className={labelCls}>Unit</label><select value={f.unit} onChange={e => setF(p => ({ ...p, unit: e.target.value }))} className={inputCls}>{units.map(u => <option key={u} value={u}>{u}</option>)}</select></div>
+          <div><label className={labelCls}>Quantity</label><input type="number" min="0" value={f.quantity} onChange={e => setF(p => ({ ...p, quantity: e.target.value }))} className={inputCls} /></div>
           <div><label className={labelCls}>Low Stock Threshold</label><input type="number" min="0" value={f.lowStockThreshold} onChange={e => setF(p => ({ ...p, lowStockThreshold: e.target.value }))} className={inputCls} /></div>
           <div className="flex items-end gap-2"><button type="submit" className="flex-1 bg-primary-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-primary-700 transition-colors">{editId ? 'Update' : 'Add'}</button>{editId && <button type="button" onClick={() => { setEditId(null); setF(blank); }} className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 py-2.5 px-3 rounded-xl text-sm hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">Cancel</button>}</div>
         </form>
