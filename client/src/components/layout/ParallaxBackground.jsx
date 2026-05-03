@@ -25,7 +25,7 @@ export default function ParallaxBackground() {
           y: mousePos.y * -40,
         }}
         transition={{ type: 'spring', damping: 50, stiffness: 100 }}
-        className="absolute top-[10%] left-[20%] w-96 h-96 bg-primary-300/10 dark:bg-primary-900/20 rounded-full blur-[100px]"
+        className="absolute top-[10%] left-[20%] w-96 h-96 bg-primary-300/20 dark:bg-primary-900/40 rounded-full blur-[100px]"
       />
       
       {/* Orb 2 */}
@@ -35,11 +35,11 @@ export default function ParallaxBackground() {
           y: mousePos.y * 60,
         }}
         transition={{ type: 'spring', damping: 50, stiffness: 100 }}
-        className="absolute bottom-[20%] right-[10%] w-[30rem] h-[30rem] bg-blue-400/5 dark:bg-blue-800/10 rounded-full blur-[120px]"
+        className="absolute bottom-[20%] right-[10%] w-[30rem] h-[30rem] bg-amber-400/10 dark:bg-amber-800/20 rounded-full blur-[120px]"
       />
       
       {/* Grid Pattern */}
-      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9InJnYmEoMCwwLDAsMC4wNSkiLz48L3N2Zz4=')] dark:bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wNSkiLz48L3N2Zz4=')] opacity-50" />
+      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9InJnYmEoMCwwLDAsMC4wNSkiLz48L3N2Zz4=')] dark:bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wMykiLz48L3N2Zz4=')] opacity-40" />
     </div>
   );
 }

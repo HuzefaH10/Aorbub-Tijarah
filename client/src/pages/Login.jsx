@@ -43,7 +43,7 @@ export default function Login() {
       <div className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-3xl p-8 w-full max-w-md shadow-xl shadow-gray-200/50 dark:shadow-none relative z-10">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-14 h-14 bg-primary-600 rounded-2xl flex items-center justify-center text-white text-xl font-bold mx-auto mb-4 shadow-lg shadow-primary-600/30">
+          <div className="w-14 h-14 bg-primary-600 rounded-2xl flex items-center justify-center text-white text-2xl font-bold font-heading mx-auto mb-4 shadow-lg shadow-primary-600/30">
             AT
           </div>
           <h1 className="text-2xl font-bold text-gray-800 dark:text-white font-heading">Aorbub Tijarah</h1>
