@@ -54,26 +54,7 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Settings at bottom */}
-      <div className="px-2 pb-4">
-        <NavLink
-          to="/settings"
-          className={({ isActive }) =>
-            `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-200 ${
-              isActive
-                ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/20'
-                : 'text-white/50 hover:text-white hover:bg-white/5'
-            }`
-          }
-        >
-          <span className="min-w-[20px] flex justify-center">
-            <Settings size={20} />
-          </span>
-          <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-            Settings
-          </span>
-        </NavLink>
-      </div>
+
     </aside>
   );
 }
