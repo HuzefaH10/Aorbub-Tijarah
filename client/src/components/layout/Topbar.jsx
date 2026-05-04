@@ -5,7 +5,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { ChevronDown, Settings, Sun, Moon, HelpCircle, LogOut } from 'lucide-react';
 
 const titles = {
-  '/': 'Sales Analytics',
+  '/': 'Command Center',
   '/profit': 'Profit Optimization',
   '/inventory': 'Inventory Management',
   '/calendar': 'Calendar & Scheduling',
