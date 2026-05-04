@@ -2,7 +2,6 @@ import { NavLink } from 'react-router-dom';
 import {
   BarChart3, DollarSign, Package, CalendarDays, Settings, PenLine, Home
 } from 'lucide-react';
-import { useSettings } from '../../hooks/useFirestore';
 
 const navItems = [
   { to: '/', icon: Home, label: 'Command Center', size: 24 },
@@ -13,17 +12,14 @@ const navItems = [
 ];
 
 export default function Sidebar() {
-  const { settings } = useSettings();
-  const businessName = settings?.businessName || 'Supreme Sanitory';
-  const initials = businessName.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
   return (
     <aside className="group fixed left-0 top-0 h-full bg-sidebar z-50 w-[64px] hover:w-[250px] transition-all duration-300 flex flex-col overflow-hidden shadow-xl">
       <div className="h-16 flex items-center px-4 gap-3 border-b border-white/10 shrink-0">
         <div className="min-w-[32px] h-8 rounded-lg bg-primary-600 flex items-center justify-center text-white text-lg font-bold font-heading">
-          {initials}
+          AT
         </div>
         <span className="text-white font-heading text-lg font-semibold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-          {businessName}
+          Aorbub Tijarah
         </span>
       </div>
 

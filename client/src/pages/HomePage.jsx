@@ -224,7 +224,7 @@ export default function HomePage() {
           value={computed.thisWeekProfit === 0 ? '—' : `${computed.thisWeekProfit < 0 ? '-' : ''}$${Math.abs(computed.thisWeekProfit).toLocaleString()}`} 
           valueColor={computed.thisWeekProfit > 0 ? 'text-green-400' : computed.thisWeekProfit < 0 ? 'text-red-400' : 'text-white'}
           icon={TrendingUp} 
-          onClick={() => navigate('/analytics')} 
+          onClick={() => navigate('/profit')} 
         />
         <KPICard 
           title="Low Stock Items" 
@@ -248,7 +248,7 @@ export default function HomePage() {
           <ActionButton icon={PlusCircle} title="Log a Sale" desc="Record today's revenue & costs" onClick={() => navigate('/data-entry')} />
           <ActionButton icon={Package} title="Update Inventory" desc="Restock or adjust levels" onClick={() => navigate('/inventory')} />
           <ActionButton icon={CalendarPlus} title="Schedule Event" desc="Add a restock or meeting" onClick={() => navigate('/calendar')} />
-          <ActionButton icon={BarChart2} title="View Analytics" desc="Explore sales performance" onClick={() => navigate('/analytics')} />
+          <ActionButton icon={BarChart2} title="Profit Optimization" desc="Analyze & optimize margins" onClick={() => navigate('/profit')} />
         </div>
       </div>
 
