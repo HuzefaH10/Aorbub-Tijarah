@@ -60,7 +60,7 @@ export default function Topbar() {
         </button>
 
         {open && (
-          <div className="absolute right-0 top-full mt-2 w-60 glass overflow-clip animate-fadeIn origin-top-right">
+          <div className="absolute right-0 top-full mt-2 w-60 glass-opaque overflow-clip animate-fadeIn origin-top-right">
             <div className="px-4 py-3 border-b border-gray-50 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50">
               <p className="text-sm text-gray-800 dark:text-white font-semibold">{user?.email || 'admin@aorbub.com'}</p>
               <p className="text-xs text-gray-400 dark:text-gray-500">Owner</p>
