@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Check, Edit2, LayoutGrid, Plus, BarChart2, Table as TableIcon } from 'lucide-react';
+import { X, Check, Edit2, LayoutGrid, Plus, BarChart2, Table as TableIcon, FileUp } from 'lucide-react';
 
 export default function WidgetPanel({ widgets, onToggle, onRename, onRemove, onOpenPicker }) {
   const [editingId, setEditingId] = useState(null);
@@ -92,6 +92,15 @@ export default function WidgetPanel({ widgets, onToggle, onRename, onRemove, onO
         >
           <TableIcon size={16} /> Add Table
         </button>
+
+        <div className="pt-2">
+          <button 
+            onClick={() => alert('CSV/Excel Upload coming soon!')}
+            className="w-full flex items-center justify-center gap-2 bg-primary-600 text-white py-3 rounded-xl text-sm font-bold hover:bg-primary-700 hover:-translate-y-0.5 transition-all shadow-lg shadow-primary-600/30"
+          >
+            <FileUp size={22} className="animate-pulse" /> Upload CSV / Excel
+          </button>
+        </div>
       </div>
     </div>
   );
