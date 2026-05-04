@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import Layout from './components/layout/Layout';
 import Login from './pages/Login';
+import HomePage from './pages/HomePage';
 import SalesAnalytics from './pages/SalesAnalytics';
 import ProfitOptimization from './pages/ProfitOptimization';
 import Inventory from './pages/Inventory';
@@ -31,7 +32,8 @@ export default function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-              <Route index element={<SalesAnalytics />} />
+              <Route index element={<HomePage />} />
+              <Route path="analytics" element={<SalesAnalytics />} />
               <Route path="profit" element={<ProfitOptimization />} />
               <Route path="inventory" element={<Inventory />} />
               <Route path="calendar" element={<CalendarPage />} />

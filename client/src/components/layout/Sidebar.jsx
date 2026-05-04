@@ -1,10 +1,11 @@
 import { NavLink } from 'react-router-dom';
 import {
-  BarChart3, DollarSign, Package, CalendarDays, Settings, PenLine
+  BarChart3, DollarSign, Package, CalendarDays, Settings, PenLine, Home
 } from 'lucide-react';
 
 const navItems = [
-  { to: '/', icon: BarChart3, label: 'Sales Analytics' },
+  { to: '/', icon: Home, label: 'Command Center' },
+  { to: '/analytics', icon: BarChart3, label: 'Sales Analytics' },
   { to: '/profit', icon: DollarSign, label: 'Profit Optimization' },
   { to: '/inventory', icon: Package, label: 'Inventory' },
   { to: '/calendar', icon: CalendarDays, label: 'Calendar' },
