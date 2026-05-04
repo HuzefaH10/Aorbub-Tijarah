@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Card, SummaryCard } from '../components/ui/Card';
 import Toast, { useToast } from '../components/ui/Toast';
-import DataImporter from '../components/ui/DataImporter';
 import { useProducts, useEntries } from '../hooks/useFirestore';
 import { ClipboardList, ShoppingCart, DollarSign } from 'lucide-react';
 
@@ -10,17 +9,27 @@ export default function DataEntry() {
   const { addEntry, entries } = useEntries();
   const { toast, showToast, hideToast } = useToast();
   
-  const [f, setF] = useState({ date: new Date().toISOString().split('T')[0], product: '', category: '', qty: '', rev: '', cost: '' });
+  const [f, setF] = useState({ date: new Date().toISOString().split('T')[0], product: '', category: '', qty: '', unitPrice: '' });
+
+  const total = (Number(f.qty) || 0) * (Number(f.unitPrice) || 0);
 
   const handleProductSelect = (name) => {
     const prod = products.find(p => p.name === name);
-    setF(prev => ({ ...prev, product: name, category: prod?.category || prev.category }));
+    // Auto-populate unit price if product has a price, otherwise leave it empty for manual entry
+    setF(prev => ({ 
+      ...prev, 
+      product: name, 
+      category: prod?.category || prev.category,
+      unitPrice: prod?.price || prev.unitPrice
+    }));
   };
+
+  const isFormValid = f.date && f.product && f.qty && f.unitPrice;
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!f.date || !f.product || !f.qty || !f.rev || !f.cost) {
-      showToast('Please fill all fields', 'error'); return;
+    if (!isFormValid) {
+      showToast('Please fill all required fields', 'error'); return;
     }
     try {
       await addEntry({
@@ -28,15 +37,15 @@ export default function DataEntry() {
         product: f.product,
         category: f.category || 'Uncategorized',
         quantitySold: Number(f.qty),
-        revenue: Number(f.rev),
-        cost: Number(f.cost),
+        revenue: total,
+        cost: 0, // Backend cost calculation can be updated later; setting to 0 for checkout
         stockAdded: 0,
         stockRemaining: 0 // In a real app, this would calculate from previous stock
       });
-      showToast('Sale recorded successfully!');
-      setF({ ...f, product: '', qty: '', rev: '', cost: '' });
+      showToast('Bill created successfully!');
+      setF({ ...f, product: '', qty: '', unitPrice: '' });
     } catch {
-      showToast('Error recording sale', 'error');
+      showToast('Error processing bill', 'error');
     }
   };
 
@@ -51,19 +60,17 @@ export default function DataEntry() {
     <div className="max-w-5xl space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
       
-      {/* Floating Importer Widget */}
-      <DataImporter />
-
       <div>
-        <h2 className="text-xl font-bold text-gray-800 dark:text-white font-heading">Daily Log</h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400">Record point-of-sale transactions and upload historical data.</p>
+        <h2 className="text-xl font-bold text-gray-800 dark:text-white font-heading">Billing & Checkout</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400">Create and confirm customer bills in real time.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Column: Billing Form */}
         <div className="lg:col-span-2 space-y-6">
           <Card>
             <h3 className="text-lg font-bold text-gray-800 dark:text-white font-heading border-b border-gray-100 dark:border-gray-800 pb-4 mb-5 flex items-center gap-2">
-              <ClipboardList size={20} className="text-primary-500" /> New Sale Entry
+              <ClipboardList size={20} className="text-primary-500" /> New Bill
             </h3>
             <form onSubmit={submit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -88,38 +95,59 @@ export default function DataEntry() {
 
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className={labelCls}>Qty Sold</label>
+                  <label className={labelCls}>Quantity</label>
                   <input type="number" min="1" value={f.qty} onChange={e => setF({...f, qty: e.target.value})} className={inputCls} placeholder="0" />
                 </div>
                 <div>
-                  <label className={labelCls}>Revenue ($)</label>
-                  <input type="number" min="0" value={f.rev} onChange={e => setF({...f, rev: e.target.value})} className={inputCls} placeholder="0.00" />
+                  <label className={labelCls}>Unit Price ($)</label>
+                  <input type="number" min="0" step="0.01" value={f.unitPrice} onChange={e => setF({...f, unitPrice: e.target.value})} className={inputCls} placeholder="0.00" />
                 </div>
                 <div>
-                  <label className={labelCls}>Cost ($)</label>
-                  <input type="number" min="0" value={f.cost} onChange={e => setF({...f, cost: e.target.value})} className={inputCls} placeholder="0.00" />
+                  <label className={labelCls}>Total ($)</label>
+                  <input type="text" readOnly value={total.toFixed(2)} className={`${inputCls} bg-gray-50/50 dark:bg-gray-900/50 cursor-not-allowed opacity-70`} />
                 </div>
               </div>
 
-              <div className="pt-2">
-                <button type="submit" className="w-full bg-primary-600 text-white py-3.5 rounded-xl font-bold hover:bg-primary-700 transition-colors shadow-lg shadow-primary-600/20 text-sm">
-                  Record Transaction
+              <div className="pt-4">
+                <button 
+                  type="submit" 
+                  disabled={!isFormValid}
+                  className="w-full bg-primary-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-primary-700 transition-colors shadow-lg shadow-primary-600/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary-600"
+                >
+                  Checkout
                 </button>
               </div>
             </form>
           </Card>
         </div>
 
+        {/* Right Column: Order Summary & Stats */}
         <div className="space-y-4">
-          <SummaryCard label="Today's Sales" value={todaySales} icon={<ShoppingCart size={20} />} />
-          <SummaryCard label="Today's Revenue" value={`$${todayRev.toLocaleString()}`} color="text-primary-600" icon={<DollarSign size={20} />} />
-          
-          <Card className="bg-gradient-to-br from-primary-900 to-gray-950 text-white border-none mt-6">
-            <h3 className="font-bold font-heading text-lg mb-2 text-primary-100">Need Bulk Import?</h3>
-            <p className="text-xs text-primary-200/80 mb-4 leading-relaxed">
-              Use the floating gold button at the bottom right of the screen to quickly upload your historical Excel or CSV sheets. It will instantly optimize your charts!
-            </p>
+          <Card className="border border-primary-500/20">
+            <h3 className="font-bold text-gray-800 dark:text-white border-b border-gray-100 dark:border-gray-800 pb-3 mb-3">Order Summary</h3>
+            {f.product ? (
+              <div className="space-y-3">
+                <div className="flex justify-between items-start text-sm">
+                  <div className="flex-1 pr-2">
+                    <p className="font-semibold text-gray-800 dark:text-white line-clamp-2">{f.product}</p>
+                    <p className="text-gray-500 dark:text-gray-400 mt-0.5">Quantity: {f.qty || 0}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-gray-500 dark:text-gray-400">${Number(f.unitPrice || 0).toFixed(2)}</p>
+                  </div>
+                </div>
+                <div className="pt-3 border-t border-gray-100 dark:border-gray-800 flex justify-between items-center">
+                  <p className="font-bold text-gray-800 dark:text-white">Total</p>
+                  <p className="font-bold text-primary-600 dark:text-primary-400 text-lg">${total.toFixed(2)}</p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 italic py-2">No items added yet</p>
+            )}
           </Card>
+          
+          <SummaryCard label="Bills Today" value={todaySales} icon={<ShoppingCart size={20} />} />
+          <SummaryCard label="Revenue Today" value={`$${todayRev.toLocaleString()}`} color="text-primary-600" icon={<DollarSign size={20} />} />
         </div>
       </div>
     </div>
