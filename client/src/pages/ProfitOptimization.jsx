@@ -263,21 +263,7 @@ export default function ProfitOptimization() {
     showToast('Export downloaded successfully');
   };
 
-  if (entries.length === 0) {
-    return (
-      <div className="min-h-[80vh] flex items-center justify-center animate-fadeIn p-4">
-        <div className="bg-[#161616] border border-white/5 rounded-3xl p-10 max-w-lg text-center shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary-600 via-primary-400 to-primary-600" />
-          <Activity size={48} className="mx-auto text-primary-500/50 mb-6" />
-          <h2 className="text-2xl font-bold text-white font-heading mb-3">No profit data yet</h2>
-          <p className="text-gray-400 text-sm mb-8">Start logging your sales and costs in the data entry section to unlock advanced profit insights and AI recommendations.</p>
-          <button onClick={() => navigate('/data-entry')} className="flex items-center justify-center gap-2 w-full py-3 bg-primary-600 rounded-xl text-sm font-bold text-white shadow-lg shadow-primary-600/30 hover:bg-primary-700 transition-all hover:-translate-y-0.5">
-            Go to Data Entry <ArrowRight size={16} />
-          </button>
-        </div>
-      </div>
-    );
-  }
+
 
   // Chart Options
   const healthColor = computed.health >= 75 ? '#4caf7d' : computed.health >= 50 ? '#c9a84c' : computed.health >= 25 ? '#e8944a' : '#e05c5c';
