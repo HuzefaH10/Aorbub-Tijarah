@@ -138,11 +138,11 @@ export default function Inventory() {
       </div>
 
       {/* BOTTOM STRIP */}
-      <div className="absolute bottom-4 left-0 w-full flex justify-center">
-        <div className="bg-[#161616] border border-white/10 border-dashed rounded-full px-5 py-2.5 flex items-center gap-4 opacity-50 hover:opacity-100 transition-opacity">
-          <span className="text-xs text-gray-400 font-medium hidden md:inline">New item to your store? Register it once and it'll appear in your stock list.</span>
-          <button onClick={() => setProductModal({ open: true, editId: null, data: null })} className="flex items-center gap-1.5 px-3 py-1.5 border border-white/10 rounded-lg text-xs font-bold text-gray-300 hover:text-white hover:bg-white/5 transition-colors">
-            <Plus size={14} /> Add New Product
+      <div className="absolute bottom-4 left-0 w-full flex justify-center z-10">
+        <div className="bg-[#161616] border border-primary-500/30 shadow-xl shadow-primary-500/10 rounded-full px-6 py-3 flex items-center gap-4 transition-all">
+          <span className="text-sm text-gray-300 font-medium hidden md:inline">New item to your store? Register it once and it'll appear in your stock list.</span>
+          <button onClick={() => setProductModal({ open: true, editId: null, data: null })} className="flex items-center gap-2 px-4 py-2 bg-primary-600 rounded-xl text-sm font-bold text-white shadow-lg shadow-primary-600/30 hover:bg-primary-700 hover:-translate-y-0.5 transition-all">
+            <Plus size={16} /> Add New Product
           </button>
         </div>
       </div>
