@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import {
-  BarChart3, DollarSign, Package, CalendarDays, Settings
+  BarChart3, DollarSign, Package, CalendarDays, Settings, PenLine
 } from 'lucide-react';
 
 const navItems = [
@@ -53,7 +53,25 @@ export default function Sidebar() {
         ))}
       </nav>
 
-
+      <div className="mt-auto px-2 mb-6">
+        <NavLink
+          to="/data-entry"
+          className={({ isActive }) =>
+            `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-200 ${
+              isActive
+                ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/20'
+                : 'text-white/50 hover:text-white hover:bg-white/5'
+            }`
+          }
+        >
+          <span className="min-w-[20px] flex justify-center">
+            <PenLine size={20} />
+          </span>
+          <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            Stock Entry
+          </span>
+        </NavLink>
+      </div>
     </aside>
   );
 }
