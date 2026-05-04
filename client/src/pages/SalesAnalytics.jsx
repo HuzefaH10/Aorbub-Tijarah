@@ -198,14 +198,6 @@ export default function SalesAnalytics() {
 
   if (loading) return <div className="flex items-center justify-center h-[60vh]"><div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" /></div>;
 
-  if (!entries.length) return (
-    <div className="flex flex-col items-center justify-center h-[60vh] text-gray-400">
-      <ShoppingCart size={48} className="mb-4 text-gray-300" />
-      <p className="text-lg font-medium text-gray-500 mb-1">No sales data yet</p>
-      <button onClick={() => navigate('/profit')} className="mt-4 px-6 py-2 bg-primary-600 text-white rounded-xl font-bold">Add First Entry →</button>
-    </div>
-  );
-
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden bg-gray-50 dark:bg-gray-950">
       

@@ -101,13 +101,37 @@ export default function ChartWidget({ widget, data }) {
     ];
   }
 
-  // Handle empty state gracefully inside chart
-  if (!series || series.length === 0 || (Array.isArray(series[0]?.data) && series[0].data.length === 0)) {
-    return (
-      <div className="w-full h-full flex items-center justify-center text-gray-500 dark:text-gray-400 text-sm">
-        Not enough data to display
-      </div>
-    );
+  // Handle empty state gracefully by providing dummy zero data
+  const isEmpty = !series || series.length === 0 || 
+    (Array.isArray(series[0]?.data) && series[0].data.length === 0) || 
+    (type === 'donut' && series.length === 0) ||
+    (type === 'radialBar' && series.length === 0);
+
+  if (isEmpty) {
+    if (type === 'donut' || type === 'radialBar') {
+      series = [0];
+      options.labels = ['No Data'];
+    } else if (type === 'scatter') {
+      series = [{ name: 'No Data', data: [[0, 0]] }];
+    } else if (type === 'heatmap') {
+      series = [{ name: 'No Data', data: [{ x: 'None', y: 0 }] }];
+    } else if (dataset === 'revenueVsCostVsProfit') {
+      options.xaxis.categories = ['No Data'];
+      series = [
+        { name: 'Revenue', data: [0] },
+        { name: 'Cost', data: [0] },
+        { name: 'Profit', data: [0] }
+      ];
+    } else if (dataset === 'profitMarginTrend') {
+      options.xaxis.categories = ['No Data'];
+      series = [
+        { name: 'Profit', type: 'line', data: [0] },
+        { name: 'Margin %', type: 'line', data: [0] }
+      ];
+    } else {
+      options.xaxis.categories = ['No Data'];
+      series = [{ name: 'No Data', data: [0] }];
+    }
   }
 
   return (
