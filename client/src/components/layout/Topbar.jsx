@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
-import { ChevronDown, Settings, Sun, Moon, HelpCircle, LogOut, User } from 'lucide-react';
+import { ChevronDown, Settings, Sun, Moon, HelpCircle, LogOut } from 'lucide-react';
 
 const titles = {
   '/': 'Sales Analytics',
@@ -66,9 +66,6 @@ export default function Topbar() {
               <p className="text-xs text-gray-400 dark:text-gray-500">Owner</p>
             </div>
             <div className="py-1.5">
-              <button onClick={() => navTo('/settings')} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                <User size={16} /> My Profile
-              </button>
               <button onClick={() => navTo('/settings')} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                 <Settings size={16} /> Settings
               </button>
