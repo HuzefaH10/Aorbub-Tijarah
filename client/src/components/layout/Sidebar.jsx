@@ -4,7 +4,7 @@ import {
 } from 'lucide-react';
 
 const navItems = [
-  { to: '/', icon: Home, label: 'Command Center' },
+  { to: '/', icon: Home, label: 'Command Center', size: 24 },
   { to: '/analytics', icon: BarChart3, label: 'Sales Analytics' },
   { to: '/profit', icon: DollarSign, label: 'Profit Optimization' },
   { to: '/inventory', icon: Package, label: 'Inventory' },
@@ -31,7 +31,7 @@ export default function Sidebar() {
 
       {/* Nav items */}
       <nav className="flex-1 flex flex-col gap-1 px-2">
-        {navItems.map(({ to, icon: Icon, label }) => (
+        {navItems.map(({ to, icon: Icon, label, size }) => (
           <NavLink
             key={to}
             to={to}
@@ -44,8 +44,8 @@ export default function Sidebar() {
               }`
             }
           >
-            <span className="min-w-[20px] flex justify-center">
-              <Icon size={20} />
+            <span className="w-6 flex justify-center items-center shrink-0">
+              <Icon size={size || 20} />
             </span>
             <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
               {label}
@@ -65,8 +65,8 @@ export default function Sidebar() {
             }`
           }
         >
-          <span className="min-w-[20px] flex justify-center">
-            <PenLine size={20} />
+          <span className="w-6 flex justify-center items-center shrink-0">
+            <PenLine size={24} />
           </span>
           <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
             Stock Entry
