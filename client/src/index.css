@@ -58,3 +58,25 @@
 .animate-fadeIn { animation: fadeIn 0.2s ease; }
 .animate-slideIn { animation: slideIn 0.2s ease; }
 .animate-toastIn { animation: toastIn 0.3s ease; }
+
+@layer base {
+  [data-theme="royal-purple"] {
+    --color-primary-50: #f5f0fa;
+    --color-primary-100: #eadbf3;
+    --color-primary-200: #d6bdf0;
+    --color-primary-300: #b98be9;
+    --color-primary-400: #9B30FF;
+    --color-primary-500: #6B0DAF;
+    --color-primary-600: #580a91;
+    --color-primary-700: #460775;
+    --color-primary-800: #3D0073;
+    --color-primary-900: #28034d;
+    --color-sidebar: #05000a;
+    --color-gray-950: #0A0A0A;
+    --color-gray-900: #1A1A1A;
+    --color-gray-800: #3D0073;
+    --color-gray-500: #888888;
+    --color-gray-400: #CCCCCC;
+    --color-gray-300: #e0e0e0;
+  }
+}

@@ -7,36 +7,44 @@ export function useTheme() {
 }
 
 export function ThemeProvider({ children }) {
-  const [isDark, setIsDark] = useState(false);
+  const [theme, setTheme] = useState('dark');
 
   useEffect(() => {
-    // Check local storage or system preference
-    const stored = localStorage.getItem('theme');
-    if (stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-      setIsDark(true);
-      document.documentElement.classList.add('dark');
-    } else {
-      setIsDark(false);
-      document.documentElement.classList.remove('dark');
-    }
+    const stored = localStorage.getItem('app-theme');
+    const initialTheme = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    
+    setTheme(initialTheme);
+    applyTheme(initialTheme);
   }, []);
 
-  const toggleTheme = () => {
-    setIsDark((prev) => {
-      const next = !prev;
-      if (next) {
-        document.documentElement.classList.add('dark');
-        localStorage.setItem('theme', 'dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-        localStorage.setItem('theme', 'light');
-      }
-      return next;
-    });
+  const applyTheme = (newTheme) => {
+    const root = document.documentElement;
+    // Clean up
+    root.classList.remove('dark', 'light', 'royal-purple');
+    root.removeAttribute('data-theme');
+
+    // Apply new theme
+    if (newTheme === 'royal-purple') {
+      root.classList.add('dark', 'royal-purple');
+      root.setAttribute('data-theme', 'royal-purple');
+    } else if (newTheme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.add('light');
+    }
   };
 
+  const changeTheme = (newTheme) => {
+    setTheme(newTheme);
+    applyTheme(newTheme);
+    localStorage.setItem('app-theme', newTheme);
+  };
+
+  // Backwards compatibility for components that only read isDark
+  const isDark = theme === 'dark' || theme === 'royal-purple';
+
   return (
-    <ThemeContext.Provider value={{ isDark, toggleTheme }}>
+    <ThemeContext.Provider value={{ theme, isDark, changeTheme }}>
       {children}
     </ThemeContext.Provider>
   );
