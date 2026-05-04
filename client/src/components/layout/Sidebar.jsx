@@ -13,7 +13,7 @@ const navItems = [
 
 export default function Sidebar() {
   return (
-    <aside className="group fixed left-0 top-0 h-full bg-sidebar z-50 w-[64px] hover:w-[250px] transition-all duration-300 flex flex-col overflow-hidden shadow-xl">
+    <aside className="group fixed left-0 top-0 h-full glass !rounded-none !border-y-0 !border-l-0 z-50 w-[64px] hover:w-[250px] transition-all duration-300 flex flex-col overflow-clip">
       <div className="h-16 flex items-center px-4 gap-3 border-b border-white/10 shrink-0">
         <div className="min-w-[32px] h-8 rounded-lg bg-primary-600 flex items-center justify-center text-white text-lg font-bold font-heading">
           AT

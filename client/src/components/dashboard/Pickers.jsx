@@ -48,9 +48,9 @@ export default function Pickers({ type, onClose, onAdd }) {
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-      <div className="bg-gray-900 border border-gray-800 rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="glass w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         
-        <div className="px-6 py-5 border-b border-gray-800 flex items-center justify-between">
+        <div className="px-6 py-5 border-b border-white/10 flex items-center justify-between">
           <h2 className="text-xl font-bold text-white font-heading">Add a {type === 'chart' ? 'Chart' : 'Table'}</h2>
           <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-xl text-gray-400 transition-colors"><X size={20} /></button>
         </div>
@@ -63,9 +63,9 @@ export default function Pickers({ type, onClose, onAdd }) {
                 <div 
                   key={t.id} 
                   onClick={() => handleSelect(t)}
-                  className={`cursor-pointer rounded-2xl p-4 border-2 transition-all flex flex-col items-center justify-center text-center gap-3 ${isSelected ? 'border-primary-500 bg-primary-900/20' : 'border-gray-800 bg-gray-800/50 hover:border-gray-700 hover:bg-gray-800'}`}
+                  className={`cursor-pointer glass border-2 transition-all flex flex-col items-center justify-center text-center gap-3 ${isSelected ? '!bg-primary-900/20 border-primary-500' : 'border-transparent hover:border-white/10 hover:!bg-white/5'}`}
                 >
-                  <div className="w-16 h-16 rounded-full bg-gray-900 flex items-center justify-center border border-gray-800 shadow-inner">
+                  <div className="w-16 h-16 rounded-full glass !border-0 flex items-center justify-center shadow-inner">
                     <t.icon size={28} className={isSelected ? 'text-primary-500' : 'text-gray-300'} />
                   </div>
                   <p className={`font-semibold text-sm ${isSelected ? 'text-primary-400' : 'text-gray-300'}`}>{t.name}</p>
@@ -76,13 +76,13 @@ export default function Pickers({ type, onClose, onAdd }) {
         </div>
 
         {selectedType && (
-          <div className="p-6 border-t border-gray-800 bg-gray-950 flex flex-col md:flex-row items-end gap-4 animate-fadeIn">
+          <div className="p-6 border-t border-white/10 bg-black/10 flex flex-col md:flex-row items-end gap-4 animate-fadeIn">
             <div className="flex-1 w-full">
               <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Widget Name</label>
               <input 
                 value={customName} 
                 onChange={e => setCustomName(e.target.value)}
-                className="w-full bg-gray-900 border border-gray-800 text-white rounded-xl px-4 py-3 text-sm outline-none focus:border-primary-500 transition-all"
+                className="w-full glass text-white px-4 py-3 text-sm outline-none focus:border-primary-500 transition-all"
               />
             </div>
             <button 

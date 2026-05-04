@@ -213,16 +213,16 @@ export default function SalesAnalytics() {
   if (loading) return <div className="flex items-center justify-center h-[60vh]"><div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden bg-gray-50 dark:bg-gray-950">
+    <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden">
       
       {/* Date Filter Bar */}
-      <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-6 py-3 flex items-center justify-between shrink-0 z-10">
+      <div className="glass !rounded-none !border-t-0 !border-x-0 px-6 py-3 flex items-center justify-between shrink-0 z-10">
         <div className="flex items-center gap-4">
           <Calendar size={18} className="text-primary-500" />
           <div className="flex items-center gap-2">
-            <input type="date" value={dateFilter.from} onChange={e => setDateFilter({...dateFilter, from: e.target.value})} className="bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-800 dark:text-white rounded-lg px-3 py-1.5 text-xs outline-none focus:border-primary-500" />
+            <input type="date" value={dateFilter.from} onChange={e => setDateFilter({...dateFilter, from: e.target.value})} className="glass text-gray-800 dark:text-white rounded-lg px-3 py-1.5 text-xs outline-none focus:border-primary-500" />
             <span className="text-gray-400">to</span>
-            <input type="date" value={dateFilter.to} onChange={e => setDateFilter({...dateFilter, to: e.target.value})} className="bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-800 dark:text-white rounded-lg px-3 py-1.5 text-xs outline-none focus:border-primary-500" />
+            <input type="date" value={dateFilter.to} onChange={e => setDateFilter({...dateFilter, to: e.target.value})} className="glass text-gray-800 dark:text-white rounded-lg px-3 py-1.5 text-xs outline-none focus:border-primary-500" />
           </div>
           {(dateFilter.from || dateFilter.to) && (
             <button onClick={() => setDateFilter({from:'', to:''})} className="text-xs text-primary-500 hover:underline font-medium">Clear Filter</button>
@@ -231,7 +231,7 @@ export default function SalesAnalytics() {
         
         <button 
           onClick={() => setIsEditMode(!isEditMode)}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${isEditMode ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/20' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${isEditMode ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/20' : 'glass hover:bg-white/5'}`}
         >
           <Settings2 size={16} />
           {isEditMode ? 'Done Editing' : 'Edit Layout'}
@@ -240,7 +240,7 @@ export default function SalesAnalytics() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Main Grid Area */}
-        <div className="flex-1 overflow-y-auto p-6 bg-gray-50 dark:bg-gray-950">
+        <div className="flex-1 overflow-y-auto p-6">
           <ResponsiveGridLayout
             className="layout"
             layouts={layouts}
@@ -254,8 +254,8 @@ export default function SalesAnalytics() {
             draggableHandle=".widget-drag-handle"
           >
             {activeWidgets.map(w => (
-              <div key={w.id} className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden flex flex-col group">
-                <div className={`px-4 py-2.5 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-gray-50/50 dark:bg-gray-900/50 ${isEditMode ? 'widget-drag-handle cursor-move' : ''}`}>
+              <div key={w.id} className="glass overflow-hidden flex flex-col group">
+                <div className={`px-4 py-2.5 border-b border-white/5 flex items-center justify-between bg-black/10 ${isEditMode ? 'widget-drag-handle cursor-move' : ''}`}>
                   <h3 className="text-sm font-bold text-gray-800 dark:text-white font-heading">{w.name}</h3>
                   {isEditMode && <div className="text-xs text-gray-400 font-medium">Drag</div>}
                 </div>
@@ -281,7 +281,7 @@ export default function SalesAnalytics() {
         </div>
 
         {/* Right Sidebar Panel */}
-        <div className="w-[320px] shrink-0 border-l border-gray-200 dark:border-gray-800 z-20">
+        <div className="w-[320px] shrink-0 glass !border-y-0 !border-r-0 !rounded-none z-20">
           <WidgetPanel 
             widgets={widgets}
             onToggle={handleToggleWidget}

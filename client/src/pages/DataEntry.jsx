@@ -44,7 +44,7 @@ export default function DataEntry() {
   const todayRev = todayEntries.reduce((s, e) => s + e.revenue, 0);
   const todaySales = todayEntries.length;
 
-  const inputCls = "w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-800 dark:text-white rounded-xl px-4 py-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100 dark:focus:ring-primary-900/30 transition-all";
+  const inputCls = "w-full glass text-gray-800 dark:text-white px-4 py-3 text-sm outline-none focus:border-primary-500 transition-all";
   const labelCls = "block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide";
 
   return (

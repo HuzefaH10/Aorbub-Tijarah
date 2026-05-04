@@ -18,8 +18,8 @@ export default function WidgetPanel({ widgets, onToggle, onRename, onRemove, onO
   };
 
   return (
-    <div className="w-full h-full bg-white dark:bg-gray-950 border-l border-gray-100 dark:border-gray-800 flex flex-col shadow-xl">
-      <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2">
+    <div className="w-full h-full glass !border-r-0 !border-y-0 !rounded-none flex flex-col shadow-xl">
+      <div className="p-4 border-b border-white/10 flex items-center gap-2">
         <LayoutGrid size={18} className="text-primary-500" />
         <h2 className="font-bold text-gray-800 dark:text-white font-heading">Dashboard Widgets</h2>
         <div className="ml-auto group relative cursor-help">
@@ -35,7 +35,7 @@ export default function WidgetPanel({ widgets, onToggle, onRename, onRemove, onO
           <p className="text-center text-xs text-gray-400 mt-4">No widgets added yet.</p>
         ) : (
           widgets.map(w => (
-            <div key={w.id} className={`p-3 rounded-xl border transition-all ${w.enabled ? 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 shadow-sm' : 'bg-gray-50 dark:bg-gray-900/50 border-gray-100 dark:border-gray-800 opacity-60'}`}>
+            <div key={w.id} className={`p-3 glass transition-all ${w.enabled ? 'shadow-sm' : 'opacity-60'}`}>
               <div className="flex items-center gap-2 mb-2">
                 {editingId === w.id ? (
                   <input
@@ -44,7 +44,7 @@ export default function WidgetPanel({ widgets, onToggle, onRename, onRemove, onO
                     onChange={(e) => setEditName(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && saveEdit(w.id)}
                     onBlur={() => saveEdit(w.id)}
-                    className="flex-1 bg-gray-100 dark:bg-gray-950 border border-primary-500 rounded px-2 py-1 text-xs text-gray-800 dark:text-white outline-none"
+                    className="flex-1 glass border-primary-500 px-2 py-1 text-xs text-gray-800 dark:text-white outline-none"
                   />
                 ) : (
                   <h3 className="flex-1 text-sm font-semibold text-gray-800 dark:text-white truncate cursor-pointer hover:text-primary-500 transition-colors flex items-center gap-1 group" onClick={() => startEdit(w)}>
@@ -79,16 +79,16 @@ export default function WidgetPanel({ widgets, onToggle, onRename, onRemove, onO
         )}
       </div>
 
-      <div className="p-4 border-t border-gray-100 dark:border-gray-800 space-y-2 bg-gray-50/50 dark:bg-gray-900/50">
+      <div className="p-4 border-t border-white/10 space-y-2 bg-black/10">
         <button 
           onClick={() => onOpenPicker('chart')}
-          className="w-full flex items-center justify-center gap-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-white py-2.5 rounded-xl text-sm font-semibold hover:border-primary-500 hover:text-primary-600 dark:hover:text-primary-400 transition-all shadow-sm"
+          className="w-full flex items-center justify-center gap-2 glass text-gray-800 dark:text-white py-2.5 rounded-xl text-sm font-semibold hover:border-primary-500 hover:text-primary-600 dark:hover:text-primary-400 transition-all shadow-sm"
         >
           <BarChart2 size={16} /> Add Chart
         </button>
         <button 
           onClick={() => onOpenPicker('table')}
-          className="w-full flex items-center justify-center gap-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-white py-2.5 rounded-xl text-sm font-semibold hover:border-primary-500 hover:text-primary-600 dark:hover:text-primary-400 transition-all shadow-sm"
+          className="w-full flex items-center justify-center gap-2 glass text-gray-800 dark:text-white py-2.5 rounded-xl text-sm font-semibold hover:border-primary-500 hover:text-primary-600 dark:hover:text-primary-400 transition-all shadow-sm"
         >
           <TableIcon size={16} /> Add Table
         </button>

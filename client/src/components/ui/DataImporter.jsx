@@ -124,9 +124,9 @@ export default function DataImporter() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white dark:bg-gray-950 border border-gray-100 dark:border-gray-800 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden"
+              className="glass w-full max-w-lg shadow-2xl overflow-hidden"
             >
-              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/50">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-black/10">
                 <h3 className="text-lg font-bold text-gray-800 dark:text-white font-heading">Import Historical Data</h3>
                 <button onClick={() => { setIsOpen(false); setFile(null); setResult(null); }} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg transition-colors">
                   <X size={18} className="text-gray-500" />
@@ -137,14 +137,14 @@ export default function DataImporter() {
                 {!result ? (
                   <>
                     <div className="flex gap-4">
-                      <button onClick={() => setType('sales')} className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border transition-all ${type === 'sales' ? 'bg-primary-50 dark:bg-primary-900/20 border-primary-500 text-primary-600 dark:text-primary-400' : 'border-gray-200 dark:border-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-900'}`}>Sales Records</button>
-                      <button onClick={() => setType('inventory')} className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border transition-all ${type === 'inventory' ? 'bg-primary-50 dark:bg-primary-900/20 border-primary-500 text-primary-600 dark:text-primary-400' : 'border-gray-200 dark:border-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-900'}`}>Inventory Products</button>
+                      <button onClick={() => setType('sales')} className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border transition-all ${type === 'sales' ? 'glass !bg-primary-900/20 border-primary-500 text-primary-400' : 'border-white/10 text-gray-400 hover:bg-white/5'}`}>Sales Records</button>
+                      <button onClick={() => setType('inventory')} className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border transition-all ${type === 'inventory' ? 'glass !bg-primary-900/20 border-primary-500 text-primary-400' : 'border-white/10 text-gray-400 hover:bg-white/5'}`}>Inventory Products</button>
                     </div>
 
                     <div
                       onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}
                       onClick={() => fileRef.current?.click()}
-                      className={`border-2 border-dashed rounded-2xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all ${dragActive ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-900/10' : 'border-gray-300 dark:border-gray-700 hover:border-primary-400 dark:hover:border-primary-600'}`}
+                      className={`border-2 border-dashed rounded-2xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all ${dragActive ? 'border-primary-500 bg-primary-900/10' : 'border-white/10 hover:border-primary-500 hover:bg-white/5'}`}
                     >
                       <input type="file" ref={fileRef} onChange={e => { if (e.target.files?.[0]) { setFile(e.target.files[0]); setResult(null); } }} className="hidden" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" />
                       

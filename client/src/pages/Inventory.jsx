@@ -97,7 +97,7 @@ export default function Inventory() {
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
 
       {/* SECTION 1: TOPBAR */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#161616] p-5 rounded-2xl border border-white/5 shadow-xl">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 glass p-5 shadow-xl">
         <div>
           <h1 className="text-2xl font-bold text-primary-400 font-heading">Inventory Management</h1>
           <p className="text-sm text-gray-500">Last updated: {todayStr}</p>
@@ -121,7 +121,7 @@ export default function Inventory() {
       </div>
 
       {/* SECTION 3: TABS */}
-      <div className="bg-[#161616] rounded-2xl border border-white/5 shadow-xl overflow-hidden flex flex-col">
+      <div className="glass shadow-xl overflow-hidden flex flex-col">
         <div className="flex border-b border-white/5 overflow-x-auto custom-scrollbar">
           {['overview', 'history', 'analytics'].map(t => (
             <button key={t} onClick={() => setActiveTab(t)} className={`px-6 py-4 text-sm font-bold whitespace-nowrap capitalize transition-colors border-b-2 ${activeTab === t ? 'text-primary-400 border-primary-500' : 'text-gray-500 border-transparent hover:text-gray-300'}`}>
@@ -139,7 +139,7 @@ export default function Inventory() {
 
       {/* BOTTOM STRIP */}
       <div className="absolute bottom-4 left-0 w-full flex justify-center z-10">
-        <div className="bg-[#161616] border border-primary-500/30 shadow-xl shadow-primary-500/10 rounded-full px-6 py-3 flex items-center gap-4 transition-all">
+        <div className="glass !rounded-full px-6 py-3 flex items-center gap-4 transition-all">
           <span className="text-sm text-gray-300 font-medium hidden md:inline">New item to your store? Register it once and it'll appear in your stock list.</span>
           <button onClick={() => setProductModal({ open: true, editId: null, data: null })} className="flex items-center gap-2 px-4 py-2 bg-primary-600 rounded-xl text-sm font-bold text-white shadow-lg shadow-primary-600/30 hover:bg-primary-700 hover:-translate-y-0.5 transition-all">
             <Plus size={16} /> Add New Product
@@ -160,7 +160,7 @@ export default function Inventory() {
 
 function StatCard({ label, value, icon: Icon, color = "text-white" }) {
   return (
-    <div className="bg-[#161616] border border-white/5 rounded-2xl p-5 flex flex-col justify-between hover:border-primary-500/30 transition-colors group">
+    <div className="glass p-5 flex flex-col justify-between hover:border-primary-500/30 transition-colors group">
       <div className="flex justify-between items-start mb-4">
         <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{label}</span>
         <Icon size={18} className="text-gray-600 group-hover:text-primary-500 transition-colors" />
@@ -403,7 +403,7 @@ function LoadStockModal({ computedData, initialProductId, onClose, onSave, toast
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fadeIn p-4">
-      <div className="bg-[#161616] border border-white/10 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden scale-95 animate-[scaleIn_0.2s_ease-out_forwards]">
+      <div className="glass w-full max-w-md shadow-2xl overflow-hidden scale-95 animate-[scaleIn_0.2s_ease-out_forwards]">
         
         {step === 1 && (
           <div className="p-6 flex flex-col h-[500px]">
@@ -490,7 +490,7 @@ function ProductModal({ editId, initialData, onClose, onSave, toast }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fadeIn p-4">
-      <div className="bg-[#161616] border border-white/10 rounded-2xl w-full max-w-md shadow-2xl p-6 scale-95 animate-[scaleIn_0.2s_ease-out_forwards]">
+      <div className="glass w-full max-w-md shadow-2xl p-6 scale-95 animate-[scaleIn_0.2s_ease-out_forwards]">
         <h2 className="text-xl font-bold text-white font-heading mb-6">{editId ? 'Edit Product' : 'Add New Product'}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div><label className="block text-xs font-bold text-gray-500 mb-1">Product Name</label><input required autoFocus value={f.name} onChange={e => setF({...f, name: e.target.value})} className={inputCls} /></div>
@@ -542,7 +542,7 @@ function DeleteModal({ target, onClose, onConfirm, toast }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fadeIn p-4">
-      <div className="bg-[#161616] border border-red-500/30 rounded-2xl w-full max-w-sm shadow-2xl p-6 text-center scale-95 animate-[scaleIn_0.2s_ease-out_forwards]">
+      <div className="glass !border-red-500/30 w-full max-w-sm shadow-2xl p-6 text-center scale-95 animate-[scaleIn_0.2s_ease-out_forwards]">
         <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/20">
           <ShieldAlert size={32} className="text-red-500" />
         </div>

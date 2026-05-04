@@ -133,7 +133,7 @@ export default function CalendarPage() {
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
 
       {/* TOPBAR */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 bg-[#161616] p-5 rounded-2xl border border-white/5 shadow-xl">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 glass p-5 shadow-xl">
         <div>
           <h1 className="text-2xl font-bold text-primary-400 font-heading">Calendar & Scheduling</h1>
           <p className="text-sm text-gray-500">{currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</p>
@@ -157,7 +157,7 @@ export default function CalendarPage() {
           const isToday = d.dateStr === todayStr;
           return (
             <div key={d.dateStr} onClick={() => { setView('month'); setCurrentDate(new Date(d.dateStr)); setSelectedDay(d.dateStr); }} 
-              className={`flex-shrink-0 w-[85px] p-3 rounded-2xl border cursor-pointer hover:-translate-y-1 transition-all ${isToday ? 'bg-primary-900/10 border-primary-500/50' : 'bg-[#161616] border-white/5 hover:border-primary-500/30'}`}
+              className={`flex-shrink-0 w-[85px] p-3 glass cursor-pointer hover:-translate-y-1 transition-all ${isToday ? '!bg-primary-900/10 border-primary-500/50' : 'hover:border-primary-500/30'}`}
               style={{ animation: `fadeIn 0.3s ease-out ${i * 0.03}s both` }}>
               <p className={`text-[10px] uppercase font-bold text-center mb-1 ${isToday ? 'text-primary-500' : 'text-gray-500'}`}>{d.name}</p>
               <p className={`text-2xl font-heading font-bold text-center mb-3 ${isToday ? 'text-primary-400' : 'text-white'}`}>{d.num}</p>
@@ -172,13 +172,13 @@ export default function CalendarPage() {
 
       {/* CONTROLS */}
       <div className="flex flex-col md:flex-row justify-between gap-4">
-        <div className="flex bg-[#161616] border border-white/5 p-1 rounded-xl w-fit">
+        <div className="flex glass p-1 !rounded-xl w-fit">
           <button onClick={() => setView('month')} className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${view === 'month' ? 'bg-gray-800 text-white' : 'text-gray-500 hover:text-gray-300'}`}><CalendarDays size={16} /> Month</button>
           <button onClick={() => setView('agenda')} className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${view === 'agenda' ? 'bg-gray-800 text-white' : 'text-gray-500 hover:text-gray-300'}`}><ListTodo size={16} /> Agenda</button>
         </div>
         <div className="relative w-full md:w-64">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search events..." className="w-full bg-[#161616] border border-white/5 rounded-xl pl-9 pr-8 py-2 text-sm text-white outline-none focus:border-primary-500 transition-colors" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search events..." className="w-full glass pl-9 pr-8 py-2 text-sm text-white outline-none focus:border-primary-500 transition-colors" />
           {search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"><X size={14} /></button>}
         </div>
       </div>
@@ -186,7 +186,7 @@ export default function CalendarPage() {
       {/* VIEWS */}
       <div className="relative">
         {events.length === 0 ? (
-          <div className="bg-[#161616] border border-white/5 rounded-3xl p-10 flex flex-col items-center justify-center text-center">
+          <div className="glass p-10 flex flex-col items-center justify-center text-center">
             <CalendarIcon size={48} className="text-gray-800 mb-4" />
             <h3 className="text-xl font-bold text-white mb-2">No events yet</h3>
             <p className="text-gray-500 text-sm mb-6">Start planning your business operations</p>
@@ -297,7 +297,7 @@ export default function CalendarPage() {
 
 function StatCard({ label, value, icon: Icon, color, pulse }) {
   return (
-    <div className="bg-[#161616] border border-white/5 rounded-2xl p-5 flex flex-col justify-between hover:border-white/10 transition-colors">
+    <div className="glass p-5 flex flex-col justify-between hover:border-white/10 transition-colors">
       <div className="flex justify-between items-start mb-2">
         <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{label}</span>
         <Icon size={16} className={`text-gray-600 ${pulse && value > 0 ? 'animate-pulse text-red-500' : ''}`} />
@@ -309,7 +309,7 @@ function StatCard({ label, value, icon: Icon, color, pulse }) {
 
 function MonthView({ cells, events, currentDate, onPrev, onNext, onDayClick, todayStr }) {
   return (
-    <div className="bg-[#161616] border border-white/5 rounded-3xl overflow-hidden animate-fadeIn">
+    <div className="glass overflow-hidden animate-fadeIn">
       <div className="flex items-center justify-between p-4 border-b border-white/5 bg-gray-900/50">
         <button onClick={onPrev} className="p-2 hover:bg-white/5 rounded-lg text-gray-400 hover:text-white transition-colors"><ChevronLeft size={20} /></button>
         <h2 className="text-lg font-bold text-white font-heading">{currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</h2>
@@ -329,7 +329,7 @@ function MonthView({ cells, events, currentDate, onPrev, onNext, onDayClick, tod
           
           return (
             <div key={i} onClick={() => onDayClick(cell.dateStr)} 
-              className={`min-h-[100px] p-1.5 bg-[#161616] cursor-pointer hover:bg-gray-900 transition-colors flex flex-col group ${!cell.isCurrent ? 'opacity-40' : ''}`}
+              className={`min-h-[100px] p-1.5 glass !rounded-none !border-0 cursor-pointer hover:bg-gray-900 transition-colors flex flex-col group ${!cell.isCurrent ? 'opacity-40' : ''}`}
             >
               <div className="flex justify-end mb-1">
                 <span className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-primary-600 text-white' : 'text-gray-400 group-hover:text-white'}`}>{cell.day}</span>
@@ -379,7 +379,7 @@ function AgendaView({ events, onAction, todayStr }) {
   }, [events, filterType, filterStatus, showPast, todayStr]);
 
   return (
-    <div className="bg-[#161616] border border-white/5 rounded-3xl p-5 animate-fadeIn min-h-[500px]">
+    <div className="glass p-5 animate-fadeIn min-h-[500px]">
       <div className="flex flex-wrap gap-3 mb-6 p-3 bg-gray-900 rounded-xl border border-white/5">
         <select value={filterType} onChange={e => setFilterType(e.target.value)} className="bg-gray-950 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white outline-none">
           <option value="all">All Types</option>
@@ -488,7 +488,7 @@ function EventModal({ editId, data, prefillDate, onClose, onSave, toast }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fadeIn p-4 overflow-y-auto">
-      <div className="bg-[#161616] border border-white/10 rounded-2xl w-full max-w-md shadow-2xl p-6 scale-95 animate-[scaleIn_0.2s_ease-out_forwards] my-auto">
+      <div className="glass w-full max-w-md shadow-2xl p-6 scale-95 animate-[scaleIn_0.2s_ease-out_forwards] my-auto">
         <h2 className="text-xl font-bold text-white font-heading mb-6">{editId ? 'Edit Event' : 'Add Event'}</h2>
         
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -571,7 +571,7 @@ function MilestoneModal({ onClose, onSave, toast }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fadeIn p-4">
-      <div className="bg-[#161616] border border-white/10 rounded-2xl w-full max-w-sm shadow-2xl p-6 scale-95 animate-[scaleIn_0.2s_ease-out_forwards]">
+      <div className="glass w-full max-w-sm shadow-2xl p-6 scale-95 animate-[scaleIn_0.2s_ease-out_forwards]">
         <h2 className="text-xl font-bold text-white font-heading mb-6">Add Milestone</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div><label className="block text-xs font-bold text-gray-500 mb-1">Title</label><input required autoFocus value={f.title} onChange={e => setF({...f, title: e.target.value})} className={inputCls} placeholder="e.g. 1st Anniversary" /></div>

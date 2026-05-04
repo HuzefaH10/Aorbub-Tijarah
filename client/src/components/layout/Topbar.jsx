@@ -41,7 +41,7 @@ export default function Topbar() {
   };
 
   return (
-    <header className="h-16 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-800 flex items-center justify-between px-6 sticky top-0 z-40 transition-colors duration-300">
+    <header className="h-16 glass !rounded-none !border-t-0 !border-x-0 flex items-center justify-between px-6 sticky top-0 z-40 transition-colors duration-300">
       <div>
         <h1 className="text-lg font-bold text-gray-800 dark:text-white font-heading">{title}</h1>
         <p className="text-xs text-gray-400 dark:text-gray-500">Last updated: {today}</p>
@@ -60,7 +60,7 @@ export default function Topbar() {
         </button>
 
         {open && (
-          <div className="absolute right-0 top-full mt-2 w-60 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl shadow-xl overflow-hidden animate-fadeIn origin-top-right">
+          <div className="absolute right-0 top-full mt-2 w-60 glass overflow-clip animate-fadeIn origin-top-right">
             <div className="px-4 py-3 border-b border-gray-50 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50">
               <p className="text-sm text-gray-800 dark:text-white font-semibold">{user?.email || 'admin@aorbub.com'}</p>
               <p className="text-xs text-gray-400 dark:text-gray-500">Owner</p>

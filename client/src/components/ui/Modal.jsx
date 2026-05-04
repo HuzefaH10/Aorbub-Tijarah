@@ -10,10 +10,10 @@ export default function Modal({ title, children, onClose }) {
           initial={{ opacity: 0, scale: 0.95, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
-          className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md border border-gray-100 dark:border-gray-800 overflow-hidden"
+          className="glass w-full max-w-md shadow-2xl overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-black/10">
             <h3 className="text-lg font-semibold text-gray-800 dark:text-white">{title}</h3>
             <button onClick={onClose} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
               <X size={18} className="text-gray-400 dark:text-gray-500" />
@@ -44,7 +44,7 @@ export function PasswordModal({ onConfirm, onCancel }) {
         value={pw}
         onChange={(e) => { setPw(e.target.value); setError(''); }}
         onKeyDown={(e) => e.key === 'Enter' && check()}
-        className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-800 dark:text-white rounded-xl px-4 py-2.5 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100 transition-all"
+        className="w-full glass text-gray-800 dark:text-white px-4 py-2.5 text-sm outline-none focus:border-primary-500 transition-all"
         placeholder="Enter password"
         autoFocus
       />

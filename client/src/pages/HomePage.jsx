@@ -142,31 +142,31 @@ export default function HomePage() {
   if (computed.isEmpty) {
     return (
       <div className="flex flex-col h-[calc(100vh-100px)] items-center justify-center animate-fadeIn p-6">
-        <div className="bg-[#161616] border border-white/5 rounded-3xl p-10 max-w-2xl w-full text-center shadow-2xl">
+        <div className="glass rounded-3xl p-10 max-w-2xl w-full text-center">
           <h1 className="text-4xl md:text-5xl font-bold text-primary-400 font-heading mb-4">Welcome to {businessName}</h1>
           <p className="text-gray-400 text-lg mb-12">Your business command center is ready. Start by setting up your workflow.</p>
           
           <div className="space-y-4 max-w-md mx-auto relative before:absolute before:inset-0 before:ml-[28px] before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-white/10 before:to-transparent">
             
             <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group cursor-pointer" onClick={() => navigate('/inventory')}>
-              <div className="flex items-center justify-center w-14 h-14 rounded-full border-4 border-[#161616] bg-primary-900/50 text-primary-400 font-bold text-xl z-10 shadow-xl group-hover:scale-110 transition-transform">1</div>
-              <div className="w-[calc(100%-4rem)] md:w-[calc(50%-3rem)] bg-gray-900 border border-white/5 p-4 rounded-2xl group-hover:border-primary-500/50 transition-colors">
+              <div className="flex items-center justify-center w-14 h-14 rounded-full border-4 border-transparent glass !bg-primary-900/50 text-primary-400 font-bold text-xl z-10 shadow-xl group-hover:scale-110 transition-transform">1</div>
+              <div className="w-[calc(100%-4rem)] md:w-[calc(50%-3rem)] glass p-4 rounded-2xl group-hover:border-primary-500/50 transition-colors">
                 <h3 className="font-bold text-white text-left">Add your products</h3>
                 <p className="text-sm text-gray-500 text-left">Set up your inventory</p>
               </div>
             </div>
 
             <div className="relative flex items-center justify-between md:justify-normal group cursor-pointer" onClick={() => navigate('/data-entry')}>
-              <div className="w-[calc(100%-4rem)] md:w-[calc(50%-3rem)] bg-gray-900 border border-white/5 p-4 rounded-2xl group-hover:border-primary-500/50 transition-colors">
+              <div className="w-[calc(100%-4rem)] md:w-[calc(50%-3rem)] glass p-4 rounded-2xl group-hover:border-primary-500/50 transition-colors">
                 <h3 className="font-bold text-white text-left md:text-right">Log your first sale</h3>
                 <p className="text-sm text-gray-500 text-left md:text-right">Record revenue & costs</p>
               </div>
-              <div className="flex items-center justify-center w-14 h-14 rounded-full border-4 border-[#161616] bg-gray-900 text-gray-500 font-bold text-xl z-10 shadow-xl group-hover:scale-110 transition-transform">2</div>
+              <div className="flex items-center justify-center w-14 h-14 rounded-full border-4 border-transparent glass text-gray-500 font-bold text-xl z-10 shadow-xl group-hover:scale-110 transition-transform">2</div>
             </div>
 
             <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group cursor-pointer" onClick={() => navigate('/calendar')}>
-              <div className="flex items-center justify-center w-14 h-14 rounded-full border-4 border-[#161616] bg-gray-900 text-gray-500 font-bold text-xl z-10 shadow-xl group-hover:scale-110 transition-transform">3</div>
-              <div className="w-[calc(100%-4rem)] md:w-[calc(50%-3rem)] bg-gray-900 border border-white/5 p-4 rounded-2xl group-hover:border-primary-500/50 transition-colors">
+              <div className="flex items-center justify-center w-14 h-14 rounded-full border-4 border-transparent glass text-gray-500 font-bold text-xl z-10 shadow-xl group-hover:scale-110 transition-transform">3</div>
+              <div className="w-[calc(100%-4rem)] md:w-[calc(50%-3rem)] glass p-4 rounded-2xl group-hover:border-primary-500/50 transition-colors">
                 <h3 className="font-bold text-white text-left">Schedule an event</h3>
                 <p className="text-sm text-gray-500 text-left">Plan restocks & meetings</p>
               </div>
@@ -255,7 +255,7 @@ export default function HomePage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* SECTION 4: Alerts */}
-        <div className="bg-[#161616] border border-white/5 rounded-2xl p-5 flex flex-col h-[400px]">
+        <div className="glass rounded-2xl p-5 flex flex-col h-[400px]">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-bold text-white text-lg font-heading">Alerts</h3>
             {computed.alerts.length > 0 && <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full animate-pulse">{computed.alerts.length}</span>}
@@ -271,7 +271,7 @@ export default function HomePage() {
                 const isYellow = alert.includes('🟡');
                 const isBlue = alert.includes('📅');
                 return (
-                  <div key={i} className={`bg-gray-900 border-l-4 p-3 rounded-r-lg flex gap-3 text-sm text-gray-300 ${isRed ? 'border-red-500' : isYellow ? 'border-yellow-500' : isBlue ? 'border-blue-500' : 'border-primary-500'}`}>
+                  <div key={i} className={`glass border-l-4 p-3 rounded-r-lg flex gap-3 text-sm text-gray-300 ${isRed ? 'border-red-500' : isYellow ? 'border-yellow-500' : isBlue ? 'border-blue-500' : 'border-primary-500'}`}>
                     {alert}
                   </div>
                 );
@@ -282,7 +282,7 @@ export default function HomePage() {
         </div>
 
         {/* SECTION 5: Mini Charts */}
-        <div className="bg-[#161616] border border-white/5 rounded-2xl p-5 flex flex-col justify-between h-[400px]">
+        <div className="glass rounded-2xl p-5 flex flex-col justify-between h-[400px]">
           <h3 className="font-bold text-white text-lg font-heading mb-2">7-Day Revenue</h3>
           <div className="text-3xl font-bold text-white mb-2">${computed.total7DayRev.toLocaleString()}</div>
           <div className="flex-1 -mx-2 -mb-2">
@@ -294,7 +294,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        <div className="bg-[#161616] border border-white/5 rounded-2xl p-5 flex flex-col h-[400px]">
+        <div className="glass rounded-2xl p-5 flex flex-col h-[400px]">
           <h3 className="font-bold text-white text-lg font-heading mb-4">Sales by Category</h3>
           <div className="flex-1 flex items-center justify-center">
             {computed.catData.length > 0 ? (
@@ -308,7 +308,7 @@ export default function HomePage() {
       </div>
 
       {/* SECTION 6: Recent Activity */}
-      <div className="bg-[#161616] border border-white/5 rounded-2xl p-5">
+      <div className="glass rounded-2xl p-5">
         <h3 className="font-bold text-white text-lg font-heading mb-4">Recent Activity</h3>
         {computed.activities.length === 0 ? (
           <p className="text-gray-500 italic py-4">No activity yet — start by logging your first sale.</p>
@@ -344,7 +344,7 @@ function KPICard({ title, value, icon: Icon, valueColor = "text-white", onClick 
   return (
     <div 
       onClick={onClick}
-      className="bg-[#161616] border border-white/5 rounded-2xl p-5 cursor-pointer hover:-translate-y-1 hover:border-primary-500/50 hover:shadow-xl hover:shadow-primary-500/10 transition-all duration-300 group flex flex-col"
+      className="glass rounded-2xl p-5 cursor-pointer hover:-translate-y-1 hover:border-primary-500/50 hover:shadow-xl hover:shadow-primary-500/10 transition-all duration-300 group flex flex-col"
     >
       <div className="flex justify-between items-start mb-2">
         <h3 className="text-sm font-semibold text-gray-500">{title}</h3>
@@ -359,9 +359,9 @@ function ActionButton({ icon: Icon, title, desc, onClick }) {
   return (
     <div 
       onClick={onClick}
-      className="bg-[#161616] border border-white/5 rounded-2xl p-5 cursor-pointer hover:-translate-y-1 hover:border-primary-500/50 transition-all duration-300 group flex items-start gap-4"
+      className="glass rounded-2xl p-5 cursor-pointer hover:-translate-y-1 hover:border-primary-500/50 transition-all duration-300 group flex items-start gap-4"
     >
-      <div className="w-12 h-12 rounded-xl bg-gray-900 border border-white/5 flex items-center justify-center shrink-0 group-hover:bg-primary-900/30 group-hover:border-primary-500/30 transition-colors">
+      <div className="w-12 h-12 rounded-xl glass flex items-center justify-center shrink-0 group-hover:bg-primary-900/30 group-hover:border-primary-500/30 transition-colors">
         <Icon size={24} className="text-gray-400 group-hover:text-primary-400 transition-colors" />
       </div>
       <div>

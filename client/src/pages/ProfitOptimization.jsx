@@ -344,7 +344,7 @@ export default function ProfitOptimization() {
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
 
       {/* TOPBAR */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 bg-[#161616] p-5 rounded-2xl border border-white/5 shadow-xl">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 glass p-5 shadow-xl">
         <div>
           <h1 className="text-2xl font-bold text-primary-400 font-heading">Profit Optimization</h1>
           <p className="text-sm text-gray-500 flex items-center gap-2"><Lightbulb size={14} className="text-primary-500" /> Powered by business intelligence — AI model coming soon</p>
@@ -364,7 +364,7 @@ export default function ProfitOptimization() {
       </div>
 
       {/* HERO: HEALTH SCORE */}
-      <div className="bg-[#161616] border border-white/5 rounded-3xl p-6 lg:p-8 shadow-xl flex flex-col md:flex-row items-center gap-8 group hover:border-primary-500/30 transition-colors">
+      <div className="glass p-6 lg:p-8 shadow-xl flex flex-col md:flex-row items-center gap-8 group hover:border-primary-500/30 transition-colors">
         <div className="w-[250px] shrink-0">
           <ReactApexChart options={healthOpts} series={[computed.health]} type="radialBar" height="250" />
         </div>
@@ -402,7 +402,7 @@ export default function ProfitOptimization() {
       </div>
 
       {/* MAIN CHART */}
-      <div className="bg-[#161616] border border-white/5 rounded-3xl p-6 shadow-xl">
+      <div className="glass p-6 shadow-xl">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
           <h3 className="text-lg font-bold text-white font-heading">Financial Trends</h3>
           <div className="flex flex-wrap gap-2">
@@ -423,7 +423,7 @@ export default function ProfitOptimization() {
 
       {/* ROW: DONUT & SIMULATOR */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        <div className="lg:col-span-2 bg-[#161616] border border-white/5 rounded-3xl p-6 shadow-xl flex flex-col">
+        <div className="lg:col-span-2 glass p-6 shadow-xl flex flex-col">
           <h3 className="text-sm font-bold text-white font-heading mb-6">Cost Breakdown</h3>
           <div className="flex-1 flex items-center justify-center min-h-[250px]">
             {computed.costDonut.length === 0 ? (
@@ -440,7 +440,7 @@ export default function ProfitOptimization() {
           )}
         </div>
 
-        <div className="lg:col-span-3 bg-[#161616] border border-white/5 rounded-3xl p-6 shadow-xl flex flex-col">
+        <div className="lg:col-span-3 glass p-6 shadow-xl flex flex-col">
           <div className="flex justify-between items-start mb-6">
             <div>
               <h3 className="text-lg font-bold text-white font-heading">Profit Scenario Simulator</h3>
@@ -480,7 +480,7 @@ export default function ProfitOptimization() {
 
       {/* SUGGESTIONS & TABLE */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-[#161616] border border-white/5 rounded-3xl p-6 shadow-xl overflow-x-auto">
+        <div className="lg:col-span-2 glass p-6 shadow-xl overflow-x-auto">
           <h3 className="text-sm font-bold text-white font-heading mb-4">Product Margin Breakdown</h3>
           <table className="w-full text-sm text-left whitespace-nowrap">
             <thead>
@@ -529,7 +529,7 @@ export default function ProfitOptimization() {
 
           <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-2 pb-4">
             {computed.suggs.length === 0 ? (
-              <div className="text-center p-6 border border-white/5 rounded-2xl bg-[#161616]">
+              <div className="text-center p-6 glass">
                 <p className="text-sm text-gray-400">Add more diverse business entries to unlock actionable suggestions.</p>
               </div>
             ) : (
@@ -540,7 +540,7 @@ export default function ProfitOptimization() {
                 const IconObj = isCrit ? AlertCircle : isWarn ? AlertCircle : Lightbulb;
                 
                 return (
-                  <div key={i} className={`bg-[#161616] border border-white/5 border-l-2 border-l-${color}-500 rounded-xl p-4 shadow-lg hover:-translate-y-1 transition-transform relative group`} style={{ animation: `fadeIn 0.3s ease-out ${i * 0.05}s both` }}>
+                  <div key={i} className={`glass !border-l-[2px] border-l-${color}-500 p-4 shadow-lg hover:-translate-y-1 transition-transform relative group`} style={{ animation: `fadeIn 0.3s ease-out ${i * 0.05}s both` }}>
                     <div className="flex items-start gap-3">
                       <IconObj size={16} className={`text-${color}-500 mt-0.5 shrink-0`} />
                       <div>
@@ -583,7 +583,7 @@ function HealthFactor({ label, val, target, inverted }) {
 
 function KpiCard({ label, value, icon: Icon, color, sub }) {
   return (
-    <div className="bg-[#161616] border border-white/5 rounded-2xl p-5 flex flex-col justify-between hover:border-primary-500/30 transition-colors group">
+    <div className="glass p-5 flex flex-col justify-between hover:border-primary-500/30 transition-colors group">
       <div className="flex justify-between items-start mb-2">
         <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{label}</span>
         <Icon size={16} className="text-gray-600 group-hover:text-primary-500 transition-colors" />

@@ -89,3 +89,45 @@
     background-attachment: fixed;
   }
 }
+
+@layer components {
+  /* Base Glass - Light Theme */
+  .glass, .card, .panel, .stat-box, .navbar, .modal, .dropdown, .input-field, .icon-container {
+    background: rgba(255, 255, 255, 0.45);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    border-radius: 12px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+  }
+
+  /* Base Glass - Gold & Black Theme */
+  .dark .glass, .dark .card, .dark .panel, .dark .stat-box, .dark .navbar, .dark .modal, .dark .dropdown, .dark .input-field, .dark .icon-container {
+    background: linear-gradient(135deg, rgba(180, 140, 0, 0.08) 0%, rgba(180, 140, 0, 0.02) 100%);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 200, 50, 0.12);
+    border-top: 1px solid rgba(255, 200, 50, 0.25);
+    border-left: 1px solid rgba(255, 200, 50, 0.2);
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05), 0 8px 32px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Base Glass - Royal Purple Theme */
+  html[data-theme="royal-purple"] .glass, 
+  html[data-theme="royal-purple"] .card, 
+  html[data-theme="royal-purple"] .panel, 
+  html[data-theme="royal-purple"] .stat-box, 
+  html[data-theme="royal-purple"] .navbar, 
+  html[data-theme="royal-purple"] .modal, 
+  html[data-theme="royal-purple"] .dropdown, 
+  html[data-theme="royal-purple"] .input-field, 
+  html[data-theme="royal-purple"] .icon-container {
+    background: linear-gradient(135deg, rgba(80, 0, 120, 0.15) 0%, rgba(40, 0, 80, 0.05) 100%);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(180, 100, 255, 0.15);
+    border-top: 1px solid rgba(180, 100, 255, 0.3);
+    border-left: 1px solid rgba(180, 100, 255, 0.2);
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05), 0 8px 32px rgba(0, 0, 0, 0.3);
+  }
+}
