@@ -1,77 +1,200 @@
-import { useMemo, useRef, useEffect } from 'react';
-import { useEntries } from '../hooks/useFirestore';
-import { SummaryCard } from '../components/ui/Card';
-import { Card } from '../components/ui/Card';
-import { DollarSign, ShoppingCart, TrendingUp, Star } from 'lucide-react';
-import { Chart, registerables } from 'chart.js';
-Chart.register(...registerables);
+import React, { useState, useEffect, useMemo } from 'react';
+import { Responsive, WidthProvider } from 'react-grid-layout';
+import { useEntries, useProducts } from '../hooks/useFirestore';
+import { Calendar, Settings2, ShoppingCart } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+
+import ChartWidget from '../components/dashboard/ChartWidget';
+import TableWidget from '../components/dashboard/TableWidget';
+import WidgetPanel from '../components/dashboard/WidgetPanel';
+import Pickers from '../components/dashboard/Pickers';
+
+const ResponsiveGridLayout = WidthProvider(Responsive);
+
+const defaultWidgets = [
+  { id: 'w_rev_time', type: 'area', name: 'Revenue Over Time', dataset: 'revenueByDate', isChart: true, enabled: true, w: 12, h: 4 },
+  { id: 'w_sales_prod', type: 'bar-h', name: 'Sales by Product', dataset: 'salesByProduct', isChart: true, enabled: true, w: 6, h: 4 },
+  { id: 'w_cat_split', type: 'donut', name: 'Category Split', dataset: 'categorySplit', isChart: true, enabled: true, w: 4, h: 4 },
+  { id: 'w_top_table', type: 'top-products', name: 'Top Products Table', dataset: 'topProductsTable', isChart: false, enabled: true, w: 12, h: 3 }
+];
+
+const defaultLayout = [
+  { i: 'w_rev_time', x: 0, y: 0, w: 12, h: 4 },
+  { i: 'w_sales_prod', x: 0, y: 4, w: 6, h: 4 },
+  { i: 'w_cat_split', x: 6, y: 4, w: 4, h: 4 },
+  { i: 'w_top_table', x: 0, y: 8, w: 12, h: 3 }
+];
 
 export default function SalesAnalytics() {
   const { entries, loading } = useEntries();
-  const c1 = useRef(), c2 = useRef(), c3 = useRef();
-  const ch1 = useRef(), ch2 = useRef(), ch3 = useRef();
+  const navigate = useNavigate();
+  
+  // State
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [pickerType, setPickerType] = useState(null); // 'chart' or 'table'
+  
+  const [widgets, setWidgets] = useState(() => {
+    const saved = localStorage.getItem('bizDashboardWidgets');
+    return saved ? JSON.parse(saved) : defaultWidgets;
+  });
+  
+  const [layouts, setLayouts] = useState(() => {
+    const saved = localStorage.getItem('bizDashboardLayout');
+    return saved ? JSON.parse(saved) : { lg: defaultLayout };
+  });
 
-  /* Computed data */
-  const data = useMemo(() => {
-    const totalRev = entries.reduce((s, e) => s + (e.revenue || 0), 0);
-    const totalOrders = entries.length;
-    const avgOrder = totalOrders ? totalRev / totalOrders : 0;
+  const [dateFilter, setDateFilter] = useState({ from: '', to: '' });
 
-    const prodRevMap = {};
-    const catMap = {};
-    const prodQty = {};
-    entries.forEach(e => {
-      prodRevMap[e.product] = (prodRevMap[e.product] || 0) + e.revenue;
-      catMap[e.category] = (catMap[e.category] || 0) + e.revenue;
-      prodQty[e.product] = (prodQty[e.product] || 0) + e.quantitySold;
-    });
-    const bestProduct = Object.keys(prodRevMap).sort((a, b) => prodRevMap[b] - prodRevMap[a])[0] || 'N/A';
-
-    // Daily rev last 30 days
-    const today = new Date();
-    const days = [];
-    for (let i = 29; i >= 0; i--) {
-      const d = new Date(today); d.setDate(d.getDate() - i);
-      days.push(d.toISOString().split('T')[0]);
-    }
-    const dailyRev = days.map(d => entries.filter(e => e.date === d).reduce((s, e) => s + e.revenue, 0));
-
-    // Top 5
-    const top5 = Object.entries(prodRevMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
-
-    // Week comparison
-    const ws = d => { const dd = new Date(d); dd.setDate(dd.getDate() - dd.getDay()); return dd.toISOString().split('T')[0]; };
-    const twStart = ws(today), lwStart = ws(new Date(today.getTime() - 7 * 86400000));
-    const twEntries = entries.filter(e => e.date >= twStart);
-    const lwEntries = entries.filter(e => e.date >= lwStart && e.date < twStart);
-    const twRev = twEntries.reduce((s, e) => s + e.revenue, 0);
-    const lwRev = lwEntries.reduce((s, e) => s + e.revenue, 0);
-    const twProfit = twEntries.reduce((s, e) => s + (e.revenue - e.cost), 0);
-    const lwProfit = lwEntries.reduce((s, e) => s + (e.revenue - e.cost), 0);
-
-    // Velocity
-    const prodDates = {};
-    entries.forEach(e => { if (!prodDates[e.product]) prodDates[e.product] = new Set(); prodDates[e.product].add(e.date); });
-    const velocity = Object.entries(prodQty).map(([p, q]) => ({ product: p, avg: (q / (prodDates[p]?.size || 1)).toFixed(1) }));
-
-    return { totalRev, totalOrders, avgOrder, bestProduct, prodRevMap, catMap, prodQty, days, dailyRev, top5, twRev, lwRev, twProfit, lwProfit, velocity };
-  }, [entries]);
-
-  /* Charts */
+  // Persistence
   useEffect(() => {
-    if (!entries.length) return;
-    const mk = (ref, cref, cfg) => { if (cref.current) cref.current.destroy(); if (ref.current) cref.current = new Chart(ref.current, cfg); };
+    localStorage.setItem('bizDashboardWidgets', JSON.stringify(widgets));
+  }, [widgets]);
 
-    mk(c1, ch1, { type: 'line', data: { labels: data.days.map(d => d.slice(5)), datasets: [{ label: 'Revenue', data: data.dailyRev, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.08)', fill: true, tension: 0.4, pointRadius: 2, pointBackgroundColor: '#3b82f6' }] }, options: { responsive: true, plugins: { legend: { labels: { color: '#64748b', font: { size: 12 } } } }, scales: { x: { ticks: { color: '#94a3b8', maxTicksLimit: 10 }, grid: { color: '#f1f5f9' } }, y: { ticks: { color: '#94a3b8' }, grid: { color: '#f1f5f9' } } } } });
+  const onLayoutChange = (layout, allLayouts) => {
+    setLayouts(allLayouts);
+    localStorage.setItem('bizDashboardLayout', JSON.stringify(allLayouts));
+  };
 
-    const prods = Object.keys(data.prodRevMap);
-    mk(c2, ch2, { type: 'bar', data: { labels: prods, datasets: [{ label: 'Revenue', data: prods.map(p => data.prodRevMap[p]), backgroundColor: 'rgba(59,130,246,0.6)', borderRadius: 8, barThickness: 28 }] }, options: { responsive: true, plugins: { legend: { labels: { color: '#64748b' } } }, scales: { x: { ticks: { color: '#94a3b8' }, grid: { display: false } }, y: { ticks: { color: '#94a3b8' }, grid: { color: '#f1f5f9' } } } } });
+  // Data Computations
+  const computedData = useMemo(() => {
+    const filtered = entries.filter(e => {
+      if (dateFilter.from && e.date < dateFilter.from) return false;
+      if (dateFilter.to && e.date > dateFilter.to) return false;
+      return true;
+    });
 
-    const cats = Object.keys(data.catMap);
-    mk(c3, ch3, { type: 'doughnut', data: { labels: cats, datasets: [{ data: cats.map(c => data.catMap[c]), backgroundColor: ['#3b82f6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'], borderWidth: 0 }] }, options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: '#64748b', padding: 16 } } } } });
+    // 1. Revenue By Date
+    const rbdMap = {};
+    filtered.forEach(e => { rbdMap[e.date] = (rbdMap[e.date] || 0) + e.revenue; });
+    const rbdSorted = Object.entries(rbdMap).sort((a, b) => a[0].localeCompare(b[0]));
+    
+    // 2. Revenue By Product
+    const rbpMap = {};
+    filtered.forEach(e => { rbpMap[e.product] = (rbpMap[e.product] || 0) + e.revenue; });
+    const rbpSorted = Object.entries(rbpMap).sort((a, b) => b[1] - a[1]).slice(0, 10);
 
-    return () => { [ch1, ch2, ch3].forEach(r => r.current?.destroy()); };
-  }, [entries, data]);
+    // 3. Category Split
+    const catMap = {};
+    filtered.forEach(e => { catMap[e.category] = (catMap[e.category] || 0) + e.revenue; });
+    const catSorted = Object.entries(catMap);
+
+    // 4. Daily Order Volume
+    const ordersMap = {};
+    filtered.forEach(e => { ordersMap[e.date] = (ordersMap[e.date] || 0) + 1; });
+    const ordersSorted = Object.entries(ordersMap).sort((a, b) => a[0].localeCompare(b[0]));
+
+    // 5. Profit By Product
+    const pbpMap = {};
+    filtered.forEach(e => {
+      if (!pbpMap[e.product]) pbpMap[e.product] = { r: 0, c: 0, p: 0 };
+      pbpMap[e.product].r += e.revenue;
+      pbpMap[e.product].c += e.cost;
+      pbpMap[e.product].p += (e.revenue - e.cost);
+    });
+    const pbpSorted = Object.entries(pbpMap).sort((a, b) => b[1].p - a[1].p).slice(0, 10);
+
+    // 6. Velocity
+    const prodQtyMap = {};
+    const prodDates = {};
+    filtered.forEach(e => {
+      prodQtyMap[e.product] = (prodQtyMap[e.product] || 0) + e.quantitySold;
+      if (!prodDates[e.product]) prodDates[e.product] = new Set();
+      prodDates[e.product].add(e.date);
+    });
+    const velocityList = Object.entries(prodQtyMap).map(([p, q]) => ({
+      product: p, avg: (q / (prodDates[p]?.size || 1)).toFixed(1)
+    })).sort((a, b) => b.avg - a.avg);
+
+    // 7. Weekly Heatmap (Simplified for ApexCharts format)
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const heatmapMap = {};
+    filtered.forEach(e => {
+      const d = new Date(e.date);
+      const w = `Week ${Math.ceil(d.getDate() / 7)}`;
+      const dayName = days[d.getDay() === 0 ? 6 : d.getDay() - 1]; // Make Monday 0
+      if (!heatmapMap[w]) heatmapMap[w] = { Mon:0, Tue:0, Wed:0, Thu:0, Fri:0, Sat:0, Sun:0 };
+      heatmapMap[w][dayName] += e.revenue;
+    });
+    const heatmapSeries = Object.entries(heatmapMap).map(([w, dMap]) => ({
+      name: w, data: days.map(d => ({ x: d, y: dMap[d] }))
+    }));
+
+    // 8. Profit Trend (Scatter/Dual Axis)
+    const profitTrend = { labels: rbdSorted.map(x => x[0]), profit: [], margin: [] };
+    rbdSorted.forEach(([date, rev]) => {
+      const dayEntries = filtered.filter(e => e.date === date);
+      const dayCost = dayEntries.reduce((s, e) => s + e.cost, 0);
+      const dayProfit = rev - dayCost;
+      profitTrend.profit.push(dayProfit);
+      profitTrend.margin.push(rev > 0 ? ((dayProfit / rev) * 100).toFixed(1) : 0);
+    });
+
+    // 9. Scatter
+    const scatterSeries = [{
+      name: 'Sales',
+      data: filtered.map(e => [e.quantitySold, e.revenue])
+    }];
+
+    // Insights Generation
+    const insights = [];
+    if (rbpSorted.length > 0) insights.push(`🏆 ${rbpSorted[0][0]} is your top earner at $${rbpSorted[0][1].toLocaleString()}`);
+    const negativeProfit = pbpSorted.find(x => x[1].p < 0);
+    if (negativeProfit) insights.push(`⚠️ ${negativeProfit[0]} has negative profit — review pricing`);
+    if (velocityList.length > 0) insights.push(`🔁 ${velocityList[0].product} sells rapidly at ${velocityList[0].avg} units/day`);
+
+    // Top Products Table
+    const topProductsList = rbpSorted.map(x => ({ product: x[0], revenue: x[1], qty: prodQtyMap[x[0]] }));
+
+    return {
+      revenueByDate: { labels: rbdSorted.map(x => x[0]), values: rbdSorted.map(x => x[1]) },
+      revenueByProduct: { labels: rbpSorted.map(x => x[0]), values: rbpSorted.map(x => x[1]) },
+      categorySplit: { labels: catSorted.map(x => x[0]), values: catSorted.map(x => x[1]) },
+      ordersByDate: { labels: ordersSorted.map(x => x[0]), values: ordersSorted.map(x => x[1]) },
+      profitByProduct: { 
+        labels: pbpSorted.map(x => x[0]), 
+        revenue: pbpSorted.map(x => x[1].r), 
+        cost: pbpSorted.map(x => x[1].c), 
+        profit: pbpSorted.map(x => x[1].p) 
+      },
+      topProducts: {
+        labels: rbpSorted.map(x => x[0]),
+        percentages: rbpSorted.map(x => Math.round((x[1] / (rbpSorted[0]?.[1] || 1)) * 100))
+      },
+      scatterPlot: { series: scatterSeries },
+      weeklyHeatmap: { series: heatmapSeries },
+      profitTrend,
+      topProductsList,
+      salesVelocity: velocityList,
+      insights
+    };
+  }, [entries, dateFilter]);
+
+  // Handlers
+  const handleToggleWidget = (id) => {
+    setWidgets(ws => ws.map(w => w.id === id ? { ...w, enabled: !w.enabled } : w));
+  };
+
+  const handleRenameWidget = (id, newName) => {
+    setWidgets(ws => ws.map(w => w.id === id ? { ...w, name: newName } : w));
+  };
+
+  const handleRemoveWidget = (id) => {
+    setWidgets(ws => ws.filter(w => w.id !== id));
+  };
+
+  const handleAddWidget = (widgetConfig) => {
+    setWidgets([...widgets, widgetConfig]);
+    const lg = layouts.lg || [];
+    // Place at bottom
+    let maxY = 0;
+    lg.forEach(l => { if (l.y + l.h > maxY) maxY = l.y + l.h; });
+    setLayouts({
+      ...layouts,
+      lg: [...lg, { i: widgetConfig.id, x: 0, y: maxY, w: widgetConfig.w, h: widgetConfig.h }]
+    });
+  };
+
+  const activeWidgets = widgets.filter(w => w.enabled);
 
   if (loading) return <div className="flex items-center justify-center h-[60vh]"><div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" /></div>;
 
@@ -79,68 +202,97 @@ export default function SalesAnalytics() {
     <div className="flex flex-col items-center justify-center h-[60vh] text-gray-400">
       <ShoppingCart size={48} className="mb-4 text-gray-300" />
       <p className="text-lg font-medium text-gray-500 mb-1">No sales data yet</p>
-      <p className="text-sm">Add entries in Profit Optimization to see analytics</p>
+      <button onClick={() => navigate('/profit')} className="mt-4 px-6 py-2 bg-primary-600 text-white rounded-xl font-bold">Add First Entry →</button>
     </div>
   );
 
   return (
-    <div className="space-y-6">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <SummaryCard label="Total Revenue" value={`$${data.totalRev.toLocaleString()}`} color="text-primary-700" icon={<DollarSign size={20} />} />
-        <SummaryCard label="Total Orders" value={data.totalOrders} icon={<ShoppingCart size={20} />} />
-        <SummaryCard label="Avg Order Value" value={`$${data.avgOrder.toFixed(2)}`} icon={<TrendingUp size={20} />} />
-        <SummaryCard label="Best Seller" value={data.bestProduct} color="text-primary-700" icon={<Star size={20} />} />
+    <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden bg-gray-50 dark:bg-gray-950">
+      
+      {/* Date Filter Bar */}
+      <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-6 py-3 flex items-center justify-between shrink-0 z-10">
+        <div className="flex items-center gap-4">
+          <Calendar size={18} className="text-primary-500" />
+          <div className="flex items-center gap-2">
+            <input type="date" value={dateFilter.from} onChange={e => setDateFilter({...dateFilter, from: e.target.value})} className="bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-800 dark:text-white rounded-lg px-3 py-1.5 text-xs outline-none focus:border-primary-500" />
+            <span className="text-gray-400">to</span>
+            <input type="date" value={dateFilter.to} onChange={e => setDateFilter({...dateFilter, to: e.target.value})} className="bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-800 dark:text-white rounded-lg px-3 py-1.5 text-xs outline-none focus:border-primary-500" />
+          </div>
+          {(dateFilter.from || dateFilter.to) && (
+            <button onClick={() => setDateFilter({from:'', to:''})} className="text-xs text-primary-500 hover:underline font-medium">Clear Filter</button>
+          )}
+        </div>
+        
+        <button 
+          onClick={() => setIsEditMode(!isEditMode)}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${isEditMode ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/20' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+        >
+          <Settings2 size={16} />
+          {isEditMode ? 'Done Editing' : 'Edit Layout'}
+        </button>
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card><h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3">Daily Revenue (30 days)</h3><canvas ref={c1} /></Card>
-        <Card><h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3">Revenue by Product</h3><canvas ref={c2} /></Card>
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card><h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3">Category Sales Split</h3><div className="max-w-[300px] mx-auto"><canvas ref={c3} /></div></Card>
-        <Card>
-          <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3">Top 5 Products</h3>
-          <table className="w-full text-sm">
-            <thead><tr className="text-gray-400 dark:text-gray-500 text-xs border-b border-gray-100 dark:border-gray-800"><th className="text-left pb-2">#</th><th className="text-left pb-2">Product</th><th className="text-right pb-2">Qty</th><th className="text-right pb-2">Revenue</th><th className="text-right pb-2">%</th></tr></thead>
-            <tbody>{data.top5.map(([p, r], i) => (
-              <tr key={p} className="border-b border-gray-50 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                <td className="py-2.5 text-gray-400 dark:text-gray-500">{i + 1}</td>
-                <td className="py-2.5 font-medium text-gray-800 dark:text-gray-200">{p}</td>
-                <td className="py-2.5 text-right text-gray-500 dark:text-gray-400">{data.prodQty[p]}</td>
-                <td className="py-2.5 text-right text-primary-600 dark:text-primary-400 font-semibold">${r.toLocaleString()}</td>
-                <td className="py-2.5 text-right text-gray-400 dark:text-gray-500">{(r / data.totalRev * 100).toFixed(1)}%</td>
-              </tr>
-            ))}</tbody>
-          </table>
-        </Card>
+      <div className="flex flex-1 overflow-hidden">
+        {/* Main Grid Area */}
+        <div className="flex-1 overflow-y-auto p-6 bg-gray-50 dark:bg-gray-950">
+          <ResponsiveGridLayout
+            className="layout"
+            layouts={layouts}
+            breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
+            cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
+            rowHeight={60}
+            onLayoutChange={onLayoutChange}
+            isDraggable={isEditMode}
+            isResizable={isEditMode}
+            margin={[16, 16]}
+            draggableHandle=".widget-drag-handle"
+          >
+            {activeWidgets.map(w => (
+              <div key={w.id} className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden flex flex-col group">
+                <div className={`px-4 py-2.5 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-gray-50/50 dark:bg-gray-900/50 ${isEditMode ? 'widget-drag-handle cursor-move' : ''}`}>
+                  <h3 className="text-sm font-bold text-gray-800 dark:text-white font-heading">{w.name}</h3>
+                  {isEditMode && <div className="text-xs text-gray-400 font-medium">Drag</div>}
+                </div>
+                <div className="flex-1 overflow-hidden relative">
+                  {w.isChart ? (
+                    <ChartWidget widget={w} data={computedData} />
+                  ) : (
+                    <TableWidget widget={w} data={computedData} />
+                  )}
+                  {isEditMode && (
+                    <div className="absolute bottom-0 right-0 w-4 h-4 bg-primary-500/20 cursor-se-resize rounded-tl-full" />
+                  )}
+                </div>
+              </div>
+            ))}
+          </ResponsiveGridLayout>
+          
+          {activeWidgets.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-full text-gray-400">
+              <p>No active widgets. Enable some from the right panel.</p>
+            </div>
+          )}
+        </div>
+
+        {/* Right Sidebar Panel */}
+        <div className="w-[320px] shrink-0 border-l border-gray-200 dark:border-gray-800 z-20">
+          <WidgetPanel 
+            widgets={widgets}
+            onToggle={handleToggleWidget}
+            onRename={handleRenameWidget}
+            onRemove={handleRemoveWidget}
+            onOpenPicker={setPickerType}
+          />
+        </div>
       </div>
 
-      {/* Week Comparison + Velocity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card>
-          <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3">Week Comparison</h3>
-          <table className="w-full text-sm">
-            <thead><tr className="text-gray-400 dark:text-gray-500 text-xs border-b border-gray-100 dark:border-gray-800"><th className="text-left pb-2">Metric</th><th className="text-right pb-2">This Week</th><th className="text-right pb-2">Last Week</th></tr></thead>
-            <tbody>
-              <tr className="border-b border-gray-50 dark:border-gray-800/50"><td className="py-2.5 text-gray-800 dark:text-gray-200">Revenue</td><td className="py-2.5 text-right text-primary-600 dark:text-primary-400 font-semibold">${data.twRev.toLocaleString()}</td><td className="py-2.5 text-right text-gray-500 dark:text-gray-400">${data.lwRev.toLocaleString()}</td></tr>
-              <tr className="border-b border-gray-50 dark:border-gray-800/50"><td className="py-2.5 text-gray-800 dark:text-gray-200">Profit</td><td className="py-2.5 text-right text-green-600 dark:text-green-400 font-semibold">${data.twProfit.toLocaleString()}</td><td className="py-2.5 text-right text-gray-500 dark:text-gray-400">${data.lwProfit.toLocaleString()}</td></tr>
-            </tbody>
-          </table>
-        </Card>
-        <Card>
-          <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3">Sales Velocity (Avg Qty/Day)</h3>
-          <table className="w-full text-sm">
-            <thead><tr className="text-gray-400 dark:text-gray-500 text-xs border-b border-gray-100 dark:border-gray-800"><th className="text-left pb-2">Product</th><th className="text-right pb-2">Avg/Day</th></tr></thead>
-            <tbody>{data.velocity.map(v => (
-              <tr key={v.product} className="border-b border-gray-50 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                <td className="py-2.5 text-gray-800 dark:text-gray-200">{v.product}</td><td className="py-2.5 text-right text-primary-600 dark:text-primary-400 font-semibold">{v.avg}</td>
-              </tr>
-            ))}</tbody>
-          </table>
-        </Card>
-      </div>
+      {pickerType && (
+        <Pickers 
+          type={pickerType}
+          onClose={() => setPickerType(null)}
+          onAdd={handleAddWidget}
+        />
+      )}
     </div>
   );
 }
