@@ -100,7 +100,12 @@ export function useEvents() {
     await deleteDoc(doc(db, 'events', id));
   }, [user]);
 
-  return { events, loading, addEvent, deleteEvent };
+  const updateEvent = useCallback(async (id, data) => {
+    if (!user) return;
+    await updateDoc(doc(db, 'events', id), data);
+  }, [user]);
+
+  return { events, loading, addEvent, deleteEvent, updateEvent };
 }
 
 export function useStockLogs() {
@@ -134,4 +139,32 @@ export function useStockLogs() {
   }, [user]);
 
   return { stockLogs, loading, addStockLog, deleteStockLog, updateStockLog };
+}
+
+export function useMilestones() {
+  const [milestones, setMilestones] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'milestones'), where('userId', '==', user.uid));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setMilestones(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a, b) => a.date.localeCompare(b.date)));
+      setLoading(false);
+    });
+    return unsubscribe;
+  }, [user]);
+
+  const addMilestone = useCallback(async (data) => {
+    if (!user) return;
+    await addDoc(collection(db, 'milestones'), { ...data, userId: user.uid, createdAt: serverTimestamp() });
+  }, [user]);
+
+  const deleteMilestone = useCallback(async (id) => {
+    if (!user) return;
+    await deleteDoc(doc(db, 'milestones', id));
+  }, [user]);
+
+  return { milestones, loading, addMilestone, deleteMilestone };
 }
