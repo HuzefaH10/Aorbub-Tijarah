@@ -1,23 +1,23 @@
 import React, { useState } from 'react';
-import { X, Check } from 'lucide-react';
+import { X, Activity, AlignLeft, PieChart, BarChart3, BarChart, Target, Grip, Grid, LineChart, ListOrdered, ArrowRightLeft, Zap, Lightbulb } from 'lucide-react';
 
 const chartTypes = [
-  { id: 'area', name: 'Area Chart', dataset: 'revenueByDate', w: 12, h: 4 },
-  { id: 'bar-h', name: 'Horizontal Bar', dataset: 'salesByProduct', w: 6, h: 4 },
-  { id: 'donut', name: 'Donut Chart', dataset: 'categorySplit', w: 4, h: 4 },
-  { id: 'bar-v', name: 'Column Chart', dataset: 'dailyOrderVolume', w: 6, h: 4 },
-  { id: 'grouped', name: 'Grouped Bar', dataset: 'revenueVsCostVsProfit', w: 12, h: 4 },
-  { id: 'radial', name: 'Radial Bar', dataset: 'topProductPerformance', w: 4, h: 4 },
-  { id: 'scatter', name: 'Scatter Plot', dataset: 'revenueVsQuantity', w: 6, h: 4 },
-  { id: 'heatmap', name: 'Weekly Heatmap', dataset: 'weeklyHeatmap', w: 12, h: 4 },
-  { id: 'dual-line', name: 'Profit & Margin Trend', dataset: 'profitMarginTrend', w: 12, h: 4 }
+  { id: 'area', name: 'Area Chart', dataset: 'revenueByDate', w: 12, h: 4, icon: Activity },
+  { id: 'bar-h', name: 'Horizontal Bar', dataset: 'salesByProduct', w: 6, h: 4, icon: AlignLeft },
+  { id: 'donut', name: 'Donut Chart', dataset: 'categorySplit', w: 4, h: 4, icon: PieChart },
+  { id: 'bar-v', name: 'Column Chart', dataset: 'dailyOrderVolume', w: 6, h: 4, icon: BarChart3 },
+  { id: 'grouped', name: 'Grouped Bar', dataset: 'revenueVsCostVsProfit', w: 12, h: 4, icon: BarChart },
+  { id: 'radial', name: 'Radial Bar', dataset: 'topProductPerformance', w: 4, h: 4, icon: Target },
+  { id: 'scatter', name: 'Scatter Plot', dataset: 'revenueVsQuantity', w: 6, h: 4, icon: Grip },
+  { id: 'heatmap', name: 'Weekly Heatmap', dataset: 'weeklyHeatmap', w: 12, h: 4, icon: Grid },
+  { id: 'dual-line', name: 'Profit & Margin Trend', dataset: 'profitMarginTrend', w: 12, h: 4, icon: LineChart }
 ];
 
 const tableTypes = [
-  { id: 'top-products', name: 'Top Products Table', dataset: 'topProductsTable', w: 12, h: 3 },
-  { id: 'period-comp', name: 'Period Comparison', dataset: 'periodComparisonTable', w: 6, h: 3 },
-  { id: 'velocity', name: 'Sales Velocity Table', dataset: 'salesVelocityTable', w: 6, h: 3 },
-  { id: 'insights', name: 'Auto Insights Panel', dataset: 'insightsPanel', w: 12, h: 3 }
+  { id: 'top-products', name: 'Top Products Table', dataset: 'topProductsTable', w: 12, h: 3, icon: ListOrdered },
+  { id: 'period-comp', name: 'Period Comparison', dataset: 'periodComparisonTable', w: 6, h: 3, icon: ArrowRightLeft },
+  { id: 'velocity', name: 'Sales Velocity Table', dataset: 'salesVelocityTable', w: 6, h: 3, icon: Zap },
+  { id: 'insights', name: 'Auto Insights Panel', dataset: 'insightsPanel', w: 12, h: 3, icon: Lightbulb }
 ];
 
 export default function Pickers({ type, onClose, onAdd }) {
@@ -65,8 +65,8 @@ export default function Pickers({ type, onClose, onAdd }) {
                   onClick={() => handleSelect(t)}
                   className={`cursor-pointer rounded-2xl p-4 border-2 transition-all flex flex-col items-center justify-center text-center gap-3 ${isSelected ? 'border-primary-500 bg-primary-900/20' : 'border-gray-800 bg-gray-800/50 hover:border-gray-700 hover:bg-gray-800'}`}
                 >
-                  <div className="w-16 h-16 rounded-full bg-gray-900 flex items-center justify-center border border-gray-800">
-                    <span className="text-2xl">{type === 'chart' ? '📊' : '📋'}</span>
+                  <div className="w-16 h-16 rounded-full bg-gray-900 flex items-center justify-center border border-gray-800 shadow-inner">
+                    <t.icon size={28} className={isSelected ? 'text-primary-500' : 'text-gray-300'} />
                   </div>
                   <p className={`font-semibold text-sm ${isSelected ? 'text-primary-400' : 'text-gray-300'}`}>{t.name}</p>
                 </div>
