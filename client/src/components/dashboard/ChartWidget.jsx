@@ -41,10 +41,10 @@ export default function ChartWidget({ widget, data }) {
   }
   else if (dataset === 'categorySplit') {
     type = 'donut';
-    options.labels = data.revenueByCategory.labels || [];
+    options.labels = data.categorySplit?.labels || [];
     options.plotOptions = { pie: { donut: { labels: { show: true, total: { show: true, label: 'Total', color: '#fff' }, value: { color: '#fff' } } } } };
     options.stroke = { show: false };
-    series = data.revenueByCategory.values || [];
+    series = data.categorySplit?.values || [];
   }
   else if (dataset === 'dailyOrderVolume') {
     type = 'bar';

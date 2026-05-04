@@ -145,6 +145,19 @@ export default function SalesAnalytics() {
     // Top Products Table
     const topProductsList = rbpSorted.map(x => ({ product: x[0], revenue: x[1], qty: prodQtyMap[x[0]] }));
 
+    // Period Comparison
+    const ws = d => { const dd = new Date(d); dd.setDate(dd.getDate() - dd.getDay()); return dd.toISOString().split('T')[0]; };
+    const today = new Date();
+    const twStart = ws(today), lwStart = ws(new Date(today.getTime() - 7 * 86400000));
+    const twEntries = entries.filter(e => e.date >= twStart);
+    const lwEntries = entries.filter(e => e.date >= lwStart && e.date < twStart);
+    const periodComparison = {
+      twRev: twEntries.reduce((s, e) => s + e.revenue, 0),
+      lwRev: lwEntries.reduce((s, e) => s + e.revenue, 0),
+      twProfit: twEntries.reduce((s, e) => s + (e.revenue - e.cost), 0),
+      lwProfit: lwEntries.reduce((s, e) => s + (e.revenue - e.cost), 0)
+    };
+
     return {
       revenueByDate: { labels: rbdSorted.map(x => x[0]), values: rbdSorted.map(x => x[1]) },
       revenueByProduct: { labels: rbpSorted.map(x => x[0]), values: rbpSorted.map(x => x[1]) },
@@ -165,7 +178,8 @@ export default function SalesAnalytics() {
       profitTrend,
       topProductsList,
       salesVelocity: velocityList,
-      insights
+      insights,
+      periodComparison
     };
   }, [entries, dateFilter]);
 
