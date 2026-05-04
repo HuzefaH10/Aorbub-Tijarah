@@ -79,4 +79,13 @@
     --color-gray-400: #CCCCCC;
     --color-gray-300: #e0e0e0;
   }
+  
+  html[data-theme="royal-purple"] body {
+    background: radial-gradient(ellipse at 20% 30%, #1A0030 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 70%, #120020 0%, transparent 55%),
+                radial-gradient(ellipse at 50% 90%, #0D0018 0%, transparent 50%),
+                radial-gradient(ellipse at 10% 80%, #0a0014 0%, transparent 40%),
+                #0A0A0A;
+    background-attachment: fixed;
+  }
 }
