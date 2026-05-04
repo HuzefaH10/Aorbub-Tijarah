@@ -57,7 +57,7 @@ export default function DataEntry() {
   const labelCls = "block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide";
 
   return (
-    <div className="max-w-5xl space-y-6">
+    <div className="w-full space-y-8">
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
       
       <div>
@@ -65,9 +65,9 @@ export default function DataEntry() {
         <p className="text-sm text-gray-500 dark:text-gray-400">Create and confirm customer bills in real time.</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Billing Form */}
-        <div className="lg:col-span-2 space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* Left Column: Billing Form (66%) */}
+        <div className="lg:col-span-8 space-y-6">
           <Card>
             <h3 className="text-lg font-bold text-gray-800 dark:text-white font-heading border-b border-gray-100 dark:border-gray-800 pb-4 mb-5 flex items-center gap-2">
               <ClipboardList size={20} className="text-primary-500" /> New Bill
@@ -121,8 +121,8 @@ export default function DataEntry() {
           </Card>
         </div>
 
-        {/* Right Column: Order Summary & Stats */}
-        <div className="space-y-4">
+        {/* Right Column: Order Summary & Stats (33%) */}
+        <div className="lg:col-span-4 space-y-5">
           <Card className="border border-primary-500/20">
             <h3 className="font-bold text-gray-800 dark:text-white border-b border-gray-100 dark:border-gray-800 pb-3 mb-3">Order Summary</h3>
             {f.product ? (
