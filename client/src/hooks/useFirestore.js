@@ -102,3 +102,36 @@ export function useEvents() {
 
   return { events, loading, addEvent, deleteEvent };
 }
+
+export function useStockLogs() {
+  const [stockLogs, setStockLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'stockLogs'), where('userId', '==', user.uid));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setStockLogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a, b) => b.date.localeCompare(a.date)));
+      setLoading(false);
+    });
+    return unsubscribe;
+  }, [user]);
+
+  const addStockLog = useCallback(async (data) => {
+    if (!user) return;
+    await addDoc(collection(db, 'stockLogs'), { ...data, userId: user.uid, createdAt: serverTimestamp() });
+  }, [user]);
+
+  const deleteStockLog = useCallback(async (id) => {
+    if (!user) return;
+    await deleteDoc(doc(db, 'stockLogs', id));
+  }, [user]);
+
+  const updateStockLog = useCallback(async (id, data) => {
+    if (!user) return;
+    await updateDoc(doc(db, 'stockLogs', id), data);
+  }, [user]);
+
+  return { stockLogs, loading, addStockLog, deleteStockLog, updateStockLog };
+}
