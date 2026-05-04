@@ -25,7 +25,7 @@ export default function ParallaxBackground() {
           y: mousePos.y * -40,
         }}
         transition={{ type: 'spring', damping: 50, stiffness: 100 }}
-        className="absolute top-[10%] left-[20%] w-96 h-96 bg-primary-300/20 dark:bg-primary-500/30 rounded-full blur-[100px]"
+        className="absolute top-[10%] left-[20%] w-96 h-96 bg-primary-300/20 dark:bg-primary-900/40 rounded-full blur-[100px]"
       />
       
       {/* Orb 2 */}
@@ -35,7 +35,7 @@ export default function ParallaxBackground() {
           y: mousePos.y * 60,
         }}
         transition={{ type: 'spring', damping: 50, stiffness: 100 }}
-        className="absolute bottom-[20%] right-[10%] w-[30rem] h-[30rem] bg-amber-400/10 dark:bg-primary-400/20 rounded-full blur-[120px]"
+        className="absolute bottom-[20%] right-[10%] w-[30rem] h-[30rem] bg-amber-400/10 dark:bg-amber-800/20 rounded-full blur-[120px]"
       />
       
       {/* Grid Pattern */}
