@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from '../components/ui/Card';
 import { useAuth } from '../context/AuthContext';
+import { useSettings } from '../hooks/useFirestore';
 import { Save, Bell, Shield, KeyRound, Building2, User } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
 import Toast from '../components/ui/Toast';
@@ -8,6 +9,7 @@ import Toast from '../components/ui/Toast';
 export default function Settings() {
   const { user } = useAuth();
   const { toast, showToast, hideToast } = useToast();
+  const { settings, updateSettings } = useSettings();
   
   const [profile, setProfile] = useState({
     name: user?.email?.split('@')[0] || 'Admin',
@@ -16,14 +18,26 @@ export default function Settings() {
   });
 
   const [business, setBusiness] = useState({
-    name: 'Aorbub Tijarah',
+    name: 'Supreme Sanitory',
     address: 'Dubai Design District, UAE',
     currency: 'USD ($)'
   });
 
-  const handleSave = (e) => {
+  useEffect(() => {
+    if (settings) {
+      setBusiness(prev => ({ ...prev, ...settings }));
+    }
+  }, [settings]);
+
+  const handleProfileSave = (e) => {
     e.preventDefault();
-    showToast('Settings saved successfully');
+    showToast('Profile saved successfully');
+  };
+
+  const handleBusinessSave = async (e) => {
+    e.preventDefault();
+    await updateSettings(business);
+    showToast('Business settings updated');
   };
 
   const inputCls = "w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-800 dark:text-white rounded-xl px-4 py-2.5 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100 dark:focus:ring-primary-900 transition-all";
@@ -59,7 +73,7 @@ export default function Settings() {
             <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
               <User size={20} className="text-primary-500" /> Profile Information
             </h3>
-            <form onSubmit={handleSave} className="space-y-4">
+            <form onSubmit={handleProfileSave} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className={labelCls}>Full Name</label>
@@ -87,7 +101,7 @@ export default function Settings() {
             <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
               <Building2 size={20} className="text-primary-500" /> Business Settings
             </h3>
-            <form onSubmit={handleSave} className="space-y-4">
+            <form onSubmit={handleBusinessSave} className="space-y-4">
               <div>
                 <label className={labelCls}>Business Name</label>
                 <input value={business.name} onChange={e => setBusiness({...business, name: e.target.value})} className={inputCls} />

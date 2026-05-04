@@ -168,3 +168,27 @@ export function useMilestones() {
 
   return { milestones, loading, addMilestone, deleteMilestone };
 }
+
+export function useSettings() {
+  const [settings, setSettings] = useState({ businessName: 'Supreme Sanitory' });
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (!user) return;
+    const unsubscribe = onSnapshot(doc(db, 'settings', `profile_${user.uid}`), (docSnap) => {
+      if (docSnap.exists()) {
+        setSettings({ businessName: 'Supreme Sanitory', ...docSnap.data() });
+      }
+      setLoading(false);
+    });
+    return unsubscribe;
+  }, [user]);
+
+  const updateSettings = useCallback(async (data) => {
+    if (!user) return;
+    await setDoc(doc(db, 'settings', `profile_${user.uid}`), data, { merge: true });
+  }, [user]);
+
+  return { settings, loading, updateSettings };
+}

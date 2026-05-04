@@ -44,9 +44,9 @@ export default function Login() {
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="w-14 h-14 bg-primary-600 rounded-2xl flex items-center justify-center text-white text-2xl font-bold font-heading mx-auto mb-4 shadow-lg shadow-primary-600/30">
-            AT
+            SS
           </div>
-          <h1 className="text-2xl font-bold text-gray-800 dark:text-white font-heading">Aorbub Tijarah</h1>
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-white font-heading">Supreme Sanitory</h1>
           <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Business Intelligence Dashboard</p>
         </div>
 

@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useEntries, useProducts, useEvents } from '../hooks/useFirestore';
+import { useEntries, useProducts, useEvents, useSettings } from '../hooks/useFirestore';
 import ReactApexChart from 'react-apexcharts';
 import { 
   TrendingUp, Package, Calendar, CircleDollarSign, 
@@ -15,6 +15,8 @@ export default function HomePage() {
   const { entries, loading: entriesLoading } = useEntries();
   const { products, loading: productsLoading } = useProducts();
   const { events, loading: eventsLoading } = useEvents();
+  const { settings } = useSettings();
+  const businessName = settings?.businessName || 'Supreme Sanitory';
 
   const loading = entriesLoading || productsLoading || eventsLoading;
 
@@ -141,7 +143,7 @@ export default function HomePage() {
     return (
       <div className="flex flex-col h-[calc(100vh-100px)] items-center justify-center animate-fadeIn p-6">
         <div className="bg-[#161616] border border-white/5 rounded-3xl p-10 max-w-2xl w-full text-center shadow-2xl">
-          <h1 className="text-4xl md:text-5xl font-bold text-primary-400 font-heading mb-4">Welcome to Aorbub Tijarah</h1>
+          <h1 className="text-4xl md:text-5xl font-bold text-primary-400 font-heading mb-4">Welcome to {businessName}</h1>
           <p className="text-gray-400 text-lg mb-12">Your business command center is ready. Start by setting up your workflow.</p>
           
           <div className="space-y-4 max-w-md mx-auto relative before:absolute before:inset-0 before:ml-[28px] before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-white/10 before:to-transparent">
