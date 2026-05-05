@@ -144,7 +144,7 @@ export default function HomePage() {
       <div className="flex flex-col h-[calc(100vh-100px)] items-center justify-center animate-fadeIn p-6">
         <div className="glass rounded-3xl p-10 max-w-2xl w-full text-center">
           <h1 className="text-4xl md:text-5xl font-bold text-primary-400 font-heading mb-4">Welcome to {businessName}</h1>
-          <p className="text-gray-400 text-lg mb-12">Your business command center is ready. Start by setting up your workflow.</p>
+          <p className="text-gray-400 text-lg mb-12">Your business dashboard is ready. Start by setting up your workflow.</p>
           
           <div className="space-y-4 max-w-md mx-auto relative before:absolute before:inset-0 before:ml-[28px] before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-white/10 before:to-transparent">
             

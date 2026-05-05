@@ -4,7 +4,7 @@ import {
 } from 'lucide-react';
 
 const navItems = [
-  { to: '/', icon: Home, label: 'Command Center', size: 24 },
+  { to: '/', icon: Home, label: 'Dashboard', size: 24 },
   { to: '/analytics', icon: BarChart3, label: 'Sales Analytics' },
   { to: '/profit', icon: DollarSign, label: 'Profit Optimization' },
   { to: '/inventory', icon: Package, label: 'Inventory' },
