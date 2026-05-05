@@ -10,7 +10,8 @@ const titles = {
   '/inventory': 'Inventory Management',
   '/calendar': 'Calendar & Scheduling',
   '/settings': 'Settings',
-  '/help': 'Help & Contact'
+  '/help': 'Help & Contact',
+  '/data-entry': 'Stock Entry'
 };
 
 export default function Topbar() {

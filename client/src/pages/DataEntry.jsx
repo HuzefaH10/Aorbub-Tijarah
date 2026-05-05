@@ -10,6 +10,7 @@ export default function DataEntry() {
   const { toast, showToast, hideToast } = useToast();
   
   const [f, setF] = useState({ date: new Date().toISOString().split('T')[0], product: '', category: '', qty: '', unitPrice: '' });
+  const [paymentMethod, setPaymentMethod] = useState('cash');
 
   const total = (Number(f.qty) || 0) * (Number(f.unitPrice) || 0);
 
@@ -105,6 +106,34 @@ export default function DataEntry() {
                 <div>
                   <label className={labelCls}>Total ($)</label>
                   <input type="text" readOnly value={total.toFixed(2)} className={`${inputCls} bg-gray-50/50 dark:bg-gray-900/50 cursor-not-allowed opacity-70`} />
+                </div>
+              </div>
+
+              <div>
+                <label className={labelCls}>Payment Method</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('cash')}
+                    className={`py-3 rounded-xl text-sm font-bold transition-all duration-200 ${
+                      paymentMethod === 'cash'
+                        ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/20'
+                        : 'glass text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                    }`}
+                  >
+                    Cash
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('credit')}
+                    className={`py-3 rounded-xl text-sm font-bold transition-all duration-200 ${
+                      paymentMethod === 'credit'
+                        ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/20'
+                        : 'glass text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                    }`}
+                  >
+                    Credit
+                  </button>
                 </div>
               </div>
 
