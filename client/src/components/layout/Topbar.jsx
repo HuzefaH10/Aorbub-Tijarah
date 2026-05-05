@@ -25,7 +25,7 @@ export default function Topbar() {
   const enter = () => { clearTimeout(timerRef.current); setOpen(true); };
   const leave = () => { timerRef.current = setTimeout(() => setOpen(false), 200); };
 
-  const today = new Date().toLocaleDateString('en-US', {
+  const today = new Date().toLocaleDateString('en-GB', {
     year: 'numeric', month: 'long', day: 'numeric'
   });
 

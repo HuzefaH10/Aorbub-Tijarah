@@ -103,7 +103,7 @@ export default function CalendarPage() {
       const str = d.toISOString().split('T')[0];
       days.push({ 
         dateStr: str, 
-        name: d.toLocaleDateString('en-US', { weekday: 'short' }), 
+        name: d.toLocaleDateString('en-GB', { weekday: 'short' }), 
         num: d.getDate(),
         events: filteredEvents.filter(e => (e.date <= str && (!e.endDate || e.endDate >= str)))
       });
@@ -136,7 +136,7 @@ export default function CalendarPage() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 glass p-5 shadow-xl">
         <div>
           <h1 className="text-2xl font-bold text-primary-400 font-heading">Calendar & Scheduling</h1>
-          <p className="text-sm text-gray-500">{currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</p>
+          <p className="text-sm text-gray-500">{currentDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</p>
         </div>
         <button onClick={() => setEventModal({ open: true })} className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 rounded-xl text-sm font-bold text-white shadow-lg shadow-primary-600/20 hover:bg-primary-700 hover:-translate-y-0.5 transition-all">
           <Plus size={16} /> Add Event
@@ -206,7 +206,7 @@ export default function CalendarPage() {
         {selectedDay && (
           <div className="absolute inset-y-0 right-0 w-full md:w-80 bg-gray-950/95 backdrop-blur-md border-l border-white/10 shadow-2xl p-5 z-20 flex flex-col animate-[slideInRight_0.25s_ease-out_forwards]">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="font-bold text-lg text-white font-heading">{new Date(selectedDay).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</h3>
+              <h3 className="font-bold text-lg text-white font-heading">{new Date(selectedDay).toLocaleDateString('en-GB', { weekday: 'long', month: 'long', day: 'numeric' })}</h3>
               <button onClick={() => setSelectedDay(null)} className="p-1 text-gray-500 hover:text-white rounded transition-colors"><X size={20} /></button>
             </div>
             <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar pr-2">
@@ -312,7 +312,7 @@ function MonthView({ cells, events, currentDate, onPrev, onNext, onDayClick, tod
     <div className="glass overflow-hidden animate-fadeIn">
       <div className="flex items-center justify-between p-4 border-b border-white/5 bg-gray-900/50">
         <button onClick={onPrev} className="p-2 hover:bg-white/5 rounded-lg text-gray-400 hover:text-white transition-colors"><ChevronLeft size={20} /></button>
-        <h2 className="text-lg font-bold text-white font-heading">{currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</h2>
+        <h2 className="text-lg font-bold text-white font-heading">{currentDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</h2>
         <button onClick={onNext} className="p-2 hover:bg-white/5 rounded-lg text-gray-400 hover:text-white transition-colors"><ChevronRight size={20} /></button>
       </div>
       
@@ -412,7 +412,7 @@ function AgendaView({ events, onAction, todayStr }) {
 
           {processed.sortedDates.map(date => {
             const dateObj = new Date(date);
-            const label = date === todayStr ? 'TODAY' : dateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }).toUpperCase();
+            const label = date === todayStr ? 'TODAY' : dateObj.toLocaleDateString('en-GB', { weekday: 'long', month: 'short', day: 'numeric' }).toUpperCase();
             return (
               <div key={date}>
                 <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">{label}</h3>
@@ -446,8 +446,8 @@ function AgendaRow({ e, onAction, todayStr }) {
         
         <div className="flex items-center gap-4 shrink-0">
           <div className="text-right">
-            <p className="text-xs font-bold text-gray-300">{e.date === todayStr ? 'Today' : new Date(e.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
-            {e.endDate && <p className="text-[10px] text-gray-500">→ {new Date(e.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>}
+            <p className="text-xs font-bold text-gray-300">{e.date === todayStr ? 'Today' : new Date(e.date).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })}</p>
+            {e.endDate && <p className="text-[10px] text-gray-500">→ {new Date(e.endDate).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })}</p>}
           </div>
           <div className="flex gap-1 border-l border-white/10 pl-4">
             {e.status !== 'completed' && <button onClick={() => onAction('complete', e)} className="p-2 text-gray-400 hover:text-green-500 bg-gray-950 rounded-lg transition-colors" title="Mark Complete"><CheckCircle2 size={16} /></button>}
