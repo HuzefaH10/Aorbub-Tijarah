@@ -171,8 +171,8 @@ export default function DataEntry() {
   const [billsExpanded, setBillsExpanded] = useState(false);
   const [revenueExpanded, setRevenueExpanded] = useState(false);
 
-  const inputCls = "w-full glass text-gray-800 dark:text-white px-4 py-3 text-sm outline-none focus:border-primary-500 transition-all";
-  const labelCls = "block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide";
+  const inputCls = "w-full glass text-gray-800 dark:text-white px-3.5 py-2.5 text-sm outline-none focus:border-primary-500 transition-all rounded-xl";
+  const labelCls = "block text-[11px] font-semibold text-gray-400 dark:text-gray-500 mb-1 uppercase tracking-wider";
   const fieldOptions = [
     { key: 'unitPrice', label: 'Unit Price' },
     { key: 'unit', label: 'Unit (kg, pcs, box)' },
@@ -181,19 +181,14 @@ export default function DataEntry() {
   ];
 
   return (
-    <div className="w-full space-y-8">
+    <div className="w-full space-y-6 px-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
-      <div>
-        <h2 className="text-xl font-bold text-gray-800 dark:text-white font-heading">Billing & Checkout</h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400">Create and confirm customer bills in real time.</p>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        <div className="lg:col-span-8 space-y-6">
-          <Card>
-            <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-4 mb-5">
-              <h3 className="text-lg font-bold text-gray-800 dark:text-white font-heading flex items-center gap-2">
-                <ClipboardList size={20} className="text-primary-500" /> New Bill
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">        <div className="lg:col-span-7 space-y-5">
+          <Card className="!p-5">
+            <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3 mb-4">
+              <h3 className="text-base font-bold text-gray-800 dark:text-white font-heading flex items-center gap-2">
+                <ClipboardList size={18} className="text-primary-500" /> New Bill
               </h3>
               <div className="relative">
                 <button ref={btnRef} type="button" onClick={() => setPanelOpen(prev => !prev)}
@@ -221,43 +216,41 @@ export default function DataEntry() {
               </div>
             </div>
 
-            <form onSubmit={checkout} className="space-y-5">
+            <form onSubmit={checkout} className="space-y-3">
               {/* Date */}
               <div>
                 <label className={labelCls}>Date</label>
-                <input type="text" readOnly value={todayDisplay} className={`${inputCls} bg-gray-50/50 dark:bg-gray-900/50 cursor-not-allowed opacity-70`} />
+                <input type="text" readOnly value={todayDisplay} className={`${inputCls} bg-gray-50/50 dark:bg-gray-900/50 cursor-not-allowed opacity-60`} />
               </div>
 
-              {/* Category */}
-              <div>
-                <label className={labelCls}>Category</label>
-                <select value={f.category} onChange={e => handleCategorySelect(e.target.value)} className={inputCls}>
-                  <option value="" disabled>Select a category...</option>
-                  {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-                {categories.length === 0 && <p className="text-xs text-amber-500 mt-1">No categories found. Add products with categories in Inventory first.</p>}
-              </div>
-
-              {/* Product + QT + Add Button */}
+              {/* Category + Product + QT side by side */}
               <div className="flex gap-3 items-end">
+                <div className="w-1/2">
+                  <label className={labelCls}>Category</label>
+                  <select value={f.category} onChange={e => handleCategorySelect(e.target.value)} className={inputCls}>
+                    <option value="" disabled>Select category...</option>
+                    {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
                 <div className="flex-1">
                   <label className={labelCls}>Product</label>
                   <select value={f.product} onChange={e => handleProductSelect(e.target.value)} className={inputCls} disabled={!f.category}>
-                    <option value="" disabled>{f.category ? 'Select a product...' : 'Choose category first'}</option>
+                    <option value="" disabled>{f.category ? 'Select product...' : 'Category first'}</option>
                     {filteredProducts.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
                   </select>
                 </div>
-                <div className="w-20 shrink-0">
-                  <label className="block text-[10px] font-semibold text-gray-400 dark:text-gray-500 mb-1.5 uppercase tracking-wide text-center">QT</label>
+                <div className="w-16 shrink-0">
+                  <label className="block text-[10px] font-semibold text-gray-400 dark:text-gray-500 mb-1 uppercase tracking-wider text-center">QT</label>
                   <input type="number" min="1" value={f.qty} onChange={e => setF({ ...f, qty: e.target.value })}
-                    className={`${inputCls} text-center`} placeholder="0" disabled={!f.product} />
+                    className={`${inputCls} text-center !px-2`} placeholder="0" disabled={!f.product} />
                 </div>
                 <button type="button" onClick={addItem} disabled={!canAddItem}
-                  className="shrink-0 p-3 rounded-xl bg-primary-600 text-white hover:bg-primary-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-primary-600/20"
+                  className="shrink-0 p-2.5 rounded-xl bg-primary-600 text-white hover:bg-primary-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-md shadow-primary-600/20"
                   title="Add item to bill">
-                  <Plus size={20} />
+                  <Plus size={18} />
                 </button>
               </div>
+              {categories.length === 0 && <p className="text-xs text-amber-500">No categories found. Add products in Inventory first.</p>}
 
               {/* Optional: Unit Price / Unit */}
               {(fieldToggles.unitPrice || fieldToggles.unit) && (
@@ -294,45 +287,45 @@ export default function DataEntry() {
                 </div>
               )}
 
-              {/* Discount */}
-              <div>
-                <label className={labelCls}>Discount</label>
-                <div className="flex gap-0">
-                  <input type="number" min="0" step="0.01" value={discount} onChange={e => setDiscount(e.target.value)}
-                    className={`${inputCls} !rounded-r-none`} placeholder="0" />
-                  <button type="button" onClick={() => setDiscountType(prev => prev === '$' ? '%' : '$')}
-                    className="px-4 py-3 glass !rounded-l-none !border-l-0 text-sm font-bold text-primary-500 hover:text-primary-400 transition-colors shrink-0 min-w-[44px]">
-                    {discountType}
-                  </button>
-                </div>
-              </div>
-
-              {/* Net Total */}
-              <div className="p-4 glass !border-primary-500/30 flex items-center justify-between">
+              {/* Discount + Net Total side by side */}
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Net Total</span>
-                  {fieldToggles.tax && taxAmount > 0 && <p className="text-[10px] text-gray-400 mt-0.5">incl. tax ${taxAmount.toFixed(2)}</p>}
+                  <label className={labelCls}>Discount</label>
+                  <div className="flex gap-0">
+                    <input type="number" min="0" step="0.01" value={discount} onChange={e => setDiscount(e.target.value)}
+                      className={`${inputCls} !rounded-r-none`} placeholder="0" />
+                    <button type="button" onClick={() => setDiscountType(prev => prev === '$' ? '%' : '$')}
+                      className="px-3 py-2.5 glass !rounded-l-none !rounded-r-xl !border-l-0 text-sm font-bold text-primary-500 hover:text-primary-400 transition-colors shrink-0 min-w-[40px]">
+                      {discountType}
+                    </button>
+                  </div>
                 </div>
-                <span className="text-2xl font-bold text-primary-600 dark:text-primary-400 font-heading">${netTotal.toFixed(2)}</span>
+                <div>
+                  <label className={labelCls}>Net Total</label>
+                  <div className="glass !border-primary-500/30 px-3.5 py-2.5 rounded-xl flex items-center justify-between">
+                    <span className="text-lg font-bold text-primary-600 dark:text-primary-400 font-heading">${netTotal.toFixed(2)}</span>
+                    {fieldToggles.tax && taxAmount > 0 && <span className="text-[10px] text-gray-400">+tax ${taxAmount.toFixed(2)}</span>}
+                  </div>
+                </div>
               </div>
 
-              {/* Payment Method */}
+              {/* Payment Method — segmented control */}
               <div>
                 <label className={labelCls}>Payment Method</label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="flex glass !p-1 rounded-xl">
                   {['cash', 'credit'].map(m => (
                     <button key={m} type="button" onClick={() => setPaymentMethod(m)}
-                      className={`py-3 rounded-xl text-sm font-bold transition-all duration-200 capitalize ${
-                        paymentMethod === m ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/20' : 'glass text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                      className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all duration-200 capitalize ${
+                        paymentMethod === m ? 'bg-primary-600 text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                       }`}>{m}</button>
                   ))}
                 </div>
               </div>
 
               {/* Checkout */}
-              <div className="pt-4">
+              <div className="pt-3">
                 <button type="submit" disabled={billItems.length === 0}
-                  className="w-full bg-primary-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-primary-700 transition-colors shadow-lg shadow-primary-600/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary-600">
+                  className="w-full bg-primary-600 text-white h-11 rounded-xl font-bold text-sm hover:bg-primary-700 transition-colors shadow-lg shadow-primary-600/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary-600">
                   Checkout ({billItems.length} item{billItems.length !== 1 ? 's' : ''})
                 </button>
               </div>
@@ -371,7 +364,7 @@ export default function DataEntry() {
         </div>
 
         {/* Right Column: Order Summary & Stats */}
-        <div className="lg:col-span-4 space-y-5">
+        <div className="lg:col-span-5 space-y-4">
           <Card className="border border-primary-500/20">
             <h3 className="font-bold text-gray-800 dark:text-white border-b border-gray-100 dark:border-gray-800 pb-3 mb-3">Order Summary</h3>
             {billItems.length > 0 ? (
