@@ -192,3 +192,28 @@ export function useSettings() {
 
   return { settings, loading, updateSettings };
 }
+
+export function useBills() {
+  const [bills, setBills] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'bills'), where('userId', '==', user.uid));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      data.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      setBills(data);
+      setLoading(false);
+    });
+    return unsubscribe;
+  }, [user]);
+
+  const addBill = useCallback(async (data) => {
+    if (!user) return;
+    await addDoc(collection(db, 'bills'), { ...data, userId: user.uid, createdAt: serverTimestamp() });
+  }, [user]);
+
+  return { bills, loading, addBill };
+}
