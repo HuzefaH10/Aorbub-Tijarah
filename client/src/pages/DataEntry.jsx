@@ -1,12 +1,15 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { Card, SummaryCard } from '../components/ui/Card';
 import Toast, { useToast } from '../components/ui/Toast';
-import { useProducts, useEntries } from '../hooks/useFirestore';
-import { ClipboardList, ShoppingCart, DollarSign } from 'lucide-react';
+import { useProducts, useEntries, useSettings } from '../hooks/useFirestore';
+import { ClipboardList, ShoppingCart, DollarSign, Settings2 } from 'lucide-react';
+
+const DEFAULT_FIELDS = { unitPrice: false, unit: false, tax: false, notes: false };
 
 export default function DataEntry() {
   const { products } = useProducts();
   const { addEntry, entries } = useEntries();
+  const { settings, updateSettings } = useSettings();
   const { toast, showToast, hideToast } = useToast();
 
   // Auto-detected date (DD/MM/YYYY)
@@ -16,7 +19,47 @@ export default function DataEntry() {
   const [f, setF] = useState({ category: '', product: '', qty: '' });
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [discount, setDiscount] = useState('');
-  const [discountType, setDiscountType] = useState('$'); // '$' or '%'
+  const [discountType, setDiscountType] = useState('$');
+
+  // Optional field values
+  const [manualUnitPrice, setManualUnitPrice] = useState('');
+  const [unitField, setUnitField] = useState('pcs');
+  const [taxPercent, setTaxPercent] = useState('');
+  const [notesField, setNotesField] = useState('');
+
+  // Customizable field toggles (persisted via Firestore settings)
+  const [fieldToggles, setFieldToggles] = useState(DEFAULT_FIELDS);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const panelRef = useRef(null);
+  const btnRef = useRef(null);
+
+  // Load saved field prefs from Firestore
+  useEffect(() => {
+    if (settings?.billingFields) {
+      setFieldToggles(prev => ({ ...prev, ...settings.billingFields }));
+    }
+  }, [settings]);
+
+  // Close panel on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (panelOpen && panelRef.current && !panelRef.current.contains(e.target) && !btnRef.current.contains(e.target)) {
+        setPanelOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [panelOpen]);
+
+  const toggleField = async (key) => {
+    const updated = { ...fieldToggles, [key]: !fieldToggles[key] };
+    setFieldToggles(updated);
+    try {
+      await updateSettings({ billingFields: updated });
+    } catch {
+      // silently fail — local state still updates
+    }
+  };
 
   // Derive unique categories from products
   const categories = useMemo(() => {
@@ -33,21 +76,29 @@ export default function DataEntry() {
 
   // Get selected product's price
   const selectedProduct = products.find(p => p.name === f.product);
-  const unitPrice = Number(selectedProduct?.price) || 0;
-  const total = (Number(f.qty) || 0) * unitPrice;
+  const effectiveUnitPrice = fieldToggles.unitPrice && manualUnitPrice !== ''
+    ? Number(manualUnitPrice)
+    : Number(selectedProduct?.price) || 0;
+  const total = (Number(f.qty) || 0) * effectiveUnitPrice;
 
-  // Discount calculation
+  // Tax calculation
+  const taxAmount = fieldToggles.tax ? (total * (Number(taxPercent) || 0)) / 100 : 0;
+  const totalAfterTax = total + taxAmount;
+
+  // Discount calculation (applied after tax)
   const discountAmount = discountType === '%'
-    ? (total * (Number(discount) || 0)) / 100
+    ? (totalAfterTax * (Number(discount) || 0)) / 100
     : Number(discount) || 0;
-  const netTotal = Math.max(0, total - discountAmount);
+  const netTotal = Math.max(0, totalAfterTax - discountAmount);
 
   const handleCategorySelect = (cat) => {
     setF(prev => ({ ...prev, category: cat, product: '', qty: '' }));
+    setManualUnitPrice('');
   };
 
   const handleProductSelect = (name) => {
     setF(prev => ({ ...prev, product: name }));
+    setManualUnitPrice('');
   };
 
   const isFormValid = f.category && f.product && f.qty;
@@ -70,10 +121,16 @@ export default function DataEntry() {
         paymentMethod,
         discount: discountAmount,
         discountType,
+        ...(fieldToggles.unit && { unit: unitField }),
+        ...(fieldToggles.tax && { tax: Number(taxPercent) || 0, taxAmount }),
+        ...(fieldToggles.notes && notesField && { notes: notesField }),
       });
       showToast('Bill created successfully!');
       setF({ ...f, product: '', qty: '' });
       setDiscount('');
+      setManualUnitPrice('');
+      setTaxPercent('');
+      setNotesField('');
     } catch {
       showToast('Error processing bill', 'error');
     }
@@ -85,6 +142,13 @@ export default function DataEntry() {
 
   const inputCls = "w-full glass text-gray-800 dark:text-white px-4 py-3 text-sm outline-none focus:border-primary-500 transition-all";
   const labelCls = "block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide";
+
+  const fieldOptions = [
+    { key: 'unitPrice', label: 'Unit Price' },
+    { key: 'unit', label: 'Unit (kg, pcs, box)' },
+    { key: 'tax', label: 'Tax (%)' },
+    { key: 'notes', label: 'Notes' },
+  ];
 
   return (
     <div className="w-full space-y-8">
@@ -99,9 +163,49 @@ export default function DataEntry() {
         {/* Left Column: Billing Form (66%) */}
         <div className="lg:col-span-8 space-y-6">
           <Card>
-            <h3 className="text-lg font-bold text-gray-800 dark:text-white font-heading border-b border-gray-100 dark:border-gray-800 pb-4 mb-5 flex items-center gap-2">
-              <ClipboardList size={20} className="text-primary-500" /> New Bill
-            </h3>
+            {/* Header with customize button */}
+            <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-4 mb-5">
+              <h3 className="text-lg font-bold text-gray-800 dark:text-white font-heading flex items-center gap-2">
+                <ClipboardList size={20} className="text-primary-500" /> New Bill
+              </h3>
+              <div className="relative">
+                <button
+                  ref={btnRef}
+                  type="button"
+                  onClick={() => setPanelOpen(prev => !prev)}
+                  className={`p-2 rounded-lg transition-all duration-200 ${panelOpen ? 'bg-primary-600 text-white' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5'}`}
+                  title="Customize Fields"
+                >
+                  <Settings2 size={18} />
+                </button>
+
+                {/* Customize Fields Panel */}
+                {panelOpen && (
+                  <div
+                    ref={panelRef}
+                    className="absolute right-0 top-full mt-2 w-64 glass-opaque p-4 animate-fadeIn origin-top-right z-50"
+                  >
+                    <h4 className="text-sm font-bold text-gray-800 dark:text-white mb-3">Customize Fields</h4>
+                    <div className="space-y-3">
+                      {fieldOptions.map(({ key, label }) => (
+                        <div key={key} className="flex items-center justify-between">
+                          <span className="text-sm text-gray-600 dark:text-gray-300">{label}</span>
+                          <button
+                            type="button"
+                            onClick={() => toggleField(key)}
+                            className={`relative w-10 h-[22px] rounded-full transition-colors duration-200 ${fieldToggles[key] ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+                          >
+                            <span className={`absolute top-[2px] w-[18px] h-[18px] rounded-full bg-white shadow transition-transform duration-200 ${fieldToggles[key] ? 'left-[20px]' : 'left-[2px]'}`} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-3 leading-tight">Preferences are saved automatically for your business.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
             <form onSubmit={submit} className="space-y-5">
               {/* Date (auto-detected, read-only) */}
               <div>
@@ -161,6 +265,71 @@ export default function DataEntry() {
                 </div>
               </div>
 
+              {/* Optional Fields (toggled) */}
+              {(fieldToggles.unitPrice || fieldToggles.unit) && (
+                <div className={`grid gap-4 ${fieldToggles.unitPrice && fieldToggles.unit ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                  {fieldToggles.unitPrice && (
+                    <div>
+                      <label className={labelCls}>Unit Price ($)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={manualUnitPrice}
+                        onChange={e => setManualUnitPrice(e.target.value)}
+                        className={inputCls}
+                        placeholder={selectedProduct?.price ? `Default: ${selectedProduct.price}` : '0.00'}
+                      />
+                    </div>
+                  )}
+                  {fieldToggles.unit && (
+                    <div>
+                      <label className={labelCls}>Unit</label>
+                      <select
+                        value={unitField}
+                        onChange={e => setUnitField(e.target.value)}
+                        className={inputCls}
+                      >
+                        <option value="pcs">Pieces (pcs)</option>
+                        <option value="kg">Kilograms (kg)</option>
+                        <option value="liters">Liters</option>
+                        <option value="boxes">Boxes</option>
+                        <option value="meters">Meters</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {fieldToggles.tax && (
+                <div>
+                  <label className={labelCls}>Tax (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={taxPercent}
+                    onChange={e => setTaxPercent(e.target.value)}
+                    className={inputCls}
+                    placeholder="0"
+                  />
+                </div>
+              )}
+
+              {fieldToggles.notes && (
+                <div>
+                  <label className={labelCls}>Notes</label>
+                  <input
+                    type="text"
+                    value={notesField}
+                    onChange={e => setNotesField(e.target.value)}
+                    className={inputCls}
+                    placeholder="Add a note to this bill..."
+                  />
+                </div>
+              )}
+
               {/* Total + Discount */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -197,7 +366,12 @@ export default function DataEntry() {
 
               {/* Net Total */}
               <div className="p-4 glass !border-primary-500/30 flex items-center justify-between">
-                <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Net Total</span>
+                <div>
+                  <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Net Total</span>
+                  {fieldToggles.tax && taxAmount > 0 && (
+                    <p className="text-[10px] text-gray-400 mt-0.5">incl. tax ${taxAmount.toFixed(2)}</p>
+                  )}
+                </div>
                 <span className="text-2xl font-bold text-primary-600 dark:text-primary-400 font-heading">${netTotal.toFixed(2)}</span>
               </div>
 
@@ -253,12 +427,18 @@ export default function DataEntry() {
                 <div className="flex justify-between items-start text-sm">
                   <div className="flex-1 pr-2">
                     <p className="font-semibold text-gray-800 dark:text-white line-clamp-2">{f.product}</p>
-                    <p className="text-gray-500 dark:text-gray-400 mt-0.5">Qty: {f.qty || 0} × ${unitPrice.toFixed(2)}</p>
+                    <p className="text-gray-500 dark:text-gray-400 mt-0.5">Qty: {f.qty || 0} × ${effectiveUnitPrice.toFixed(2)}</p>
                   </div>
                   <div className="text-right">
                     <p className="font-medium text-gray-700 dark:text-gray-300">${total.toFixed(2)}</p>
                   </div>
                 </div>
+                {fieldToggles.tax && taxAmount > 0 && (
+                  <div className="flex justify-between items-center text-sm text-gray-500 dark:text-gray-400">
+                    <p>Tax ({taxPercent}%)</p>
+                    <p>+${taxAmount.toFixed(2)}</p>
+                  </div>
+                )}
                 {discountAmount > 0 && (
                   <div className="flex justify-between items-center text-sm text-red-500">
                     <p>Discount ({discountType === '%' ? `${discount}%` : `$${discount}`})</p>
