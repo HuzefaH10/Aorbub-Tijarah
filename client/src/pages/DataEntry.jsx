@@ -269,38 +269,60 @@ export default function DataEntry() {
               </div>
               {categories.length === 0 && <p className="text-xs text-amber-500">No categories found. Add products in Inventory first.</p>}
 
-              {/* Optional: Unit Price / Unit */}
-              {(fieldToggles.unitPrice || fieldToggles.unit) && (
-                <div className={`grid gap-4 ${fieldToggles.unitPrice && fieldToggles.unit ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                  {fieldToggles.unitPrice && (
-                    <div>
-                      <label className={labelCls}>Unit Price ($)</label>
-                      <input type="number" min="0" step="0.01" value={manualUnitPrice} onChange={e => setManualUnitPrice(e.target.value)}
-                        className={inputCls} placeholder={selectedProduct?.price ? `Default: ${selectedProduct.price}` : '0.00'} />
-                    </div>
-                  )}
-                  {fieldToggles.unit && (
-                    <div>
-                      <label className={labelCls}>Unit</label>
-                      <select value={unitField} onChange={e => setUnitField(e.target.value)} className={inputCls}>
-                        <option value="pcs">Pieces (pcs)</option><option value="kg">Kilograms (kg)</option>
-                        <option value="liters">Liters</option><option value="boxes">Boxes</option><option value="meters">Meters</option>
-                      </select>
-                    </div>
-                  )}
-                </div>
-              )}
+              {/* Optional Fields Grid Layout */}
+              {(() => {
+                const activeGridFields = [];
+                if (fieldToggles.unitPrice) activeGridFields.push('unitPrice');
+                if (fieldToggles.unit) activeGridFields.push('unit');
+                if (fieldToggles.tax) activeGridFields.push('tax');
 
-              {fieldToggles.tax && (
-                <div>
-                  <label className={labelCls}>Tax (%)</label>
-                  <input type="number" min="0" max="100" step="0.01" value={taxPercent} onChange={e => setTaxPercent(e.target.value)} className={inputCls} placeholder="0" />
-                </div>
-              )}
+                if (activeGridFields.length === 0) return null;
+
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3">
+                    {activeGridFields.map((key, index) => {
+                      const isFullWidth = activeGridFields.length === 1 || (activeGridFields.length === 3 && index === 2);
+                      const colCls = isFullWidth ? 'col-span-1 md:col-span-2' : 'col-span-1';
+
+                      if (key === 'unitPrice') {
+                        return (
+                          <div key="unitPrice" className={colCls}>
+                            <label className={labelCls}>Unit Price ($)</label>
+                            <input type="number" min="0" step="0.01" value={manualUnitPrice} onChange={e => setManualUnitPrice(e.target.value)}
+                              className={inputCls} placeholder={selectedProduct?.price ? `Default: ${selectedProduct.price}` : '0.00'} />
+                          </div>
+                        );
+                      }
+                      if (key === 'unit') {
+                        return (
+                          <div key="unit" className={colCls}>
+                            <label className={labelCls}>Unit</label>
+                            <select value={unitField} onChange={e => setUnitField(e.target.value)} className={inputCls}>
+                              <option value="pcs">Pieces (pcs)</option><option value="kg">Kilograms (kg)</option>
+                              <option value="liters">Liters</option><option value="boxes">Boxes</option><option value="meters">Meters</option>
+                            </select>
+                          </div>
+                        );
+                      }
+                      if (key === 'tax') {
+                        return (
+                          <div key="tax" className={colCls}>
+                            <label className={labelCls}>Tax (%)</label>
+                            <input type="number" min="0" max="100" step="0.01" value={taxPercent} onChange={e => setTaxPercent(e.target.value)} className={inputCls} placeholder="0" />
+                          </div>
+                        );
+                      }
+                      return null;
+                    })}
+                  </div>
+                );
+              })()}
+
               {fieldToggles.notes && (
                 <div>
                   <label className={labelCls}>Notes</label>
-                  <input type="text" value={notesField} onChange={e => setNotesField(e.target.value)} className={inputCls} placeholder="Add a note to this bill..." />
+                  <textarea value={notesField} onChange={e => setNotesField(e.target.value)}
+                    className={`${inputCls} h-16 resize-none`} placeholder="Add a note to this bill..." />
                 </div>
               )}
 
