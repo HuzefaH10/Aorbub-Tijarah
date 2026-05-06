@@ -181,10 +181,25 @@ export default function DataEntry() {
   ];
 
   return (
-    <div className="w-full space-y-6 px-6">
+    <div className="w-full space-y-6 px-6 pb-6 animate-fadeIn">
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">        <div className="lg:col-span-7 space-y-5">
+      {/* Page Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-gray-100 dark:border-gray-800/60 pb-3 mb-1">
+        <div>
+          <h2 className="text-xl font-bold text-gray-800 dark:text-white font-heading">Stock Entry</h2>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Create and confirm customer bills in real time.</p>
+        </div>
+        <div className="text-left md:text-right">
+          <span className="inline-block text-[11px] font-medium text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-white/5 px-2.5 py-1 rounded-full border border-gray-200/20 dark:border-white/5">
+            Last updated: 6 May 2026
+          </span>
+        </div>
+      </div>
+
+      <div className="flex flex-col lg:flex-row gap-6 justify-between">
+        {/* Left Column: Billing Form (62%) */}
+        <div className="w-full lg:w-[62%] space-y-5">
           <Card className="!p-5">
             <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3 mb-4">
               <h3 className="text-base font-bold text-gray-800 dark:text-white font-heading flex items-center gap-2">
@@ -232,17 +247,19 @@ export default function DataEntry() {
                     {categories.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
-                <div className="flex-1">
-                  <label className={labelCls}>Product</label>
-                  <select value={f.product} onChange={e => handleProductSelect(e.target.value)} className={inputCls} disabled={!f.category}>
-                    <option value="" disabled>{f.category ? 'Select product...' : 'Category first'}</option>
-                    {filteredProducts.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
-                  </select>
+                <div className="w-[43%] flex gap-2 items-end">
+                  <div className="flex-1">
+                    <label className={labelCls}>Product</label>
+                    <select value={f.product} onChange={e => handleProductSelect(e.target.value)} className={inputCls} disabled={!f.category}>
+                      <option value="" disabled>{f.category ? 'Select product...' : 'Category first'}</option>
+                      {filteredProducts.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+                    </select>
+                  </div>
                 </div>
-                <div className="w-16 shrink-0">
+                <div className="w-[7%] min-w-[56px] shrink-0">
                   <label className="block text-[10px] font-semibold text-gray-400 dark:text-gray-500 mb-1 uppercase tracking-wider text-center">QT</label>
                   <input type="number" min="1" value={f.qty} onChange={e => setF({ ...f, qty: e.target.value })}
-                    className={`${inputCls} text-center !px-2`} placeholder="0" disabled={!f.product} />
+                    className={`${inputCls} text-center !px-1`} placeholder="0" disabled={!f.product} />
                 </div>
                 <button type="button" onClick={addItem} disabled={!canAddItem}
                   className="shrink-0 p-2.5 rounded-xl bg-primary-600 text-white hover:bg-primary-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-md shadow-primary-600/20"
@@ -293,18 +310,18 @@ export default function DataEntry() {
                   <label className={labelCls}>Discount</label>
                   <div className="flex gap-0">
                     <input type="number" min="0" step="0.01" value={discount} onChange={e => setDiscount(e.target.value)}
-                      className={`${inputCls} !rounded-r-none`} placeholder="0" />
+                      className={`${inputCls} !rounded-r-none h-[38px]`} placeholder="0" />
                     <button type="button" onClick={() => setDiscountType(prev => prev === '$' ? '%' : '$')}
-                      className="px-3 py-2.5 glass !rounded-l-none !rounded-r-xl !border-l-0 text-sm font-bold text-primary-500 hover:text-primary-400 transition-colors shrink-0 min-w-[40px]">
+                      className="px-3 glass !rounded-l-none !rounded-r-xl !border-l-0 text-sm font-bold text-primary-500 hover:text-primary-400 transition-colors shrink-0 min-w-[40px] h-[38px]">
                       {discountType}
                     </button>
                   </div>
                 </div>
                 <div>
                   <label className={labelCls}>Net Total</label>
-                  <div className="glass !border-primary-500/30 px-3.5 py-2.5 rounded-xl flex items-center justify-between">
-                    <span className="text-lg font-bold text-primary-600 dark:text-primary-400 font-heading">${netTotal.toFixed(2)}</span>
-                    {fieldToggles.tax && taxAmount > 0 && <span className="text-[10px] text-gray-400">+tax ${taxAmount.toFixed(2)}</span>}
+                  <div className="glass !border-primary-500/30 px-3.5 rounded-xl flex items-center justify-between h-[38px]">
+                    <span className="text-base font-bold text-primary-600 dark:text-primary-400 font-heading">${netTotal.toFixed(2)}</span>
+                    {fieldToggles.tax && taxAmount > 0 && <span className="text-[9px] text-gray-400 font-medium tracking-wide">+tax ${taxAmount.toFixed(2)}</span>}
                   </div>
                 </div>
               </div>
@@ -312,10 +329,10 @@ export default function DataEntry() {
               {/* Payment Method — segmented control */}
               <div>
                 <label className={labelCls}>Payment Method</label>
-                <div className="flex glass !p-1 rounded-xl">
+                <div className="flex glass !p-1 rounded-xl h-[38px] items-center">
                   {['cash', 'credit'].map(m => (
                     <button key={m} type="button" onClick={() => setPaymentMethod(m)}
-                      className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all duration-200 capitalize ${
+                      className={`flex-1 py-1 rounded-lg text-xs font-bold transition-all duration-200 capitalize ${
                         paymentMethod === m ? 'bg-primary-600 text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                       }`}>{m}</button>
                   ))}
@@ -363,8 +380,8 @@ export default function DataEntry() {
           )}
         </div>
 
-        {/* Right Column: Order Summary & Stats */}
-        <div className="lg:col-span-5 space-y-4">
+        {/* Right Column: Order Summary & Stats (33%) */}
+        <div className="w-full lg:w-[33%] lg:ml-auto space-y-4">
           <Card className="border border-primary-500/20">
             <h3 className="font-bold text-gray-800 dark:text-white border-b border-gray-100 dark:border-gray-800 pb-3 mb-3">Order Summary</h3>
             {billItems.length > 0 ? (

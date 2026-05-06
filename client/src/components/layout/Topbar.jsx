@@ -44,8 +44,12 @@ export default function Topbar() {
   return (
     <header className="h-16 glass !rounded-none !border-t-0 !border-x-0 flex items-center justify-between px-6 sticky top-0 z-40 transition-colors duration-300">
       <div>
-        <h1 className="text-lg font-bold text-gray-800 dark:text-white font-heading">{title}</h1>
-        <p className="text-xs text-gray-400 dark:text-gray-500">Last updated: {today}</p>
+        {location.pathname !== '/data-entry' && (
+          <>
+            <h1 className="text-lg font-bold text-gray-800 dark:text-white font-heading">{title}</h1>
+            <p className="text-xs text-gray-400 dark:text-gray-500">Last updated: {today}</p>
+          </>
+        )}
       </div>
 
       {/* Account dropdown */}
