@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { Card, SummaryCard } from '../components/ui/Card';
 import Toast, { useToast } from '../components/ui/Toast';
 import { useProducts, useBills, useSettings } from '../hooks/useFirestore';
-import { ClipboardList, ShoppingCart, DollarSign, Settings2, X, Plus, Trash2 } from 'lucide-react';
+import { ClipboardList, ShoppingCart, DollarSign, Settings2, X, Plus, Trash2, ChevronDown } from 'lucide-react';
 
 const DEFAULT_FIELDS = { unitPrice: false, unit: false, tax: false, notes: false };
 
@@ -162,8 +162,14 @@ export default function DataEntry() {
   };
 
   const todayBills = bills.filter(b => b.date === todayISO);
-  const todayRev = todayBills.reduce((s, b) => s + (b.netTotal || 0), 0);
   const todaySales = todayBills.length;
+  const todayPaidRev = todayBills.filter(b => b.status === 'paid').reduce((s, b) => s + (b.netTotal || 0), 0);
+  const todayCashRev = todayBills.filter(b => b.paymentMethod === 'cash' && b.status === 'paid').reduce((s, b) => s + (b.netTotal || 0), 0);
+  const todayCreditRev = todayBills.filter(b => b.paymentMethod === 'credit').reduce((s, b) => s + (b.netTotal || 0), 0);
+  const todayTotalRev = todayPaidRev + todayCreditRev;
+
+  const [billsExpanded, setBillsExpanded] = useState(false);
+  const [revenueExpanded, setRevenueExpanded] = useState(false);
 
   const inputCls = "w-full glass text-gray-800 dark:text-white px-4 py-3 text-sm outline-none focus:border-primary-500 transition-all";
   const labelCls = "block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide";
@@ -415,8 +421,46 @@ export default function DataEntry() {
             )}
           </Card>
 
-          <SummaryCard label="Bills Today" value={todaySales} icon={<ShoppingCart size={20} />} />
-          <SummaryCard label="Revenue Today" value={`$${todayRev.toLocaleString()}`} color="text-primary-600" icon={<DollarSign size={20} />} />
+          {/* Bills Today — Collapsible */}
+          <Card>
+            <button type="button" onClick={() => setBillsExpanded(p => !p)} className="w-full flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary-600/10"><ShoppingCart size={18} className="text-primary-500" /></div>
+                <span className="text-sm font-bold text-gray-700 dark:text-gray-200">Bills Today</span>
+              </div>
+              <ChevronDown size={18} className={`text-gray-400 transition-transform duration-200 ${billsExpanded ? 'rotate-180' : ''}`} />
+            </button>
+            <div className={`overflow-hidden transition-all duration-200 ease-in-out ${billsExpanded ? 'max-h-40 mt-4' : 'max-h-0'}`}>
+              <div className="pt-3 border-t border-gray-100 dark:border-gray-800">
+                <p className="text-3xl font-bold text-gray-800 dark:text-white font-heading">{todaySales}</p>
+                <p className="text-xs text-gray-500 mt-1">bill{todaySales !== 1 ? 's' : ''} created today</p>
+              </div>
+            </div>
+          </Card>
+
+          {/* Revenue Today — Collapsible */}
+          <Card>
+            <button type="button" onClick={() => setRevenueExpanded(p => !p)} className="w-full flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary-600/10"><DollarSign size={18} className="text-primary-500" /></div>
+                <span className="text-sm font-bold text-gray-700 dark:text-gray-200">Revenue Today</span>
+              </div>
+              <ChevronDown size={18} className={`text-gray-400 transition-transform duration-200 ${revenueExpanded ? 'rotate-180' : ''}`} />
+            </button>
+            <div className={`overflow-hidden transition-all duration-200 ease-in-out ${revenueExpanded ? 'max-h-40 mt-4' : 'max-h-0'}`}>
+              <div className="pt-3 border-t border-gray-100 dark:border-gray-800 space-y-2">
+                <p className="text-3xl font-bold text-primary-600 dark:text-primary-400 font-heading">${todayTotalRev.toLocaleString()}</p>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Cash</span>
+                  <span className="font-semibold text-gray-700 dark:text-gray-200">${todayCashRev.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Credit</span>
+                  <span className="font-semibold text-gray-700 dark:text-gray-200">${todayCreditRev.toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+          </Card>
         </div>
       </div>
     </div>
