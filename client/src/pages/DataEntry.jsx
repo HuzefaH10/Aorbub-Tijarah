@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { Card, SummaryCard } from '../components/ui/Card';
 import Toast, { useToast } from '../components/ui/Toast';
 import { useProducts, useEntries, useSettings } from '../hooks/useFirestore';
-import { ClipboardList, ShoppingCart, DollarSign, Settings2 } from 'lucide-react';
+import { ClipboardList, ShoppingCart, DollarSign, Settings2, X } from 'lucide-react';
 
 const DEFAULT_FIELDS = { unitPrice: false, unit: false, tax: false, notes: false };
 
@@ -32,6 +32,9 @@ export default function DataEntry() {
   const [panelOpen, setPanelOpen] = useState(false);
   const panelRef = useRef(null);
   const btnRef = useRef(null);
+
+  // Credit modal state
+  const [creditModal, setCreditModal] = useState({ open: false, customerName: '', creditAmount: '', dueDate: '' });
 
   // Load saved field prefs from Firestore
   useEffect(() => {
@@ -103,36 +106,73 @@ export default function DataEntry() {
 
   const isFormValid = f.category && f.product && f.qty;
 
+  // Build the common entry data object
+  const buildEntryData = (extras = {}) => ({
+    date: todayISO,
+    product: f.product,
+    category: f.category,
+    quantitySold: Number(f.qty),
+    revenue: netTotal,
+    cost: 0,
+    stockAdded: 0,
+    stockRemaining: 0,
+    paymentMethod,
+    discount: discountAmount,
+    discountType,
+    ...(fieldToggles.unit && { unit: unitField }),
+    ...(fieldToggles.tax && { tax: Number(taxPercent) || 0, taxAmount }),
+    ...(fieldToggles.notes && notesField && { notes: notesField }),
+    ...extras,
+  });
+
+  const resetForm = () => {
+    setF({ ...f, product: '', qty: '' });
+    setDiscount('');
+    setManualUnitPrice('');
+    setTaxPercent('');
+    setNotesField('');
+  };
+
   const submit = async (e) => {
     e.preventDefault();
     if (!isFormValid) {
       showToast('Please fill all required fields', 'error'); return;
     }
+
+    if (paymentMethod === 'credit') {
+      // Open credit modal instead of saving immediately
+      setCreditModal({ open: true, customerName: '', creditAmount: String(netTotal.toFixed(2)), dueDate: '' });
+      return;
+    }
+
+    // Cash — save immediately
     try {
-      await addEntry({
-        date: todayISO,
-        product: f.product,
-        category: f.category,
-        quantitySold: Number(f.qty),
-        revenue: netTotal,
-        cost: 0,
-        stockAdded: 0,
-        stockRemaining: 0,
-        paymentMethod,
-        discount: discountAmount,
-        discountType,
-        ...(fieldToggles.unit && { unit: unitField }),
-        ...(fieldToggles.tax && { tax: Number(taxPercent) || 0, taxAmount }),
-        ...(fieldToggles.notes && notesField && { notes: notesField }),
-      });
+      await addEntry(buildEntryData({ status: 'paid' }));
       showToast('Bill created successfully!');
-      setF({ ...f, product: '', qty: '' });
-      setDiscount('');
-      setManualUnitPrice('');
-      setTaxPercent('');
-      setNotesField('');
+      resetForm();
     } catch {
       showToast('Error processing bill', 'error');
+    }
+  };
+
+  const submitCredit = async () => {
+    if (!creditModal.customerName.trim()) {
+      showToast('Customer name is required', 'error'); return;
+    }
+    try {
+      await addEntry(buildEntryData({
+        status: 'unpaid',
+        credit: {
+          customerName: creditModal.customerName.trim(),
+          creditAmount: Number(creditModal.creditAmount) || netTotal,
+          dueDate: creditModal.dueDate || null,
+        },
+      }));
+      showToast('Credit bill recorded!');
+      setCreditModal({ open: false, customerName: '', creditAmount: '', dueDate: '' });
+      resetForm();
+    } catch {
+      showToast('Error processing credit bill', 'error');
     }
   };
 
@@ -416,6 +456,76 @@ export default function DataEntry() {
               </div>
             </form>
           </Card>
+
+          {/* Credit Modal */}
+          {creditModal.open && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fadeIn p-4">
+              <div className="glass-opaque w-full max-w-md shadow-2xl p-6 scale-95 animate-[scaleIn_0.2s_ease-out_forwards]">
+                <div className="flex items-center justify-between mb-5">
+                  <h3 className="text-lg font-bold text-gray-800 dark:text-white font-heading">Credit Details</h3>
+                  <button onClick={() => setCreditModal(prev => ({ ...prev, open: false }))} className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">
+                    <X size={18} />
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className={labelCls}>Customer Name *</label>
+                    <input
+                      type="text"
+                      autoFocus
+                      value={creditModal.customerName}
+                      onChange={e => setCreditModal(prev => ({ ...prev, customerName: e.target.value }))}
+                      className={inputCls}
+                      placeholder="Enter customer name"
+                    />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Credit Amount ($)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={creditModal.creditAmount}
+                      onChange={e => setCreditModal(prev => ({ ...prev, creditAmount: e.target.value }))}
+                      className={inputCls}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Due Date (optional)</label>
+                    <input
+                      type="date"
+                      value={creditModal.dueDate}
+                      onChange={e => setCreditModal(prev => ({ ...prev, dueDate: e.target.value }))}
+                      className={inputCls}
+                    />
+                  </div>
+
+                  <div className="p-3 glass !border-primary-500/20 flex justify-between items-center">
+                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Bill Total</span>
+                    <span className="text-lg font-bold text-primary-600 dark:text-primary-400">${netTotal.toFixed(2)}</span>
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setCreditModal(prev => ({ ...prev, open: false }))}
+                      className="flex-1 py-3 border border-gray-200 dark:border-white/10 rounded-xl text-sm font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={submitCredit}
+                      className="flex-1 py-3 bg-primary-600 rounded-xl text-sm font-bold text-white hover:bg-primary-700 transition-colors shadow-lg shadow-primary-600/20"
+                    >
+                      Confirm Credit
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right Column: Order Summary & Stats (33%) */}
