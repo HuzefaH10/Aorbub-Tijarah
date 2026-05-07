@@ -1,98 +1,175 @@
 import React, { useState } from 'react';
-import { X, Activity, AlignLeft, PieChart, BarChart3, BarChart, Target, Grip, Grid, LineChart, ListOrdered, ArrowRightLeft, Zap, Lightbulb } from 'lucide-react';
+import { X, BarChart2, Table as TableIcon, TrendingUp, PieChart, BarChart, LineChart } from 'lucide-react';
 
-const chartTypes = [
-  { id: 'area', name: 'Area Chart', dataset: 'revenueByDate', w: 12, h: 4, icon: Activity },
-  { id: 'bar-h', name: 'Horizontal Bar', dataset: 'salesByProduct', w: 6, h: 4, icon: AlignLeft },
-  { id: 'donut', name: 'Donut Chart', dataset: 'categorySplit', w: 4, h: 4, icon: PieChart },
-  { id: 'bar-v', name: 'Column Chart', dataset: 'dailyOrderVolume', w: 6, h: 4, icon: BarChart3 },
-  { id: 'grouped', name: 'Grouped Bar', dataset: 'revenueVsCostVsProfit', w: 12, h: 4, icon: BarChart },
-  { id: 'radial', name: 'Radial Bar', dataset: 'topProductPerformance', w: 4, h: 4, icon: Target },
-  { id: 'scatter', name: 'Scatter Plot', dataset: 'revenueVsQuantity', w: 6, h: 4, icon: Grip },
-  { id: 'heatmap', name: 'Weekly Heatmap', dataset: 'weeklyHeatmap', w: 12, h: 4, icon: Grid },
-  { id: 'dual-line', name: 'Profit & Margin Trend', dataset: 'profitMarginTrend', w: 12, h: 4, icon: LineChart }
+// ─── Chart Picker Options ───────────────────────────────────────────
+const CHART_TYPE_OPTIONS = [
+  { value: 'area',  label: 'Line / Area' },
+  { value: 'bar',   label: 'Bar' },
+  { value: 'donut', label: 'Donut / Pie' },
 ];
 
-const tableTypes = [
-  { id: 'top-products', name: 'Top Products Table', dataset: 'topProductsTable', w: 12, h: 3, icon: ListOrdered },
-  { id: 'period-comp', name: 'Period Comparison', dataset: 'periodComparisonTable', w: 6, h: 3, icon: ArrowRightLeft },
-  { id: 'velocity', name: 'Sales Velocity Table', dataset: 'salesVelocityTable', w: 6, h: 3, icon: Zap },
-  { id: 'insights', name: 'Auto Insights Panel', dataset: 'insightsPanel', w: 12, h: 3, icon: Lightbulb }
+const CHART_SOURCE_OPTIONS = [
+  { value: 'revenueByDate',   label: 'Revenue Over Time',  dataset: 'revenueByDate',   type: 'area', w: 12, h: 4 },
+  { value: 'salesByProduct',  label: 'Sales by Product',   dataset: 'salesByProduct',  type: 'bar',  w: 6,  h: 4 },
+  { value: 'categorySplit',   label: 'Category Split',     dataset: 'categorySplit',   type: 'donut',w: 4,  h: 4 },
 ];
+
+// ─── Table Picker Options ────────────────────────────────────────────
+const TABLE_SOURCE_OPTIONS = [
+  { value: 'topProductsTable',      label: 'Top Products',         dataset: 'topProductsTable',      w: 12, h: 3 },
+  { value: 'billsHistoryTable',     label: 'Bills History',        dataset: 'billsHistoryTable',     w: 12, h: 3 },
+  { value: 'creditUnpaidTable',     label: 'Credit / Unpaid Bills',dataset: 'creditUnpaidTable',     w: 12, h: 3 },
+  { value: 'stockOverviewTable',    label: 'Stock Overview',       dataset: 'stockOverviewTable',    w: 12, h: 3 },
+];
+
+const inputCls = "w-full bg-gray-950 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-primary-500 transition-colors";
+const labelCls = "block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5";
+const selectCls = `${inputCls} cursor-pointer appearance-none`;
 
 export default function Pickers({ type, onClose, onAdd }) {
-  const [selectedType, setSelectedType] = useState(null);
-  const [customName, setCustomName] = useState('');
+  // ── Chart state ──
+  const [chartName, setChartName] = useState('');
+  const [chartType, setChartType] = useState('area');
+  const [chartSource, setChartSource] = useState(CHART_SOURCE_OPTIONS[0].value);
 
-  const typesList = type === 'chart' ? chartTypes : tableTypes;
+  // ── Table state ──
+  const [tableName, setTableName] = useState('');
+  const [tableSource, setTableSource] = useState(TABLE_SOURCE_OPTIONS[0].value);
 
-  const handleSelect = (t) => {
-    setSelectedType(t);
-    setCustomName(t.name);
-  };
+  const isChart = type === 'chart';
 
   const handleAdd = () => {
-    if (!selectedType) return;
-    onAdd({
-      id: `widget_${Date.now()}`,
-      type: selectedType.id,
-      name: customName || selectedType.name,
-      dataset: selectedType.dataset,
-      isChart: type === 'chart',
-      enabled: true,
-      w: selectedType.w,
-      h: selectedType.h
-    });
+    if (isChart) {
+      if (!chartName.trim()) return;
+      const src = CHART_SOURCE_OPTIONS.find(s => s.value === chartSource);
+      onAdd({
+        id: `widget_${Date.now()}`,
+        type: chartType,
+        name: chartName.trim(),
+        dataset: src?.dataset || chartSource,
+        isChart: true,
+        enabled: true,
+        w: src?.w || 6,
+        h: src?.h || 4,
+      });
+    } else {
+      if (!tableName.trim()) return;
+      const src = TABLE_SOURCE_OPTIONS.find(s => s.value === tableSource);
+      onAdd({
+        id: `widget_${Date.now()}`,
+        type: 'table',
+        name: tableName.trim(),
+        dataset: src?.dataset || tableSource,
+        isChart: false,
+        enabled: true,
+        w: src?.w || 12,
+        h: src?.h || 3,
+      });
+    }
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-      <div className="glass w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fadeIn">
+      <div className="glass w-full max-w-md shadow-2xl rounded-2xl overflow-hidden flex flex-col">
+
+        {/* Header */}
         <div className="px-6 py-5 border-b border-white/10 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-white font-heading">Add a {type === 'chart' ? 'Chart' : 'Table'}</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-xl text-gray-400 transition-colors"><X size={20} /></button>
+          <div className="flex items-center gap-3">
+            {isChart
+              ? <BarChart2 size={20} className="text-primary-400" />
+              : <TableIcon size={20} className="text-primary-400" />}
+            <h2 className="text-lg font-bold text-white font-heading">
+              {isChart ? 'Add Chart Widget' : 'Add Table Widget'}
+            </h2>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-xl text-gray-400 hover:text-white transition-colors">
+            <X size={18} />
+          </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6">
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {typesList.map((t) => {
-              const isSelected = selectedType?.id === t.id;
-              return (
-                <div 
-                  key={t.id} 
-                  onClick={() => handleSelect(t)}
-                  className={`cursor-pointer glass border-2 transition-all flex flex-col items-center justify-center text-center gap-3 ${isSelected ? '!bg-primary-900/20 border-primary-500' : 'border-transparent hover:border-white/10 hover:!bg-white/5'}`}
-                >
-                  <div className="w-16 h-16 rounded-full glass !border-0 flex items-center justify-center shadow-inner">
-                    <t.icon size={28} className={isSelected ? 'text-primary-500' : 'text-gray-300'} />
-                  </div>
-                  <p className={`font-semibold text-sm ${isSelected ? 'text-primary-400' : 'text-gray-300'}`}>{t.name}</p>
-                </div>
-              );
-            })}
-          </div>
+        {/* Body */}
+        <div className="p-6 space-y-5">
+          {isChart ? (
+            <>
+              {/* Chart Name */}
+              <div>
+                <label className={labelCls}>Chart Name *</label>
+                <input
+                  value={chartName}
+                  onChange={e => setChartName(e.target.value)}
+                  placeholder="e.g. Monthly Revenue"
+                  className={inputCls}
+                  autoFocus
+                />
+              </div>
+
+              {/* Chart Type */}
+              <div>
+                <label className={labelCls}>Chart Type</label>
+                <select value={chartType} onChange={e => setChartType(e.target.value)} className={selectCls}>
+                  {CHART_TYPE_OPTIONS.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Data Source */}
+              <div>
+                <label className={labelCls}>Data Source</label>
+                <select value={chartSource} onChange={e => setChartSource(e.target.value)} className={selectCls}>
+                  {CHART_SOURCE_OPTIONS.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Date Range note */}
+              <p className="text-xs text-gray-600 italic">Date range inherits the global filter from the top bar.</p>
+            </>
+          ) : (
+            <>
+              {/* Table Name */}
+              <div>
+                <label className={labelCls}>Table Name *</label>
+                <input
+                  value={tableName}
+                  onChange={e => setTableName(e.target.value)}
+                  placeholder="e.g. Top Products"
+                  className={inputCls}
+                  autoFocus
+                />
+              </div>
+
+              {/* Data Source */}
+              <div>
+                <label className={labelCls}>Data Source</label>
+                <select value={tableSource} onChange={e => setTableSource(e.target.value)} className={selectCls}>
+                  {TABLE_SOURCE_OPTIONS.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
         </div>
 
-        {selectedType && (
-          <div className="p-6 border-t border-white/10 bg-black/10 flex flex-col md:flex-row items-end gap-4 animate-fadeIn">
-            <div className="flex-1 w-full">
-              <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Widget Name</label>
-              <input 
-                value={customName} 
-                onChange={e => setCustomName(e.target.value)}
-                className="w-full glass text-white px-4 py-3 text-sm outline-none focus:border-primary-500 transition-all"
-              />
-            </div>
-            <button 
-              onClick={handleAdd}
-              className="w-full md:w-auto bg-primary-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-primary-700 transition-colors shadow-lg shadow-primary-600/20 whitespace-nowrap"
-            >
-              Add to Dashboard
-            </button>
-          </div>
-        )}
+        {/* Footer */}
+        <div className="px-6 pb-6 flex gap-3 justify-end">
+          <button
+            onClick={onClose}
+            className="px-5 py-2.5 glass text-gray-400 hover:text-white rounded-xl text-sm font-bold transition-all"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleAdd}
+            disabled={isChart ? !chartName.trim() : !tableName.trim()}
+            className="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-primary-600/20"
+          >
+            Add to Dashboard
+          </button>
+        </div>
       </div>
     </div>
   );

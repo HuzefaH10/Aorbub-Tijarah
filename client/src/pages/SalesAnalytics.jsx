@@ -155,6 +155,10 @@ export default function SalesAnalytics() {
     });
   };
 
+  const handleReorderWidgets = (reordered) => {
+    setWidgets(reordered);
+  };
+
   const activeWidgets = widgets.filter(w => w.enabled);
 
   if (loading) return <div className="flex items-center justify-center h-[60vh]"><div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" /></div>;
@@ -235,6 +239,7 @@ export default function SalesAnalytics() {
             onRename={handleRenameWidget}
             onRemove={handleRemoveWidget}
             onOpenPicker={setPickerType}
+            onReorder={handleReorderWidgets}
           />
         </div>
       </div>
