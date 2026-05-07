@@ -34,6 +34,33 @@ const VALID_DATASETS = new Set([
 ]);
 const SCHEMA_VERSION = 'v2';
 
+const getPresetDates = (preset) => {
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+  const d = new Date(); // fresh date for manipulations
+  
+  switch (preset) {
+    case 'Today':
+      return { from: today, to: today };
+    case 'This Week': {
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+      const monday = new Date(d.setDate(diff));
+      return { from: monday.toISOString().split('T')[0], to: today };
+    }
+    case 'This Month': {
+      const firstDay = new Date(d.getFullYear(), d.getMonth(), 1);
+      return { from: firstDay.toISOString().split('T')[0], to: today };
+    }
+    case 'This Year': {
+      const firstDay = new Date(d.getFullYear(), 0, 1);
+      return { from: firstDay.toISOString().split('T')[0], to: today };
+    }
+    default:
+      return { from: '', to: '' };
+  }
+};
+
 export default function SalesAnalytics() {
   const { bills, loading } = useBills();
   const navigate = useNavigate();
@@ -67,7 +94,14 @@ export default function SalesAnalytics() {
     return saved ? JSON.parse(saved) : { lg: defaultLayout };
   });
 
-  const [dateFilter, setDateFilter] = useState({ from: '', to: '' });
+  const [activePreset, setActivePreset] = useState('This Month');
+  const [dateFilter, setDateFilter] = useState(() => getPresetDates('This Month'));
+
+  const handlePresetClick = (preset) => {
+    setActivePreset(preset);
+    if (preset === 'Custom') return;
+    setDateFilter(getPresetDates(preset));
+  };
 
   // Persistence
   useEffect(() => {
@@ -190,15 +224,45 @@ export default function SalesAnalytics() {
       
       {/* Date Filter Bar */}
       <div className="glass !rounded-none !border-t-0 !border-x-0 px-6 py-3 flex items-center justify-between shrink-0 z-10">
-        <div className="flex items-center gap-4">
-          <Calendar size={18} className="text-primary-500" />
+        <div className="flex items-center gap-6">
           <div className="flex items-center gap-2">
-            <input type="date" value={dateFilter.from} onChange={e => setDateFilter({...dateFilter, from: e.target.value})} className="glass text-gray-800 dark:text-white rounded-lg px-3 py-1.5 text-xs outline-none focus:border-primary-500" />
+            {['Today', 'This Week', 'This Month', 'This Year', 'Custom'].map(p => (
+              <button
+                key={p}
+                onClick={() => handlePresetClick(p)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activePreset === p ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/20' : 'glass text-gray-500 hover:bg-white/5'}`}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+
+          <div className="h-6 w-px bg-white/10" />
+
+          <div className="flex items-center gap-2">
+            <Calendar size={14} className="text-gray-500 mr-1" />
+            <input 
+              type="date" 
+              value={dateFilter.from} 
+              onChange={e => {
+                setDateFilter({...dateFilter, from: e.target.value});
+                setActivePreset('Custom');
+              }} 
+              className="glass text-gray-800 dark:text-white rounded-lg px-3 py-1.5 text-xs outline-none focus:border-primary-500" 
+            />
             <span className="text-gray-400">to</span>
-            <input type="date" value={dateFilter.to} onChange={e => setDateFilter({...dateFilter, to: e.target.value})} className="glass text-gray-800 dark:text-white rounded-lg px-3 py-1.5 text-xs outline-none focus:border-primary-500" />
+            <input 
+              type="date" 
+              value={dateFilter.to} 
+              onChange={e => {
+                setDateFilter({...dateFilter, to: e.target.value});
+                setActivePreset('Custom');
+              }} 
+              className="glass text-gray-800 dark:text-white rounded-lg px-3 py-1.5 text-xs outline-none focus:border-primary-500" 
+            />
           </div>
           {(dateFilter.from || dateFilter.to) && (
-            <button onClick={() => setDateFilter({from:'', to:''})} className="text-xs text-primary-500 hover:underline font-medium">Clear Filter</button>
+            <button onClick={() => handlePresetClick('Today')} className="text-xs text-primary-500 hover:underline font-medium">Reset</button>
           )}
         </div>
         
