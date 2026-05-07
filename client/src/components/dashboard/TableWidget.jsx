@@ -1,8 +1,21 @@
 import React from 'react';
 import { TrendingUp, TrendingDown, ArrowRight, Lightbulb, AlertTriangle, Trophy } from 'lucide-react';
 
-export default function TableWidget({ widget, data }) {
+const DeltaCell = ({ primary, compare }) => {
+  if (compare === undefined || compare === null) return null;
+  const delta = primary - compare;
+  const pct = compare !== 0 ? ((delta / compare) * 100).toFixed(1) : null;
+  const isPos = delta >= 0;
+  return (
+    <span className={`text-xs font-bold ml-1 ${isPos ? 'text-green-400' : 'text-red-400'}`}>
+      {isPos ? '+' : ''}{delta % 1 === 0 ? delta : delta.toFixed(1)}{pct !== null ? ` (${isPos ? '+' : ''}${pct}%)` : ''}
+    </span>
+  );
+};
+
+export default function TableWidget({ widget, data, compareData, primaryLabel, compareLabel }) {
   const { dataset } = widget;
+  const hasCompare = !!compareData;
 
   // ── CSV widget: render raw rows ──────────────────────────────────────────
   if (widget.isCSV && widget.csvData) {
@@ -40,34 +53,63 @@ export default function TableWidget({ widget, data }) {
 
   if (dataset === 'topProductsTable') {
     const list = data.topProductsList || [];
+
+    // Build compare lookup by product name
+    const compareMap = {};
+    if (hasCompare) {
+      (compareData.topProductsList || []).forEach(item => {
+        compareMap[item.product] = item;
+      });
+    }
+
     return (
       <div className="overflow-auto w-full h-full p-4 custom-scrollbar">
+        {hasCompare && (
+          <div className="flex items-center gap-4 mb-3 text-[10px] font-bold uppercase tracking-wider">
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-primary-500 inline-block" />{primaryLabel || 'Primary'}</span>
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-400 inline-block" />{compareLabel || 'Compare'}</span>
+          </div>
+        )}
         <table className="w-full text-sm text-left">
           <thead className="text-xs text-gray-400 uppercase border-b border-white/10">
             <tr>
               <th className="pb-2">Product</th>
               <th className="pb-2">Category</th>
               <th className="pb-2 text-right">Units Sold</th>
+              {hasCompare && <th className="pb-2 text-right text-blue-400">Cmp Units</th>}
               <th className="pb-2 text-right">Revenue</th>
+              {hasCompare && <th className="pb-2 text-right text-blue-400">Cmp Rev</th>}
               <th className="pb-2 text-right">Last Sold</th>
             </tr>
           </thead>
           <tbody>
-            {list.map((item, i) => (
-              <tr key={i} className="border-b border-white/5 hover:bg-white/[0.02]">
-                <td className="py-2.5 font-medium text-gray-800 dark:text-gray-200">{item.product}</td>
-                <td className="py-2.5 text-gray-500">{item.category}</td>
-                <td className="py-2.5 text-right font-medium text-white">{item.qty}</td>
-                <td className="py-2.5 text-right text-primary-600 dark:text-primary-400 font-bold">${item.revenue.toLocaleString()}</td>
-                <td className="py-2.5 text-right text-gray-500 text-xs">{item.lastSold || '—'}</td>
-              </tr>
-            ))}
-            {list.length === 0 && <tr><td colSpan="5" className="text-center py-8 text-gray-500 italic">No data for this period</td></tr>}
+            {list.map((item, i) => {
+              const cmp = compareMap[item.product];
+              return (
+                <tr key={i} className="border-b border-white/5 hover:bg-white/[0.02]">
+                  <td className="py-2.5 font-medium text-gray-200">{item.product}</td>
+                  <td className="py-2.5 text-gray-500">{item.category}</td>
+                  <td className="py-2.5 text-right font-medium text-white">
+                    {item.qty}
+                    {hasCompare && <DeltaCell primary={item.qty} compare={cmp?.qty} />}
+                  </td>
+                  {hasCompare && <td className="py-2.5 text-right text-blue-300 text-xs">{cmp?.qty ?? '—'}</td>}
+                  <td className="py-2.5 text-right text-primary-400 font-bold">
+                    ${Number(item.revenue).toLocaleString()}
+                    {hasCompare && <DeltaCell primary={item.revenue} compare={cmp?.revenue} />}
+                  </td>
+                  {hasCompare && <td className="py-2.5 text-right text-blue-300 text-xs">${cmp ? Number(cmp.revenue).toLocaleString() : '—'}</td>}
+                  <td className="py-2.5 text-right text-gray-500 text-xs">{item.lastSold || '—'}</td>
+                </tr>
+              );
+            })}
+            {list.length === 0 && <tr><td colSpan={hasCompare ? 7 : 5} className="text-center py-8 text-gray-500 italic">No data for this period</td></tr>}
           </tbody>
         </table>
       </div>
     );
   }
+
 
   if (dataset === 'periodComparisonTable') {
     const p = data.periodComparison || { twRev: 0, lwRev: 0, twProfit: 0, lwProfit: 0 };

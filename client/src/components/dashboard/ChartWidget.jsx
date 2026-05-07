@@ -1,6 +1,9 @@
 import React from 'react';
 import ReactApexChart from 'react-apexcharts';
 
+const PRIMARY_COLOR  = '#c9a84c'; // brand purple-gold
+const COMPARE_COLOR  = '#5b8dee'; // muted blue for comparison
+
 const baseTheme = {
   chart: {
     background: 'transparent',
@@ -10,17 +13,18 @@ const baseTheme = {
   },
   grid: { borderColor: 'rgba(255,255,255,0.06)', strokeDashArray: 4 },
   tooltip: { theme: 'dark', style: { fontSize: '12px', fontFamily: 'Inter' } },
-  colors: ['#c9a84c', '#5b8dee', '#4caf7d', '#e05c5c', '#d4a843', '#8b5cf6', '#06b6d4'],
+  colors: [PRIMARY_COLOR, '#5b8dee', '#4caf7d', '#e05c5c', '#d4a843', '#8b5cf6', '#06b6d4'],
   xaxis: { labels: { style: { colors: '#9a9080' } } },
   yaxis: { labels: { style: { colors: '#9a9080' } } },
   legend: { labels: { colors: '#9a9080' }, position: 'bottom' }
 };
 
-export default function ChartWidget({ widget, data }) {
+export default function ChartWidget({ widget, data, compareData, primaryLabel, compareLabel }) {
   const { dataset } = widget;
+  const hasCompare = !!compareData;
   
   let series = [];
-  let options = JSON.parse(JSON.stringify(baseTheme)); // Deep copy to prevent mutation issues
+  let options = JSON.parse(JSON.stringify(baseTheme));
   let type = 'bar';
 
   // ── CSV widget: use embedded data directly ──────────────────────────────
@@ -49,14 +53,7 @@ export default function ChartWidget({ widget, data }) {
     }
 
     const isEmpty = !values || values.length === 0;
-    if (isEmpty) {
-      return (
-        <div className="w-full h-full flex items-center justify-center text-gray-600 text-sm italic">
-          No data for this period
-        </div>
-      );
-    }
-
+    if (isEmpty) return <div className="w-full h-full flex items-center justify-center text-gray-600 text-sm italic">No data for this period</div>;
     return (
       <div className="w-full h-full px-2 pb-2 pt-1" style={{ minHeight: '150px' }}>
         <ReactApexChart options={options} series={series} type={type} height="100%" width="100%" />
@@ -67,19 +64,61 @@ export default function ChartWidget({ widget, data }) {
 
   if (dataset === 'revenueByDate') {
     type = 'area';
-    options.xaxis.categories = data.revenueByDate?.labels || [];
-    options.stroke = { curve: 'smooth', width: 2 };
-    options.fill = { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05, stops: [0, 100] } };
+    // Use a union of all dates for x-axis when comparing
+    const primaryLabels = data.revenueByDate?.labels || [];
+    const compareLabels = hasCompare ? (compareData.revenueByDate?.labels || []) : [];
+    const allLabels = hasCompare
+      ? [...new Set([...primaryLabels, ...compareLabels])].sort()
+      : primaryLabels;
+
+    const toValueMap = (labels, values) => {
+      const m = {};
+      labels.forEach((l, i) => { m[l] = values[i]; });
+      return m;
+    };
+
+    options.xaxis.categories = allLabels;
+    options.stroke = { curve: 'smooth', width: hasCompare ? [2, 2] : 2 };
+    options.fill = hasCompare
+      ? { type: 'solid', opacity: [0.12, 0.06] }
+      : { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05, stops: [0, 100] } };
     options.dataLabels = { enabled: false };
-    series = [{ name: 'Revenue', data: data.revenueByDate?.values || [] }];
-  } 
+    options.colors = hasCompare ? [PRIMARY_COLOR, COMPARE_COLOR] : [PRIMARY_COLOR];
+    options.legend = { ...options.legend, show: hasCompare, labels: { colors: '#9a9080' } };
+
+    const primaryMap = toValueMap(primaryLabels, data.revenueByDate?.values || []);
+    series = [{ name: primaryLabel || 'Primary', data: allLabels.map(l => primaryMap[l] || 0) }];
+    if (hasCompare) {
+      const compareMap = toValueMap(compareLabels, compareData.revenueByDate?.values || []);
+      series.push({ name: compareLabel || 'Compare', data: allLabels.map(l => compareMap[l] || 0) });
+    }
+  }
   else if (dataset === 'salesByProduct') {
     type = 'bar';
-    options.plotOptions = { bar: { horizontal: true, borderRadius: 4, distributed: true } };
-    options.xaxis.categories = data.revenueByProduct?.labels || [];
-    options.dataLabels = { enabled: false };
-    options.legend.show = false;
-    series = [{ name: 'Quantity Sold', data: data.revenueByProduct?.values || [] }];
+    const primaryLabels = data.revenueByProduct?.labels || [];
+    const primaryValues = data.revenueByProduct?.values || [];
+
+    if (hasCompare) {
+      // Side-by-side grouped bars with primary labels
+      options.plotOptions = { bar: { horizontal: true, borderRadius: 4, distributed: false, barHeight: '60%' } };
+      options.xaxis.categories = primaryLabels;
+      options.dataLabels = { enabled: false };
+      options.legend = { ...options.legend, show: true };
+      options.colors = [PRIMARY_COLOR, COMPARE_COLOR];
+
+      const compareMap = {};
+      (compareData.revenueByProduct?.labels || []).forEach((l, i) => { compareMap[l] = compareData.revenueByProduct?.values?.[i] || 0; });
+      series = [
+        { name: primaryLabel || 'Primary', data: primaryValues },
+        { name: compareLabel || 'Compare', data: primaryLabels.map(l => compareMap[l] || 0) }
+      ];
+    } else {
+      options.plotOptions = { bar: { horizontal: true, borderRadius: 4, distributed: true } };
+      options.xaxis.categories = primaryLabels;
+      options.dataLabels = { enabled: false };
+      options.legend.show = false;
+      series = [{ name: 'Quantity Sold', data: primaryValues }];
+    }
   }
   else if (dataset === 'categorySplit') {
     type = 'donut';
@@ -87,6 +126,7 @@ export default function ChartWidget({ widget, data }) {
     options.plotOptions = { pie: { donut: { labels: { show: true, total: { show: true, label: 'Total', color: '#fff' }, value: { color: '#fff' } } } } };
     options.stroke = { show: false };
     series = data.categorySplit?.values || [];
+    // Note: for donut we can't do a true dual-series; show only primary (comparison shown in table)
   }
   else if (dataset === 'dailyOrderVolume') {
     type = 'bar';
@@ -141,7 +181,6 @@ export default function ChartWidget({ widget, data }) {
     ];
   }
   else {
-    // Unknown / removed dataset — render empty state instead of crashing
     return (
       <div className="w-full h-full flex flex-col items-center justify-center text-gray-700 text-sm gap-1.5">
         <span className="text-2xl">📊</span>
@@ -151,33 +190,25 @@ export default function ChartWidget({ widget, data }) {
     );
   }
 
-  // Handle empty state gracefully by providing dummy zero data
-  const isEmpty = !series || series.length === 0 || 
-    (Array.isArray(series[0]?.data) && series[0].data.length === 0) || 
-    (type === 'donut' && series.length === 0) ||
+  // Handle empty state gracefully
+  const isEmpty = !series || series.length === 0 ||
+    (Array.isArray(series[0]?.data) && series[0].data.length === 0) ||
+    (type === 'donut'     && series.length === 0) ||
     (type === 'radialBar' && series.length === 0);
 
   if (isEmpty) {
     if (type === 'donut' || type === 'radialBar') {
-      series = [0];
-      options.labels = ['No Data'];
+      series = [0]; options.labels = ['No Data'];
     } else if (type === 'scatter') {
       series = [{ name: 'No Data', data: [[0, 0]] }];
     } else if (type === 'heatmap') {
       series = [{ name: 'No Data', data: [{ x: 'None', y: 0 }] }];
     } else if (dataset === 'revenueVsCostVsProfit') {
       options.xaxis.categories = ['No Data'];
-      series = [
-        { name: 'Revenue', data: [0] },
-        { name: 'Cost', data: [0] },
-        { name: 'Profit', data: [0] }
-      ];
+      series = [{ name: 'Revenue', data: [0] }, { name: 'Cost', data: [0] }, { name: 'Profit', data: [0] }];
     } else if (dataset === 'profitMarginTrend') {
       options.xaxis.categories = ['No Data'];
-      series = [
-        { name: 'Profit', type: 'line', data: [0] },
-        { name: 'Margin %', type: 'line', data: [0] }
-      ];
+      series = [{ name: 'Profit', type: 'line', data: [0] }, { name: 'Margin %', type: 'line', data: [0] }];
     } else {
       options.xaxis.categories = ['No Data'];
       series = [{ name: 'No Data', data: [0] }];
@@ -186,13 +217,9 @@ export default function ChartWidget({ widget, data }) {
 
   return (
     <div className="w-full h-full px-2 pb-2 pt-1" style={{ minHeight: '150px' }}>
-      <ReactApexChart 
-        options={options} 
-        series={series} 
-        type={type} 
-        height="100%" 
-        width="100%" 
-      />
+      <ReactApexChart options={options} series={series} type={type} height="100%" width="100%" />
     </div>
   );
 }
+
+
