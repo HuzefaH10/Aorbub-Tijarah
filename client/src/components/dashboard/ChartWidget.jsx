@@ -67,11 +67,11 @@ export default function ChartWidget({ widget, data }) {
 
   if (dataset === 'revenueByDate') {
     type = 'area';
-    options.xaxis.categories = data.revenueByDate.labels || [];
+    options.xaxis.categories = data.revenueByDate?.labels || [];
     options.stroke = { curve: 'smooth', width: 2 };
     options.fill = { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05, stops: [0, 100] } };
     options.dataLabels = { enabled: false };
-    series = [{ name: 'Revenue', data: data.revenueByDate.values || [] }];
+    series = [{ name: 'Revenue', data: data.revenueByDate?.values || [] }];
   } 
   else if (dataset === 'salesByProduct') {
     type = 'bar';
@@ -90,46 +90,44 @@ export default function ChartWidget({ widget, data }) {
   }
   else if (dataset === 'dailyOrderVolume') {
     type = 'bar';
-    options.xaxis.categories = data.ordersByDate.labels || [];
+    options.xaxis.categories = data.ordersByDate?.labels || [];
     options.plotOptions = { bar: { borderRadius: 4 } };
     options.dataLabels = { enabled: false };
-    series = [{ name: 'Orders', data: data.ordersByDate.values || [] }];
+    series = [{ name: 'Orders', data: data.ordersByDate?.values || [] }];
   }
   else if (dataset === 'revenueVsCostVsProfit') {
     type = 'bar';
-    options.xaxis.categories = data.profitByProduct.labels || [];
+    options.xaxis.categories = data.profitByProduct?.labels || [];
     options.plotOptions = { bar: { borderRadius: 2, columnWidth: '60%' } };
     options.dataLabels = { enabled: false };
-    // Custom colors for this specific chart
     options.colors = ['#c9a84c', '#e05c5c', '#4caf7d'];
     series = [
-      { name: 'Revenue', data: data.profitByProduct.revenue || [] },
-      { name: 'Cost', data: data.profitByProduct.cost || [] },
-      { name: 'Profit', data: data.profitByProduct.profit || [] }
+      { name: 'Revenue', data: data.profitByProduct?.revenue || [] },
+      { name: 'Cost',    data: data.profitByProduct?.cost    || [] },
+      { name: 'Profit',  data: data.profitByProduct?.profit  || [] }
     ];
   }
   else if (dataset === 'topProductPerformance') {
     type = 'radialBar';
-    options.labels = data.topProducts.labels || [];
+    options.labels = data.topProducts?.labels || [];
     options.plotOptions = { radialBar: { dataLabels: { name: { fontSize: '14px', color: '#fff' }, value: { fontSize: '16px', color: '#9a9080' }, total: { show: true, label: 'Top Product', color: '#c9a84c' } } } };
-    series = data.topProducts.percentages || [];
+    series = data.topProducts?.percentages || [];
   }
   else if (dataset === 'revenueVsQuantity') {
     type = 'scatter';
     options.xaxis = { ...options.xaxis, type: 'numeric', title: { text: 'Quantity Sold', style: { color: '#9a9080' } } };
     options.yaxis = { ...options.yaxis, title: { text: 'Revenue', style: { color: '#9a9080' } } };
-    // Data needs to be [x, y]
-    series = data.scatterPlot.series || [];
+    series = data.scatterPlot?.series || [];
   }
   else if (dataset === 'weeklyHeatmap') {
     type = 'heatmap';
     options.plotOptions = { heatmap: { shadeIntensity: 0.5, radius: 4, useFillColorAsStroke: false, colorScale: { ranges: [{ from: 0, to: 0, color: '#1a1a1a' }, { from: 1, to: 100000, color: '#c9a84c' }] } } };
     options.dataLabels = { enabled: false };
-    series = data.weeklyHeatmap.series || [];
+    series = data.weeklyHeatmap?.series || [];
   }
   else if (dataset === 'profitMarginTrend') {
     type = 'line';
-    options.xaxis.categories = data.profitTrend.labels || [];
+    options.xaxis.categories = data.profitTrend?.labels || [];
     options.stroke = { width: [3, 3], dashArray: [0, 5], curve: 'smooth' };
     options.colors = ['#4caf7d', '#c9a84c'];
     options.yaxis = [
@@ -138,9 +136,19 @@ export default function ChartWidget({ widget, data }) {
     ];
     options.dataLabels = { enabled: false };
     series = [
-      { name: 'Profit', type: 'line', data: data.profitTrend.profit || [] },
-      { name: 'Margin %', type: 'line', data: data.profitTrend.margin || [] }
+      { name: 'Profit',   type: 'line', data: data.profitTrend?.profit  || [] },
+      { name: 'Margin %', type: 'line', data: data.profitTrend?.margin  || [] }
     ];
+  }
+  else {
+    // Unknown / removed dataset — render empty state instead of crashing
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center text-gray-700 text-sm gap-1.5">
+        <span className="text-2xl">📊</span>
+        <p className="font-semibold text-gray-500">No data available</p>
+        <p className="text-xs text-gray-700">This widget's data source is unavailable</p>
+      </div>
+    );
   }
 
   // Handle empty state gracefully by providing dummy zero data

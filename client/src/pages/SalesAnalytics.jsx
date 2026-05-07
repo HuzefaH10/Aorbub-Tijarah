@@ -28,6 +28,12 @@ const defaultLayout = [
   { i: 'w_top_table', x: 0, y: 8, w: 12, h: 3 }
 ];
 
+// Valid datasets for the current data model
+const VALID_DATASETS = new Set([
+  'revenueByDate', 'salesByProduct', 'categorySplit', 'topProductsTable'
+]);
+const SCHEMA_VERSION = 'v2';
+
 export default function SalesAnalytics() {
   const { bills, loading } = useBills();
   const navigate = useNavigate();
@@ -38,8 +44,22 @@ export default function SalesAnalytics() {
   const [showCsvUploader, setShowCsvUploader] = useState(false);
   
   const [widgets, setWidgets] = useState(() => {
-    const saved = localStorage.getItem('bizDashboardWidgets');
-    return saved ? JSON.parse(saved) : defaultWidgets;
+    try {
+      const storedVersion = localStorage.getItem('bizDashboardVersion');
+      if (storedVersion !== SCHEMA_VERSION) {
+        localStorage.removeItem('bizDashboardWidgets');
+        localStorage.removeItem('bizDashboardLayout');
+        localStorage.setItem('bizDashboardVersion', SCHEMA_VERSION);
+        return defaultWidgets;
+      }
+      const saved = localStorage.getItem('bizDashboardWidgets');
+      if (!saved) return defaultWidgets;
+      const parsed = JSON.parse(saved);
+      // Filter out non-CSV widgets referencing removed datasets
+      return parsed.filter(w => w.isCSV || VALID_DATASETS.has(w.dataset));
+    } catch {
+      return defaultWidgets;
+    }
   });
   
   const [layouts, setLayouts] = useState(() => {
