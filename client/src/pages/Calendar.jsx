@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useEvents, useMilestones } from '../hooks/useFirestore';
+import { useEvents, useMilestones, useProducts } from '../hooks/useFirestore';
 import { 
   Calendar as CalendarIcon, Clock, CheckCircle2, AlertTriangle, 
   ChevronLeft, ChevronRight, Plus, Search, X, Edit2, Trash2,
@@ -8,22 +8,21 @@ import {
 import Toast, { useToast } from '../components/ui/Toast';
 
 const EVENT_TYPES = [
-  { id: 'restock', label: 'Restock / Delivery', color: '#5b8dee', bg: 'bg-blue-500', tint: 'bg-blue-500/10 text-blue-400' },
-  { id: 'payment', label: 'Payment Due', color: '#e05c5c', bg: 'bg-red-500', tint: 'bg-red-500/10 text-red-400' },
-  { id: 'sale-campaign', label: 'Sale / Promotion', color: '#4caf7d', bg: 'bg-green-500', tint: 'bg-green-500/10 text-green-400' },
-  { id: 'staff', label: 'Staff / Team', color: '#9b7fe8', bg: 'bg-purple-500', tint: 'bg-purple-500/10 text-purple-400' },
-  { id: 'maintenance', label: 'Maintenance', color: '#e8944a', bg: 'bg-orange-500', tint: 'bg-orange-500/10 text-orange-400' },
-  { id: 'audit', label: 'Audit / Stocktake', color: '#4ab8c1', bg: 'bg-teal-500', tint: 'bg-teal-500/10 text-teal-400' },
-  { id: 'appointment', label: 'Client Appointment', color: '#e87f9b', bg: 'bg-pink-500', tint: 'bg-pink-500/10 text-pink-400' },
-  { id: 'custom', label: 'Custom', color: '#c9a84c', bg: 'bg-[#c9a84c]', tint: 'bg-[#c9a84c]/10 text-[#c9a84c]' },
+  { id: 'reminder',      label: 'General Reminder',      color: '#5b8dee', bg: 'bg-blue-500',    tint: 'bg-blue-500/10 text-blue-400' },
+  { id: 'stock_order',   label: 'Stock Order Reminder',  color: '#e8944a', bg: 'bg-orange-500', tint: 'bg-orange-500/10 text-orange-400' },
+  { id: 'milestone',     label: 'Business Milestone',    color: '#c9a84c', bg: 'bg-[#c9a84c]',  tint: 'bg-[#c9a84c]/10 text-[#c9a84c]' },
+  { id: 'credit_due',    label: 'Credit Due',            color: '#e05c5c', bg: 'bg-red-500',    tint: 'bg-red-500/10 text-red-400' },
+  { id: 'expiry_warning',label: 'Expiry Warning',        color: '#9b7fe8', bg: 'bg-purple-500', tint: 'bg-purple-500/10 text-purple-400' },
+  { id: 'recurring',     label: 'Recurring',             color: '#4caf7d', bg: 'bg-green-500',  tint: 'bg-green-500/10 text-green-400' },
 ];
-const getType = t => EVENT_TYPES.find(x => x.id === t) || EVENT_TYPES[7];
+const getType = t => EVENT_TYPES.find(x => x.id === t) || EVENT_TYPES[0];
 
 const MILESTONE_ICONS = ['🏆', '🚀', '💰', '📦', '🎯', '🔑', '🌟', '📈', '🤝', '🎉', '🏪', '✅'];
 
 export default function CalendarPage() {
   const { events, addEvent, updateEvent, deleteEvent } = useEvents();
   const { milestones, addMilestone, deleteMilestone } = useMilestones();
+  const { products } = useProducts();
   const { toast, showToast, hideToast } = useToast();
 
   const [view, setView] = useState('month'); // 'month' | 'agenda'
@@ -287,7 +286,7 @@ export default function CalendarPage() {
       </div>
 
       {/* MODALS */}
-      {eventModal.open && <EventModal {...eventModal} onClose={() => setEventModal({ open: false })} onSave={eventModal.editId ? updateEvent : addEvent} toast={showToast} />}
+      {eventModal.open && <EventModal {...eventModal} onClose={() => setEventModal({ open: false })} onSave={eventModal.editId ? updateEvent : addEvent} products={products} toast={showToast} />}
       {milestoneModal && <MilestoneModal onClose={() => setMilestoneModal(false)} onSave={addMilestone} toast={showToast} />}
     </div>
   );
@@ -462,89 +461,151 @@ function AgendaRow({ e, onAction, todayStr }) {
 
 // ---- Modals ----
 
-function EventModal({ editId, data, prefillDate, onClose, onSave, toast }) {
+function EventModal({ editId, data, prefillDate, onClose, onSave, products = [], toast }) {
   const today = new Date().toISOString().split('T')[0];
-  const [f, setF] = useState(data || { 
-    title: '', type: 'restock', date: prefillDate || today, endDate: '', 
-    status: 'upcoming', reminderDays: 1, note: '' 
-  });
+
+  const [f, setF] = useState(() => ({
+    title: data?.title || '',
+    type: data?.type || 'reminder',
+    date: data?.date || prefillDate || today,
+    status: data?.status || 'pending',
+    recurring: data?.recurring || { enabled: false, frequency: null },
+    linkedProductId: data?.linkedProductId || null,
+    linkedBillId: data?.linkedBillId || null,
+    note: data?.note || '',
+  }));
+  const [saving, setSaving] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!f.title || !f.date) return toast('Title and date required', 'error');
-    if (f.endDate && f.endDate < f.date) return toast('End date cannot be before start date', 'error');
-    
+    if (!f.title.trim()) return toast('Event title is required', 'error');
+    if (!f.date) return toast('Date is required', 'error');
+
+    setSaving(true);
     try {
-      await onSave(editId, { ...f, reminderDays: Number(f.reminderDays) });
+      const payload = {
+        title: f.title.trim(),
+        type: f.type,
+        date: f.date,
+        status: editId ? f.status : 'pending',
+        recurring: f.recurring,
+        linkedProductId: f.type === 'stock_order' ? (f.linkedProductId || null) : null,
+        linkedBillId: f.linkedBillId || null,
+        note: f.note.trim() || null,
+      };
+      await onSave(editId, payload);
       toast(editId ? 'Event updated' : 'Event added');
       onClose();
-    } catch {
-      toast('Error saving event', 'error');
-    }
+    } catch { toast('Error saving event', 'error'); }
+    finally { setSaving(false); }
   };
 
   const t = getType(f.type);
   const inputCls = "w-full bg-gray-950 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-primary-500 transition-colors";
+  const labelCls = "block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fadeIn p-4 overflow-y-auto">
-      <div className="glass w-full max-w-md shadow-2xl p-6 scale-95 animate-[scaleIn_0.2s_ease-out_forwards] my-auto">
-        <h2 className="text-xl font-bold text-white font-heading mb-6">{editId ? 'Edit Event' : 'Add Event'}</h2>
-        
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div><label className="block text-xs font-bold text-gray-500 mb-1">Title</label><input required autoFocus value={f.title} onChange={e => setF({...f, title: e.target.value})} className={inputCls} /></div>
-          
-          <div className="grid grid-cols-2 gap-4">
+      <div className="glass w-full max-w-md shadow-2xl scale-95 animate-[scaleIn_0.2s_ease-out_forwards] my-auto overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 shrink-0">
+          <h2 className="text-lg font-bold text-white font-heading">{editId ? 'Edit Event' : 'Add Event'}</h2>
+          <button type="button" onClick={onClose} className="p-1.5 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"><X size={18} /></button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 custom-scrollbar">
+          <div className="p-6 space-y-4">
+
+            {/* Row 1: Title */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1">Type</label>
-              <select value={f.type} onChange={e => setF({...f, type: e.target.value})} className={inputCls}>
-                {EVENT_TYPES.map(type => <option key={type.id} value={type.id}>{type.label}</option>)}
-              </select>
+              <label className={labelCls}>Event Title *</label>
+              <input required autoFocus value={f.title} onChange={e => setF({...f, title: e.target.value})}
+                className={inputCls} placeholder="e.g. Restock dairy products" />
             </div>
+
+            {/* Row 2: Date + Type */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>Date *</label>
+                <input type="date" required value={f.date} onChange={e => setF({...f, date: e.target.value})} className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Type</label>
+                <select value={f.type} onChange={e => setF({...f, type: e.target.value, linkedProductId: null})} className={inputCls}>
+                  {EVENT_TYPES.map(et => <option key={et.id} value={et.id}>{et.label}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Row 3: Recurring + Note */}
+            <div className="grid grid-cols-2 gap-3">
+              {/* Recurring toggle */}
+              <div>
+                <label className={labelCls}>Recurring</label>
+                <div className="flex items-center gap-3 h-[42px]">
+                  <button type="button" onClick={() => setF(p => ({ ...p, recurring: { enabled: !p.recurring.enabled, frequency: !p.recurring.enabled ? 'weekly' : null } }))}
+                    className={`relative w-10 h-[22px] rounded-full transition-colors duration-200 shrink-0 ${f.recurring.enabled ? 'bg-primary-600' : 'bg-gray-700'}`}>
+                    <span className={`absolute top-[2px] w-[18px] h-[18px] rounded-full bg-white shadow transition-transform duration-200 ${f.recurring.enabled ? 'left-[20px]' : 'left-[2px]'}`} />
+                  </button>
+                  {f.recurring.enabled && (
+                    <select value={f.recurring.frequency || 'weekly'}
+                      onChange={e => setF(p => ({ ...p, recurring: { ...p.recurring, frequency: e.target.value } }))}
+                      className="flex-1 bg-gray-950 border border-white/10 rounded-xl px-2 py-1.5 text-sm text-white outline-none focus:border-primary-500">
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                    </select>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className={labelCls}>Note</label>
+                <input value={f.note} onChange={e => setF({...f, note: e.target.value})}
+                  className={inputCls} placeholder="Optional..." />
+              </div>
+            </div>
+
+            {/* Linked Product — shown only for stock_order type */}
+            {f.type === 'stock_order' && (
+              <div>
+                <label className={labelCls}>Linked Product <span className="text-gray-600 normal-case font-normal">(optional)</span></label>
+                <select value={f.linkedProductId || ''} onChange={e => setF({...f, linkedProductId: e.target.value || null})} className={inputCls}>
+                  <option value="">No linked product</option>
+                  {products.map(p => <option key={p.id} value={p.id}>{p.name} {p.category ? `— ${p.category}` : ''}</option>)}
+                </select>
+                <p className="text-[10px] text-gray-600 mt-1">When a Load Stock entry is confirmed for this product, the event auto-completes.</p>
+              </div>
+            )}
+
+            {/* Edit-only: Status */}
             {editId && (
               <div>
-                <label className="block text-xs font-bold text-gray-500 mb-1">Status</label>
-                <select value={f.status} onChange={e => setF({...f, status: e.target.value})} className={inputCls} disabled={f.status === 'overdue'}>
-                  <option value="upcoming">Upcoming</option>
+                <label className={labelCls}>Status</label>
+                <select value={f.status} onChange={e => setF({...f, status: e.target.value})} className={inputCls}>
+                  <option value="pending">Pending</option>
                   <option value="completed">Completed</option>
-                  <option value="cancelled">Cancelled</option>
-                  {f.status === 'overdue' && <option value="overdue">Overdue</option>}
+                  <option value="overdue">Overdue</option>
                 </select>
               </div>
             )}
-          </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div><label className="block text-xs font-bold text-gray-500 mb-1">Date</label><input type="date" required value={f.date} onChange={e => setF({...f, date: e.target.value})} className={inputCls} /></div>
-            <div><label className="block text-xs font-bold text-gray-500 mb-1">End Date (Optional)</label><input type="date" value={f.endDate} onChange={e => setF({...f, endDate: e.target.value})} min={f.date} className={inputCls} /></div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1">Reminder</label>
-            <select value={f.reminderDays} onChange={e => setF({...f, reminderDays: e.target.value})} className={inputCls}>
-              <option value="0">None</option><option value="1">1 day before</option><option value="3">3 days before</option><option value="7">1 week before</option>
-            </select>
-          </div>
-          
-          <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1">Note</label>
-            <textarea value={f.note} onChange={e => setF({...f, note: e.target.value.slice(0, 200)})} className={`${inputCls} resize-none h-20`} placeholder="Details (max 200 chars)..." />
-            <div className="text-right text-[10px] text-gray-600 mt-1">{f.note.length}/200</div>
-          </div>
-
-          {/* Preview */}
-          <div className="mt-6 border-t border-white/5 pt-4">
-            <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-2 font-bold text-center">Preview</p>
-            <div className={`p-3 rounded-lg border border-white/5 flex items-center gap-3 bg-gray-900`}>
-              <div className={`w-3 h-3 rounded-full ${t.bg}`} />
-              <div className="flex-1 truncate text-sm font-bold text-gray-200">{f.title || 'Event Title'}</div>
-              <div className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${t.tint}`}>{t.label}</div>
+            {/* Preview */}
+            <div className="border-t border-white/5 pt-4">
+              <p className="text-[10px] text-gray-600 uppercase tracking-widest mb-2 font-bold text-center">Preview</p>
+              <div className="p-3 rounded-xl border border-white/5 flex items-center gap-3 bg-gray-900/80">
+                <div className={`w-3 h-3 rounded-full shrink-0 ${t.bg}`} />
+                <div className="flex-1 truncate text-sm font-bold text-gray-200">{f.title || 'Event Title'}</div>
+                <div className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 ${t.tint}`}>{t.label}</div>
+                {f.recurring.enabled && <span className="text-[9px] font-bold text-gray-500 uppercase">↻ {f.recurring.frequency}</span>}
+              </div>
             </div>
           </div>
-          
-          <div className="flex gap-3 pt-4">
-            <button type="button" onClick={onClose} className="flex-1 py-3 border border-white/10 rounded-xl text-sm font-bold text-gray-300 hover:bg-white/5 transition-colors">Cancel</button>
-            <button type="submit" className="flex-1 py-3 bg-primary-600 rounded-xl text-sm font-bold text-white hover:bg-primary-700 transition-colors shadow-lg shadow-primary-600/20">{editId ? 'Save Changes' : 'Save Event'}</button>
+
+          <div className="px-6 py-4 border-t border-white/10 flex gap-3 shrink-0">
+            <button type="button" onClick={onClose} disabled={saving} className="flex-1 py-3 border border-white/10 rounded-xl text-sm font-bold text-gray-300 hover:bg-white/5 transition-colors disabled:opacity-50">Cancel</button>
+            <button type="submit" disabled={saving} className="flex-1 py-3 bg-primary-600 rounded-xl text-sm font-bold text-white hover:bg-primary-700 transition-colors shadow-lg shadow-primary-600/20 disabled:opacity-50">
+              {saving ? 'Saving...' : editId ? 'Save Changes' : 'Save Event'}
+            </button>
           </div>
         </form>
       </div>

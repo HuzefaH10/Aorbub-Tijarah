@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { db } from '../services/firebase';
-import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, getDocs } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 
 export function useEntries() {
@@ -82,17 +82,19 @@ export function useEvents() {
 
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, 'events'), where('userId', '==', user.uid));
+    const q = query(collection(db, 'events'), where('businessId', '==', user.uid));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setEvents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      data.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+      setEvents(data);
       setLoading(false);
     });
     return unsubscribe;
   }, [user]);
 
-  const addEvent = useCallback(async (data) => {
+  const addEvent = useCallback(async (_, data) => {
     if (!user) return;
-    await addDoc(collection(db, 'events'), { ...data, userId: user.uid });
+    await addDoc(collection(db, 'events'), { ...data, businessId: user.uid, userId: user.uid, createdAt: serverTimestamp() });
   }, [user]);
 
   const deleteEvent = useCallback(async (id) => {
@@ -238,9 +240,7 @@ export function useCategories() {
 
   const addCategory = useCallback(async (name) => {
     if (!user || !name.trim()) return;
-    const existing = await import('firebase/firestore').then(({ getDocs }) =>
-      getDocs(query(collection(db, 'categories'), where('businessId', '==', user.uid), where('name', '==', name.trim())))
-    );
+    const existing = await getDocs(query(collection(db, 'categories'), where('businessId', '==', user.uid), where('name', '==', name.trim())));
     if (!existing.empty) return existing.docs[0].data().name;
     await addDoc(collection(db, 'categories'), { name: name.trim(), businessId: user.uid, createdAt: serverTimestamp() });
     return name.trim();
