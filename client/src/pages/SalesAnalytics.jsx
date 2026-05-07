@@ -362,6 +362,12 @@ export default function SalesAnalytics() {
     return result;
   }, [layouts, widgets]);
 
+  // Force ApexCharts to recalculate dimensions after layout settles
+  useEffect(() => {
+    const t = setTimeout(() => window.dispatchEvent(new Event('resize')), 300);
+    return () => clearTimeout(t);
+  }, [activeWidgets.length]);
+
   if (loading) return <div className="flex items-center justify-center h-[60vh]"><div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
@@ -470,7 +476,7 @@ export default function SalesAnalytics() {
           >
             {activeWidgets.map(w => (
               <div key={w.id} className="glass overflow-hidden flex flex-col group">
-                <div className={`px-4 py-2.5 border-b border-white/5 flex items-center justify-between bg-black/10 ${isEditMode ? 'widget-drag-handle cursor-move' : ''}`}>
+                <div className={`px-4 py-2.5 border-b border-white/5 flex items-center justify-between bg-black/10 shrink-0 ${isEditMode ? 'widget-drag-handle cursor-move' : ''}`}>
                   <div className="flex items-center gap-2">
                     <h3 className="text-sm font-bold text-white font-heading">{w.name}</h3>
                     {w.isCSV && <span className="text-[9px] font-bold px-1.5 py-0.5 bg-amber-500/20 text-amber-400 rounded">CSV</span>}
@@ -482,14 +488,16 @@ export default function SalesAnalytics() {
                   </div>
                   {isEditMode && <div className="text-xs text-gray-400 font-medium">Drag</div>}
                 </div>
-                <div className="flex-1 overflow-hidden relative">
-                  {w.isChart ? (
-                    <ChartWidget widget={w} data={computedData} compareData={compareActive ? compareData : null} primaryLabel={rangeLabel(dateFilter)} compareLabel={rangeLabel(compareFilter)} />
-                  ) : (
-                    <TableWidget widget={w} data={computedData} compareData={compareActive ? compareData : null} primaryLabel={rangeLabel(dateFilter)} compareLabel={rangeLabel(compareFilter)} />
-                  )}
+                <div className="flex-1 min-h-0 relative">
+                  <div className="absolute inset-0 overflow-hidden">
+                    {w.isChart ? (
+                      <ChartWidget widget={w} data={computedData} compareData={compareActive ? compareData : null} primaryLabel={rangeLabel(dateFilter)} compareLabel={rangeLabel(compareFilter)} />
+                    ) : (
+                      <TableWidget widget={w} data={computedData} compareData={compareActive ? compareData : null} primaryLabel={rangeLabel(dateFilter)} compareLabel={rangeLabel(compareFilter)} />
+                    )}
+                  </div>
                   {isEditMode && (
-                    <div className="absolute bottom-0 right-0 w-4 h-4 bg-primary-500/20 cursor-se-resize rounded-tl-full" />
+                    <div className="absolute bottom-0 right-0 w-4 h-4 bg-primary-500/20 cursor-se-resize rounded-tl-full z-10" />
                   )}
                 </div>
               </div>
