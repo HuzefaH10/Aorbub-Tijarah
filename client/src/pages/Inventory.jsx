@@ -2,8 +2,8 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useProducts, useEntries, useStockLogs } from '../hooks/useFirestore';
 import ReactApexChart from 'react-apexcharts';
 import { 
-  Package, AlertTriangle, XCircle, CheckCircle, Plus, Search, Filter, 
-  Download, Edit2, Trash2, ShieldAlert
+  Package, AlertTriangle, XCircle, CheckCircle, Plus, Search, Filter,
+  Download, Edit2, Trash2, ShieldAlert, ChevronDown, ChevronUp, X, Layers
 } from 'lucide-react';
 import Toast, { useToast } from '../components/ui/Toast';
 
@@ -148,7 +148,7 @@ export default function Inventory() {
       </div>
 
       {/* MODALS */}
-      {loadStockModal.open && <LoadStockModal computedData={computedData.data} initialProductId={loadStockModal.productId} onClose={() => setLoadStockModal({ open: false, productId: null })} onSave={addStockLog} toast={showToast} />}
+      {loadStockModal.open && <LoadStockModal computedData={computedData.data} initialProductId={loadStockModal.productId} onClose={() => setLoadStockModal({ open: false, productId: null })} onSave={addStockLog} onUpdateProduct={updateProduct} toast={showToast} />}
       {productModal.open && <ProductModal editId={productModal.editId} initialData={productModal.data} onClose={() => setProductModal({ open: false, editId: null, data: null })} onSave={productModal.editId ? updateProduct : addProduct} toast={showToast} />}
       {deleteModal.open && <DeleteModal target={deleteModal} onClose={() => setDeleteModal({ open: false, type: null, id: null, name: '' })} onConfirm={deleteModal.type === 'product' ? deleteProduct : deleteStockLog} toast={showToast} />}
 
@@ -363,105 +363,258 @@ function TabAnalytics({ computedData, logs }) {
 
 // ---- Modals ----
 
-function LoadStockModal({ computedData, initialProductId, onClose, onSave, toast }) {
-  const [step, setStep] = useState(initialProductId ? 2 : 1);
-  const [search, setSearch] = useState('');
-  const [pid, setPid] = useState(initialProductId);
-  
-  const [f, setF] = useState({ qty: '', date: new Date().toISOString().split('T')[0], supplier: '', cost: '', note: '' });
+const UNIT_OPTIONS = ['kg', 'g', 'pcs', 'box', 'litre', 'ml', 'dozen', 'carton', 'pack', 'pair', 'bag', 'Other'];
+const MAX_SLOTS = 10;
 
-  const product = computedData.find(p => p.id === pid);
+function emptySlot() {
+  return { id: Date.now() + Math.random(), category: '', product: '', qty: '', unit: 'pcs', customUnit: '', size: '', threshold: '', collapsed: false };
+}
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!product || !f.qty) return toast('Quantity is required', 'error');
-    
-    const qty = Number(f.qty);
-    if (qty <= 0) return toast('Quantity must be greater than 0', 'error');
+function LoadStockModal({ computedData, initialProductId, onClose, onSave, onUpdateProduct, toast }) {
+  const todayISO = new Date().toISOString().split('T')[0];
+  const categories = [...new Set(computedData.map(p => p.category).filter(Boolean))];
 
+  const makeInitialSlot = () => {
+    if (initialProductId) {
+      const p = computedData.find(x => x.id === initialProductId);
+      if (p) return { ...emptySlot(), category: p.category || '', product: p.id, unit: p.unit || 'pcs', threshold: String(p.lowStockThreshold || '') };
+    }
+    return emptySlot();
+  };
+
+  const [slots, setSlots] = useState([makeInitialSlot()]);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const updateSlot = (idx, patch) => setSlots(prev => prev.map((s, i) => i === idx ? { ...s, ...patch } : s));
+  const toggleCollapse = (idx) => updateSlot(idx, { collapsed: !slots[idx].collapsed });
+
+  const getFilteredProducts = (cat) => computedData.filter(p => !cat || p.category === cat);
+
+  const slotValid = (s) => s.product && s.qty && Number(s.qty) > 0 && s.threshold !== '' && (s.unit !== 'Other' || s.customUnit.trim());
+
+  const handleLoadNext = (idx) => {
+    if (!slotValid(slots[idx])) { toast('Fill all required fields before adding next item', 'error'); return; }
+    setSlots(prev => [
+      ...prev.map((s, i) => i === idx ? { ...s, collapsed: true } : s),
+      emptySlot()
+    ]);
+  };
+
+  const handleConfirmAll = () => {
+    const invalid = slots.find(s => !slotValid(s));
+    if (invalid) { toast('All slots must be fully filled before confirming', 'error'); return; }
+    setConfirmOpen(true);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
     try {
-      await onSave({
-        productId: product.id,
-        productName: product.name,
-        category: product.category,
-        date: f.date,
-        quantityLoaded: qty,
-        previousStock: product.currentStock,
-        newStock: product.currentStock + qty,
-        supplier: f.supplier,
-        batchCost: Number(f.cost) || 0,
-        note: f.note
-      });
-      toast('Stock loaded successfully');
+      for (const s of slots) {
+        const product = computedData.find(p => p.id === s.product);
+        if (!product) continue;
+        const qty = Number(s.qty);
+        const threshold = Number(s.threshold);
+        const unitLabel = s.unit === 'Other' ? s.customUnit.trim() : s.unit;
+        await onSave({
+          productId: product.id,
+          productName: product.name,
+          category: product.category,
+          date: todayISO,
+          quantityLoaded: qty,
+          previousStock: product.currentStock,
+          newStock: product.currentStock + qty,
+          unit: unitLabel,
+          size: s.size || '',
+          note: ''
+        });
+        await onUpdateProduct(product.id, { lowStockThreshold: threshold });
+      }
+      toast(`${slots.length} item${slots.length > 1 ? 's' : ''} loaded successfully`);
       onClose();
     } catch {
-      toast('Failed to load stock', 'error');
+      toast('Failed to save stock. Please try again.', 'error');
+    } finally {
+      setSaving(false);
     }
   };
 
   const inputCls = "w-full bg-gray-950 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-primary-500 transition-colors";
+  const labelCls = "block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fadeIn p-4">
-      <div className="glass w-full max-w-md shadow-2xl overflow-hidden scale-95 animate-[scaleIn_0.2s_ease-out_forwards]">
-        
-        {step === 1 && (
-          <div className="p-6 flex flex-col h-[500px]">
-            <h2 className="text-xl font-bold text-white font-heading mb-4">Select Product to Load</h2>
-            <div className="relative mb-4">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-              <input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products..." className={inputCls + " pl-9"} />
-            </div>
-            <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-              {computedData.filter(p => p.name.toLowerCase().includes(search.toLowerCase())).map(p => (
-                <div key={p.id} onClick={() => { setPid(p.id); setStep(2); }} className="p-3 bg-gray-900 border border-white/5 rounded-xl cursor-pointer hover:border-primary-500/50 transition-colors flex justify-between items-center group">
-                  <div>
-                    <p className="font-bold text-gray-200 group-hover:text-primary-400 transition-colors">{p.name}</p>
-                    <p className="text-xs text-gray-500">{p.category}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold text-white">{p.currentStock} {p.unit}</p>
-                    <p className="text-[10px] text-gray-500 uppercase tracking-wider">{p.status}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <button onClick={onClose} className="mt-4 w-full py-3 border border-white/10 rounded-xl text-sm font-bold text-gray-300 hover:bg-white/5 transition-colors">Cancel</button>
-          </div>
-        )}
+    <div className="fixed inset-0 z-50 flex bg-black/70 backdrop-blur-sm animate-fadeIn">
+      {/* Side drawer */}
+      <div className="ml-auto w-full max-w-2xl h-full flex flex-col bg-gray-950 border-l border-white/10 shadow-2xl animate-[slideInRight_0.25s_ease-out_forwards]">
 
-        {step === 2 && product && (
-          <div className="p-6">
-            <h2 className="text-xl font-bold text-white font-heading mb-1">Load Stock: {product.name}</h2>
-            <div className="flex items-center gap-2 mb-6">
-              <span className="text-xs font-bold text-gray-400 bg-gray-900 px-2 py-1 rounded">Current: {product.currentStock} {product.unit}</span>
-              <span className="text-xs font-bold text-gray-500 bg-gray-900 px-2 py-1 rounded">Threshold: {product.lowStockThreshold} {product.unit}</span>
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-primary-600/15 rounded-xl"><Layers size={20} className="text-primary-400" /></div>
+            <div>
+              <h2 className="text-lg font-bold text-white font-heading">Load Stock</h2>
+              <p className="text-xs text-gray-500">{slots.length}/{MAX_SLOTS} slot{slots.length !== 1 ? 's' : ''} added</p>
             </div>
-            
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-xs font-bold text-gray-500 mb-1">Quantity Received</label><input type="number" min="1" required autoFocus value={f.qty} onChange={e => setF({...f, qty: e.target.value})} className={inputCls} /></div>
-                <div><label className="block text-xs font-bold text-gray-500 mb-1">Date</label><input type="date" required value={f.date} onChange={e => setF({...f, date: e.target.value})} className={inputCls} /></div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-xs font-bold text-gray-500 mb-1">Supplier (Optional)</label><input type="text" value={f.supplier} onChange={e => setF({...f, supplier: e.target.value})} className={inputCls} /></div>
-                <div><label className="block text-xs font-bold text-gray-500 mb-1">Total Cost $ (Optional)</label><input type="number" min="0" value={f.cost} onChange={e => setF({...f, cost: e.target.value})} className={inputCls} /></div>
-              </div>
-              <div><label className="block text-xs font-bold text-gray-500 mb-1">Note (Optional)</label><input type="text" value={f.note} onChange={e => setF({...f, note: e.target.value})} className={inputCls} /></div>
-              
-              <div className="p-3 bg-primary-600/10 border border-primary-500/20 rounded-xl flex items-center justify-between">
-                <span className="text-xs font-bold text-primary-500/70 uppercase tracking-wider">New Stock Projection</span>
-                <span className="text-lg font-bold text-primary-400">{product.currentStock + (Number(f.qty) || 0)} <span className="text-xs">{product.unit}</span></span>
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => initialProductId ? onClose() : setStep(1)} className="flex-1 py-3 border border-white/10 rounded-xl text-sm font-bold text-gray-300 hover:bg-white/5 transition-colors">{initialProductId ? 'Cancel' : 'Back'}</button>
-                <button type="submit" className="flex-1 py-3 bg-primary-600 rounded-xl text-sm font-bold text-white hover:bg-primary-700 transition-colors shadow-lg shadow-primary-600/20">Confirm Load</button>
-              </div>
-            </form>
           </div>
-        )}
+          <button onClick={onClose} className="p-2 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-colors"><X size={18} /></button>
+        </div>
+
+        {/* Slots scrollable area */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
+          {slots.map((slot, idx) => {
+            const slotProduct = computedData.find(p => p.id === slot.product);
+            const isLast = idx === slots.length - 1;
+
+            return (
+              <div key={slot.id} className="border border-white/10 rounded-2xl overflow-hidden bg-gray-900/60">
+                {/* Slot header */}
+                <button type="button" onClick={() => toggleCollapse(idx)}
+                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <span className="w-6 h-6 rounded-full bg-primary-600/20 text-primary-400 text-xs font-bold flex items-center justify-center">{idx + 1}</span>
+                    {slot.collapsed && slotProduct ? (
+                      <span className="text-sm font-semibold text-gray-200">
+                        {slotProduct.name}
+                        <span className="text-gray-500 font-normal ml-2">— Qty: {slot.qty} {slot.unit === 'Other' ? slot.customUnit : slot.unit}</span>
+                      </span>
+                    ) : (
+                      <span className="text-sm font-semibold text-gray-400">{slotProduct ? slotProduct.name : `Item ${idx + 1}`}</span>
+                    )}
+                  </div>
+                  {slot.collapsed
+                    ? <ChevronDown size={16} className="text-gray-500" />
+                    : <ChevronUp size={16} className="text-gray-500" />
+                  }
+                </button>
+
+                {/* Slot fields */}
+                {!slot.collapsed && (
+                  <div className="px-4 pb-4 space-y-3 border-t border-white/5">
+                    <div className="pt-3" />
+                    {/* Row 1: Category + Product */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className={labelCls}>Category *</label>
+                        <select value={slot.category} onChange={e => updateSlot(idx, { category: e.target.value, product: '' })} className={inputCls}>
+                          <option value="">Select category...</option>
+                          {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className={labelCls}>Product *</label>
+                        <select value={slot.product} onChange={e => {
+                          const p = computedData.find(x => x.id === e.target.value);
+                          updateSlot(idx, { product: e.target.value, unit: p?.unit || 'pcs', threshold: String(p?.lowStockThreshold || '') });
+                        }} className={inputCls} disabled={!slot.category}>
+                          <option value="">{slot.category ? 'Select product...' : 'Category first'}</option>
+                          {getFilteredProducts(slot.category).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Row 2: Quantity + Unit */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className={labelCls}>Quantity *</label>
+                        <input type="number" min="1" value={slot.qty} onChange={e => updateSlot(idx, { qty: e.target.value })} className={inputCls} placeholder="0" />
+                      </div>
+                      <div>
+                        <label className={labelCls}>Unit *</label>
+                        <select value={slot.unit} onChange={e => updateSlot(idx, { unit: e.target.value, customUnit: '' })} className={inputCls}>
+                          {UNIT_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
+                        </select>
+                        {slot.unit === 'Other' && (
+                          <input type="text" value={slot.customUnit} onChange={e => updateSlot(idx, { customUnit: e.target.value })}
+                            className={`${inputCls} mt-2`} placeholder="Enter unit name..." />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Row 3: Size + Threshold */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className={labelCls}>Size / Description</label>
+                        <input type="text" value={slot.size} onChange={e => updateSlot(idx, { size: e.target.value })}
+                          className={inputCls} placeholder="e.g. 1kg bag, 500ml bottle" />
+                      </div>
+                      <div>
+                        <label className={labelCls}>Low Stock Threshold *</label>
+                        <input type="number" min="0" value={slot.threshold} onChange={e => updateSlot(idx, { threshold: e.target.value })}
+                          className={inputCls} placeholder="e.g. 10" />
+                      </div>
+                    </div>
+
+                    {/* Stock projection */}
+                    {slotProduct && slot.qty && (
+                      <div className="flex items-center justify-between px-3 py-2 bg-primary-600/10 border border-primary-500/20 rounded-xl text-sm">
+                        <span className="text-xs text-primary-500/70 font-bold uppercase tracking-wider">Projected Stock</span>
+                        <span className="font-bold text-primary-400">{slotProduct.currentStock + Number(slot.qty)} {slot.unit === 'Other' ? slot.customUnit : slot.unit}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Load Next button */}
+          {slots.length < MAX_SLOTS ? (
+            <button type="button" onClick={() => handleLoadNext(slots.length - 1)}
+              className="w-full py-3 border border-dashed border-white/20 rounded-2xl text-sm font-bold text-gray-400 hover:border-primary-500/50 hover:text-primary-400 transition-colors flex items-center justify-center gap-2">
+              <Plus size={16} /> Load Next Item
+            </button>
+          ) : (
+            <p className="text-center text-xs text-gray-500 py-2">Maximum {MAX_SLOTS} items per load session</p>
+          )}
+        </div>
+
+        {/* Fixed footer */}
+        <div className="shrink-0 px-6 py-4 border-t border-white/10 flex gap-3">
+          <button onClick={onClose} className="flex-1 py-3 border border-white/10 rounded-xl text-sm font-bold text-gray-300 hover:bg-white/5 transition-colors">Cancel</button>
+          <button onClick={handleConfirmAll} disabled={slots.length === 0}
+            className="flex-1 py-3 bg-primary-600 rounded-xl text-sm font-bold text-white hover:bg-primary-700 transition-colors shadow-lg shadow-primary-600/20 disabled:opacity-50">
+            Confirm All ({slots.length})
+          </button>
+        </div>
       </div>
+
+      {/* Confirmation Modal */}
+      {confirmOpen && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
+          <div className="bg-gray-900 border border-white/10 rounded-2xl w-full max-w-lg shadow-2xl scale-95 animate-[scaleIn_0.2s_ease-out_forwards] overflow-hidden">
+            <div className="px-6 py-4 border-b border-white/10">
+              <h3 className="text-lg font-bold text-white font-heading">Confirm Stock Load</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Review all items before saving to inventory</p>
+            </div>
+            <div className="p-6 space-y-2 max-h-80 overflow-y-auto custom-scrollbar">
+              {slots.map((s, i) => {
+                const p = computedData.find(x => x.id === s.product);
+                const unitLabel = s.unit === 'Other' ? s.customUnit : s.unit;
+                return (
+                  <div key={s.id} className="flex items-center justify-between py-2.5 border-b border-white/5 last:border-0 text-sm">
+                    <div>
+                      <p className="font-semibold text-gray-200">{p?.name || '—'}</p>
+                      {s.size && <p className="text-xs text-gray-500">{s.size}</p>}
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-white">Qty: {s.qty} {unitLabel}</p>
+                      <p className="text-xs text-gray-500">Threshold: {s.threshold}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="px-6 py-4 border-t border-white/10 flex gap-3">
+              <button onClick={() => setConfirmOpen(false)} disabled={saving}
+                className="flex-1 py-3 border border-white/10 rounded-xl text-sm font-bold text-gray-300 hover:bg-white/5 transition-colors disabled:opacity-50">Cancel</button>
+              <button onClick={handleSave} disabled={saving}
+                className="flex-1 py-3 bg-primary-600 rounded-xl text-sm font-bold text-white hover:bg-primary-700 transition-colors shadow-lg shadow-primary-600/20 disabled:opacity-50">
+                {saving ? 'Saving...' : 'Confirm & Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
