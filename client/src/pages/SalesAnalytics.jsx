@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Responsive, WidthProvider } from 'react-grid-layout';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { Responsive } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import { useBills, useProducts } from '../hooks/useFirestore';
@@ -14,7 +14,7 @@ import CsvUploader from '../components/dashboard/CsvUploader';
 import ExportModal from '../components/dashboard/ExportModal';
 import Toast, { useToast } from '../components/ui/Toast';
 
-const ResponsiveGridLayout = WidthProvider(Responsive);
+
 
 const defaultWidgets = [
   { id: 'w_rev_time', type: 'area', name: 'Revenue Over Time', dataset: 'revenueByDate', isChart: true, enabled: true, w: 12, h: 4 },
@@ -362,11 +362,31 @@ export default function SalesAnalytics() {
     return result;
   }, [layouts, widgets]);
 
-  // Force ApexCharts to recalculate dimensions after layout settles
+  // ── Manual grid width measurement (replaces WidthProvider) ──
+  const gridContainerRef = useRef(null);
+  const [gridWidth, setGridWidth] = useState(1200);
+
+  const measureGrid = useCallback(() => {
+    if (gridContainerRef.current) {
+      const w = gridContainerRef.current.clientWidth;
+      if (w > 0) setGridWidth(w);
+    }
+  }, []);
+
   useEffect(() => {
-    const t = setTimeout(() => window.dispatchEvent(new Event('resize')), 300);
+    measureGrid();
+    const ro = new ResizeObserver(measureGrid);
+    if (gridContainerRef.current) ro.observe(gridContainerRef.current);
+    // Also listen to window resize for zoom changes
+    window.addEventListener('resize', measureGrid);
+    return () => { ro.disconnect(); window.removeEventListener('resize', measureGrid); };
+  }, [measureGrid]);
+
+  // Re-measure after widget toggle to kick chart dimensions
+  useEffect(() => {
+    const t = setTimeout(measureGrid, 100);
     return () => clearTimeout(t);
-  }, [activeWidgets.length]);
+  }, [activeWidgets.length, measureGrid]);
 
   if (loading) return <div className="flex items-center justify-center h-[60vh]"><div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" /></div>;
 
@@ -461,10 +481,11 @@ export default function SalesAnalytics() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Main Grid Area */}
-        <div className="flex-1 overflow-y-auto p-6">
-          <ResponsiveGridLayout
+        <div ref={gridContainerRef} className="flex-1 overflow-y-auto p-6" style={{ minWidth: 320 }}>
+          <Responsive
             className="layout"
             layouts={filteredLayouts}
+            width={gridWidth}
             breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
             cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
             rowHeight={60}
@@ -475,7 +496,7 @@ export default function SalesAnalytics() {
             draggableHandle=".widget-drag-handle"
           >
             {activeWidgets.map(w => (
-              <div key={w.id} className="glass overflow-hidden flex flex-col group">
+              <div key={w.id} className="glass overflow-hidden flex flex-col group" style={{ minWidth: 280, minHeight: 180 }}>
                 <div className={`px-4 py-2.5 border-b border-white/5 flex items-center justify-between bg-black/10 shrink-0 ${isEditMode ? 'widget-drag-handle cursor-move' : ''}`}>
                   <div className="flex items-center gap-2">
                     <h3 className="text-sm font-bold text-white font-heading">{w.name}</h3>
@@ -488,7 +509,7 @@ export default function SalesAnalytics() {
                   </div>
                   {isEditMode && <div className="text-xs text-gray-400 font-medium">Drag</div>}
                 </div>
-                <div className="flex-1 min-h-0 relative">
+                <div className="flex-1 min-h-0 relative" style={{ minHeight: 140 }}>
                   <div className="absolute inset-0 overflow-hidden">
                     {w.isChart ? (
                       <ChartWidget widget={w} data={computedData} compareData={compareActive ? compareData : null} primaryLabel={rangeLabel(dateFilter)} compareLabel={rangeLabel(compareFilter)} />
@@ -502,7 +523,7 @@ export default function SalesAnalytics() {
                 </div>
               </div>
             ))}
-          </ResponsiveGridLayout>
+          </Responsive>
           
           {activeWidgets.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full text-gray-400">
