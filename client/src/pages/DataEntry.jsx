@@ -369,12 +369,20 @@ export default function DataEntry() {
               {/* Payment Method — segmented control */}
               <div>
                 <label className={labelCls}>Payment Method</label>
-                <div className="flex glass !p-1 rounded-xl h-[38px] items-center">
+                <div className="flex gap-2 h-[52px]">
                   {['cash', 'credit'].map(m => (
-                    <button key={m} type="button" onClick={() => setPaymentMethod(m)}
-                      className={`flex-1 py-1 rounded-lg text-xs font-bold transition-all duration-200 capitalize ${
-                        paymentMethod === m ? 'bg-primary-600 text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-                      }`}>{m}</button>
+                    <button 
+                      key={m} 
+                      type="button" 
+                      onClick={() => setPaymentMethod(m)}
+                      className={`flex-1 rounded-xl text-[15px] font-semibold transition-all duration-200 capitalize border ${
+                        paymentMethod === m 
+                          ? 'bg-primary-600 text-white border-primary-600 shadow-lg shadow-primary-600/20' 
+                          : 'bg-gray-50 dark:bg-black/20 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20'
+                      }`}
+                    >
+                      {m}
+                    </button>
                   ))}
                 </div>
               </div>
@@ -382,7 +390,7 @@ export default function DataEntry() {
               {/* Checkout */}
               <div className="pt-3">
                 <button type="submit" disabled={billItems.length === 0}
-                  className="w-full bg-primary-600 text-white h-11 rounded-xl font-bold text-sm hover:bg-primary-700 transition-colors shadow-lg shadow-primary-600/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary-600">
+                  className="w-full bg-primary-600 text-white h-[52px] rounded-xl font-semibold text-[15px] hover:bg-primary-700 transition-colors shadow-lg shadow-primary-600/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary-600">
                   Checkout ({billItems.length} item{billItems.length !== 1 ? 's' : ''})
                 </button>
               </div>
