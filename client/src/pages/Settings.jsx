@@ -48,6 +48,9 @@ export default function Settings() {
             phone: data.phone || prev.phone,
             photoURL: data.photoURL || ''
           }));
+          if (data.notificationPreferences) {
+            setNotifications(prev => ({ ...prev, ...data.notificationPreferences }));
+          }
         }
       } catch (err) {
         console.error('Failed to load user profile:', err);
@@ -86,8 +89,9 @@ export default function Settings() {
   // ── Notifications state ──
   const [notifications, setNotifications] = useState({
     lowStock: true,
-    dailySummary: false,
+    outOfStock: true,
     creditDue: true,
+    stockExpiry: true,
     newBill: false,
   });
   const [notifSaving, setNotifSaving] = useState(false);
@@ -101,22 +105,6 @@ export default function Settings() {
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [securitySaving, setSecuritySaving] = useState(false);
-
-  useEffect(() => {
-    if (settings) {
-      if (settings.name || settings.address || settings.currency) {
-        setBusiness(prev => ({
-          ...prev,
-          ...(settings.name && { name: settings.name }),
-          ...(settings.address && { address: settings.address }),
-          ...(settings.currency && { currency: settings.currency }),
-        }));
-      }
-      if (settings.notifications) {
-        setNotifications(prev => ({ ...prev, ...settings.notifications }));
-      }
-    }
-  }, [settings]);
 
   // Handle scroll spy
   useEffect(() => {
@@ -214,9 +202,12 @@ export default function Settings() {
 
   const handleNotifSave = async (e) => {
     e.preventDefault();
+    if (!user) return;
     setNotifSaving(true);
     try {
-      await updateSettings({ notifications });
+      await setDoc(doc(db, 'users', user.uid), {
+        notificationPreferences: notifications
+      }, { merge: true });
       showToast('Notification preferences saved');
     } catch { showToast('Failed to save preferences', 'error'); }
     finally { setNotifSaving(false); }
@@ -448,15 +439,16 @@ export default function Settings() {
             </div>
             <form onSubmit={handleNotifSave} className="space-y-1">
               {[
-                { key: 'lowStock', label: 'Low Stock Alerts', desc: 'Get notified when products fall below their restock threshold', iconOn: BellRing, iconOff: BellOff },
-                { key: 'creditDue', label: 'Credit Due Reminders', desc: 'Alerts when a customer credit payment is due', iconOn: BellRing, iconOff: BellOff },
-                { key: 'dailySummary', label: 'Daily Sales Summary', desc: 'Receive a summary of daily sales activity', iconOn: BellRing, iconOff: BellOff },
-                { key: 'newBill', label: 'New Bill Created', desc: 'Get notified each time a new bill is added', iconOn: BellRing, iconOff: BellOff },
+                { key: 'lowStock', label: 'Low Stock Alert', desc: 'Notify when any product hits low stock threshold', iconOn: BellRing, iconOff: BellOff },
+                { key: 'outOfStock', label: 'Out of Stock Alert', desc: 'Notify when any product hits zero', iconOn: BellRing, iconOff: BellOff },
+                { key: 'creditDue', label: 'Credit Payment Due', desc: 'Notify when a credit bill due date is today or past', iconOn: BellRing, iconOff: BellOff },
+                { key: 'stockExpiry', label: 'Stock Expiry Warning', desc: 'Notify when product expiry is within 7 days', iconOn: BellRing, iconOff: BellOff },
+                { key: 'newBill', label: 'New Bill Created', desc: 'Notify on every successful checkout', iconOn: BellRing, iconOff: BellOff },
               ].map(({ key, label, desc }) => (
                 <div key={key} className="flex items-center justify-between py-4 border-b border-gray-100/50 dark:border-white/[0.04] last:border-0">
                   <div>
                     <p className="text-sm font-semibold text-gray-800 dark:text-white">{label}</p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{desc}</p>
+                    <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">{desc}</p>
                   </div>
                   <button
                     type="button"
