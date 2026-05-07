@@ -1,9 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Responsive } from 'react-grid-layout';
-import 'react-grid-layout/css/styles.css';
-import 'react-resizable/css/styles.css';
 import { useBills, useProducts } from '../hooks/useFirestore';
-import { Calendar, Settings2, Download, X } from 'lucide-react';
+import { Calendar, Download, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import ChartWidget from '../components/dashboard/ChartWidget';
@@ -23,12 +20,7 @@ const defaultWidgets = [
   { id: 'w_top_table', type: 'top-products', name: 'Top Products Table', dataset: 'topProductsTable', isChart: false, enabled: true, w: 12, h: 3 }
 ];
 
-const defaultLayout = [
-  { i: 'w_rev_time', x: 0, y: 0, w: 12, h: 4 },
-  { i: 'w_sales_prod', x: 0, y: 4, w: 6, h: 4 },
-  { i: 'w_cat_split', x: 6, y: 4, w: 4, h: 4 },
-  { i: 'w_top_table', x: 0, y: 8, w: 12, h: 3 }
-];
+
 
 // Valid datasets for the current data model
 const VALID_DATASETS = new Set([
@@ -122,7 +114,6 @@ export default function SalesAnalytics() {
   const { toast, showToast, hideToast } = useToast();
   
   // State
-  const [isEditMode, setIsEditMode] = useState(false);
   const [pickerType, setPickerType] = useState(null); // 'chart' or 'table'
   const [showCsvUploader, setShowCsvUploader] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -146,10 +137,7 @@ export default function SalesAnalytics() {
     }
   });
   
-  const [layouts, setLayouts] = useState(() => {
-    const saved = localStorage.getItem('bizDashboardLayout');
-    return saved ? JSON.parse(saved) : { lg: defaultLayout };
-  });
+
 
   const [activePreset, setActivePreset] = useState('This Month');
   const [dateFilter, setDateFilter] = useState(() => getPresetDates('This Month'));
@@ -183,23 +171,7 @@ export default function SalesAnalytics() {
     localStorage.setItem('bizDashboardWidgets', JSON.stringify(widgets));
   }, [widgets]);
 
-  const onLayoutChange = (layout, allLayouts) => {
-    // Merge: keep layout positions for disabled widgets intact,
-    // only update entries for currently-active widgets
-    const currentActiveIds = new Set(widgets.filter(w => w.enabled).map(w => w.id));
-    const merged = {};
-    const allBreakpoints = new Set([...Object.keys(layouts), ...Object.keys(allLayouts)]);
-    for (const bp of allBreakpoints) {
-      const incoming = allLayouts[bp] || [];
-      const existing = layouts[bp] || [];
-      const incomingIds = new Set(incoming.map(l => l.i));
-      // Keep disabled widget positions from existing, add/update active from incoming
-      const disabled = existing.filter(l => !currentActiveIds.has(l.i) && !incomingIds.has(l.i));
-      merged[bp] = [...incoming, ...disabled];
-    }
-    setLayouts(merged);
-    localStorage.setItem('bizDashboardLayout', JSON.stringify(merged));
-  };
+
 
   // Data Computations
   const computedData = useMemo(() => {
@@ -335,14 +307,6 @@ export default function SalesAnalytics() {
 
   const handleAddWidget = (widgetConfig) => {
     setWidgets([...widgets, widgetConfig]);
-    const lg = layouts.lg || [];
-    // Place at bottom
-    let maxY = 0;
-    lg.forEach(l => { if (l.y + l.h > maxY) maxY = l.y + l.h; });
-    setLayouts({
-      ...layouts,
-      lg: [...lg, { i: widgetConfig.id, x: 0, y: maxY, w: widgetConfig.w, h: widgetConfig.h }]
-    });
   };
 
   const handleReorderWidgets = (reordered) => {
@@ -352,41 +316,7 @@ export default function SalesAnalytics() {
   const activeWidgets = widgets.filter(w => w.enabled);
   const activeIds = new Set(activeWidgets.map(w => w.id));
 
-  // Filter layouts to ONLY include active widget entries — prevents ghost cards
-  const filteredLayouts = useMemo(() => {
-    const ids = new Set(widgets.filter(w => w.enabled).map(w => w.id));
-    const result = {};
-    for (const [bp, items] of Object.entries(layouts)) {
-      result[bp] = (items || []).filter(item => ids.has(item.i));
-    }
-    return result;
-  }, [layouts, widgets]);
 
-  // ── Manual grid width measurement (replaces WidthProvider) ──
-  const gridContainerRef = useRef(null);
-  const [gridWidth, setGridWidth] = useState(1200);
-
-  const measureGrid = useCallback(() => {
-    if (gridContainerRef.current) {
-      const w = gridContainerRef.current.clientWidth;
-      if (w > 0) setGridWidth(w);
-    }
-  }, []);
-
-  useEffect(() => {
-    measureGrid();
-    const ro = new ResizeObserver(measureGrid);
-    if (gridContainerRef.current) ro.observe(gridContainerRef.current);
-    // Also listen to window resize for zoom changes
-    window.addEventListener('resize', measureGrid);
-    return () => { ro.disconnect(); window.removeEventListener('resize', measureGrid); };
-  }, [measureGrid]);
-
-  // Re-measure after widget toggle to kick chart dimensions
-  useEffect(() => {
-    const t = setTimeout(measureGrid, 100);
-    return () => clearTimeout(t);
-  }, [activeWidgets.length, measureGrid]);
 
   if (loading) return <div className="flex items-center justify-center h-[60vh]"><div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" /></div>;
 
@@ -469,61 +399,42 @@ export default function SalesAnalytics() {
             <Download size={16} />
             Export
           </button>
-          <button 
-            onClick={() => setIsEditMode(!isEditMode)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${isEditMode ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/20' : 'glass hover:bg-white/5'}`}
-          >
-            <Settings2 size={16} />
-            {isEditMode ? 'Done Editing' : 'Edit Layout'}
-          </button>
         </div>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
         {/* Main Grid Area */}
-        <div ref={gridContainerRef} className="flex-1 overflow-y-auto p-6" style={{ minWidth: 320 }}>
-          <Responsive
-            className="layout"
-            layouts={filteredLayouts}
-            width={gridWidth}
-            breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
-            cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
-            rowHeight={60}
-            onLayoutChange={onLayoutChange}
-            isDraggable={isEditMode}
-            isResizable={isEditMode}
-            margin={[16, 16]}
-            draggableHandle=".widget-drag-handle"
-          >
+        <div className="flex-1 overflow-y-auto p-6" style={{ minWidth: 320 }}>
+          <div className="grid grid-cols-2 gap-6 w-full">
             {activeWidgets.map(w => (
-              <div key={w.id} className="glass overflow-hidden flex flex-col group" style={{ minWidth: 280, minHeight: 180 }}>
-                <div className={`px-4 py-2.5 border-b border-white/5 flex items-center justify-between bg-black/10 shrink-0 ${isEditMode ? 'widget-drag-handle cursor-move' : ''}`}>
+              <div 
+                key={w.id} 
+                className={`glass overflow-hidden flex flex-col p-6 rounded-2xl border border-white/10 ${w.type === 'top-products' ? 'col-span-2' : ''}`}
+                style={{ minHeight: '320px', width: '100%' }}
+              >
+                <div className="flex items-center justify-between mb-4 shrink-0">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-white font-heading">{w.name}</h3>
-                    {w.isCSV && <span className="text-[9px] font-bold px-1.5 py-0.5 bg-amber-500/20 text-amber-400 rounded">CSV</span>}
+                    <h3 className="text-lg font-bold text-white font-heading">{w.name}</h3>
+                    {w.isCSV && <span className="text-[10px] font-bold px-2 py-1 bg-amber-500/20 text-amber-400 rounded">CSV</span>}
                     {compareActive && !w.isCSV && (
-                      <span className="text-[9px] font-bold px-1.5 py-0.5 bg-primary-500/10 text-primary-400 rounded border border-primary-500/20">
+                      <span className="text-[10px] font-bold px-2 py-1 bg-primary-500/10 text-primary-400 rounded border border-primary-500/20">
                         Comparing
                       </span>
                     )}
                   </div>
-                  {isEditMode && <div className="text-xs text-gray-400 font-medium">Drag</div>}
                 </div>
-                <div className="flex-1 min-h-0 relative" style={{ minHeight: 140 }}>
-                  <div className="absolute inset-0 overflow-hidden">
+                <div className="flex-1 min-h-[260px] relative">
+                  <div className="absolute inset-0">
                     {w.isChart ? (
                       <ChartWidget widget={w} data={computedData} compareData={compareActive ? compareData : null} primaryLabel={rangeLabel(dateFilter)} compareLabel={rangeLabel(compareFilter)} />
                     ) : (
                       <TableWidget widget={w} data={computedData} compareData={compareActive ? compareData : null} primaryLabel={rangeLabel(dateFilter)} compareLabel={rangeLabel(compareFilter)} />
                     )}
                   </div>
-                  {isEditMode && (
-                    <div className="absolute bottom-0 right-0 w-4 h-4 bg-primary-500/20 cursor-se-resize rounded-tl-full z-10" />
-                  )}
                 </div>
               </div>
             ))}
-          </Responsive>
+          </div>
           
           {activeWidgets.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full text-gray-400">
