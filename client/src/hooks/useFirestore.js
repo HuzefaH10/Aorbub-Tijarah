@@ -49,7 +49,7 @@ export function useProducts() {
 
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, 'products'), where('userId', '==', user.uid));
+    const q = query(collection(db, 'products'), where('businessId', '==', user.uid));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
@@ -59,7 +59,7 @@ export function useProducts() {
 
   const addProduct = useCallback(async (data) => {
     if (!user) return;
-    await addDoc(collection(db, 'products'), { ...data, userId: user.uid });
+    await addDoc(collection(db, 'products'), { ...data, businessId: user.uid, userId: user.uid, createdAt: serverTimestamp() });
   }, [user]);
 
   const updateProduct = useCallback(async (id, data) => {
@@ -216,4 +216,35 @@ export function useBills() {
   }, [user]);
 
   return { bills, loading, addBill };
+}
+
+export function useCategories() {
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'categories'), where('businessId', '==', user.uid));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      setCategories(data);
+      setLoading(false);
+    });
+    return unsubscribe;
+  }, [user]);
+
+  const addCategory = useCallback(async (name) => {
+    if (!user || !name.trim()) return;
+    const existing = await import('firebase/firestore').then(({ getDocs }) =>
+      getDocs(query(collection(db, 'categories'), where('businessId', '==', user.uid), where('name', '==', name.trim())))
+    );
+    if (!existing.empty) return existing.docs[0].data().name;
+    await addDoc(collection(db, 'categories'), { name: name.trim(), businessId: user.uid, createdAt: serverTimestamp() });
+    return name.trim();
+  }, [user]);
+
+  return { categories, loading, addCategory };
 }

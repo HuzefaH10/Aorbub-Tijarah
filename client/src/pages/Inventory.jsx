@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { useProducts, useEntries, useStockLogs } from '../hooks/useFirestore';
+import { useProducts, useEntries, useStockLogs, useCategories } from '../hooks/useFirestore';
 import ReactApexChart from 'react-apexcharts';
 import { 
   Package, AlertTriangle, XCircle, CheckCircle, Plus, Search, Filter,
@@ -11,6 +11,7 @@ export default function Inventory() {
   const { products, addProduct, updateProduct, deleteProduct } = useProducts();
   const { entries } = useEntries();
   const { stockLogs, addStockLog, deleteStockLog, updateStockLog } = useStockLogs();
+  const { categories: firestoreCategories, addCategory } = useCategories();
   const { toast, showToast, hideToast } = useToast();
 
   const [activeTab, setActiveTab] = useState('overview');
@@ -151,7 +152,7 @@ export default function Inventory() {
       {/* MODALS */}
       {loadStockModal.open && <LoadStockModal computedData={computedData.data} initialProductId={loadStockModal.productId} onClose={() => setLoadStockModal({ open: false, productId: null })} onSave={addStockLog} onUpdateProduct={updateProduct} toast={showToast} />}
       {quickLoadModal.open && <QuickLoadModal product={quickLoadModal.product} onClose={() => setQuickLoadModal({ open: false, product: null })} onSave={addStockLog} onUpdateProduct={updateProduct} toast={showToast} />}
-      {productModal.open && <ProductModal editId={productModal.editId} initialData={productModal.data} onClose={() => setProductModal({ open: false, editId: null, data: null })} onSave={productModal.editId ? updateProduct : addProduct} toast={showToast} />}
+      {productModal.open && <ProductModal editId={productModal.editId} initialData={productModal.data} onClose={() => setProductModal({ open: false, editId: null, data: null })} onSave={productModal.editId ? updateProduct : addProduct} firestoreCategories={firestoreCategories} addCategory={addCategory} toast={showToast} />}
       {deleteModal.open && <DeleteModal target={deleteModal} onClose={() => setDeleteModal({ open: false, type: null, id: null, name: '' })} onConfirm={deleteModal.type === 'product' ? deleteProduct : deleteStockLog} toast={showToast} />}
 
     </div>
@@ -621,57 +622,249 @@ function LoadStockModal({ computedData, initialProductId, onClose, onSave, onUpd
   );
 }
 
-function ProductModal({ editId, initialData, onClose, onSave, toast }) {
-  const [f, setF] = useState(initialData || { name: '', category: '', unit: 'pcs', lowStockThreshold: 5, openingStock: 0, note: '' });
-  
+const PRODUCT_UNIT_OPTIONS = ['pcs', 'kg', 'g', 'L', 'ml', 'box', 'dozen', 'carton', 'pack', 'bag', 'pair', 'Other'];
+
+function ProductModal({ editId, initialData, onClose, onSave, firestoreCategories = [], addCategory, toast }) {
+  const [f, setF] = useState(() => ({
+    name: initialData?.name || '',
+    category: initialData?.category || '',
+    unit: initialData?.defaults?.unit || initialData?.unit || 'pcs',
+    customUnit: '',
+    size: initialData?.defaults?.size || '',
+    sku: initialData?.defaults?.sku || '',
+    lowStockThreshold: initialData?.defaults?.threshold ?? initialData?.lowStockThreshold ?? 5,
+    openingStock: 0,
+    internalNote: initialData?.internalNote || initialData?.note || '',
+  }));
+
+  // Category dropdown state
+  const [catDropOpen, setCatDropOpen] = useState(false);
+  const [catSearch, setCatSearch] = useState('');
+  const [addingCat, setAddingCat] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [addingCatLoading, setAddingCatLoading] = useState(false);
+  const catDropRef = useRef(null);
+  const newCatInputRef = useRef(null);
+  const [saving, setSaving] = useState(false);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!catDropOpen) return;
+    const handler = (e) => {
+      if (catDropRef.current && !catDropRef.current.contains(e.target)) {
+        setCatDropOpen(false);
+        setAddingCat(false);
+        setNewCatName('');
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [catDropOpen]);
+
+  useEffect(() => {
+    if (addingCat && newCatInputRef.current) newCatInputRef.current.focus();
+  }, [addingCat]);
+
+  const filteredCats = firestoreCategories.filter(c =>
+    c.name?.toLowerCase().includes(catSearch.toLowerCase())
+  );
+
+  const handleAddCategory = async () => {
+    if (!newCatName.trim()) return;
+    setAddingCatLoading(true);
+    try {
+      await addCategory(newCatName.trim());
+      setF(p => ({ ...p, category: newCatName.trim() }));
+      setNewCatName('');
+      setAddingCat(false);
+      setCatDropOpen(false);
+    } catch { toast('Failed to add category', 'error'); }
+    finally { setAddingCatLoading(false); }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!f.name || !f.category) return toast('Name and Category are required', 'error');
+    if (!f.name.trim()) return toast('Product name is required', 'error');
+    if (!f.category) return toast('Category is required', 'error');
+    if (f.unit === 'Other' && !f.customUnit.trim()) return toast('Custom unit is required', 'error');
+
+    setSaving(true);
     try {
-      await onSave(editId, {
-        name: f.name, category: f.category, unit: f.unit, 
-        lowStockThreshold: Number(f.lowStockThreshold), 
-        openingStock: editId ? initialData.openingStock : Number(f.openingStock), // immutable after creation
-        note: f.note
-      });
+      const unitLabel = f.unit === 'Other' ? f.customUnit.trim() : f.unit;
+      const threshold = Number(f.lowStockThreshold) || 0;
+      const openingStock = editId ? (initialData?.openingStock ?? 0) : Number(f.openingStock) || 0;
+
+      let status = 'healthy';
+      if (openingStock === 0) status = 'out';
+      else if (openingStock <= threshold) status = 'low';
+
+      if (editId) {
+        await onSave(editId, {
+          name: f.name.trim(),
+          category: f.category,
+          defaults: { unit: unitLabel, size: f.size.trim(), sku: f.sku.trim(), threshold },
+          unit: unitLabel,
+          lowStockThreshold: threshold,
+          internalNote: f.internalNote.trim(),
+        });
+      } else {
+        await onSave({
+          name: f.name.trim(),
+          category: f.category,
+          defaults: { unit: unitLabel, size: f.size.trim(), sku: f.sku.trim(), threshold },
+          unit: unitLabel,
+          lowStockThreshold: threshold,
+          openingStock,
+          status,
+          internalNote: f.internalNote.trim(),
+        });
+      }
       toast(editId ? 'Product updated' : 'Product added');
       onClose();
-    } catch {
-      toast('Error saving product', 'error');
-    }
+    } catch { toast('Error saving product', 'error'); }
+    finally { setSaving(false); }
   };
 
   const inputCls = "w-full bg-gray-950 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-primary-500 transition-colors";
+  const labelCls = "block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fadeIn p-4">
-      <div className="glass w-full max-w-md shadow-2xl p-6 scale-95 animate-[scaleIn_0.2s_ease-out_forwards]">
-        <h2 className="text-xl font-bold text-white font-heading mb-6">{editId ? 'Edit Product' : 'Add New Product'}</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div><label className="block text-xs font-bold text-gray-500 mb-1">Product Name</label><input required autoFocus value={f.name} onChange={e => setF({...f, name: e.target.value})} className={inputCls} /></div>
-          <div className="grid grid-cols-2 gap-4">
-            <div><label className="block text-xs font-bold text-gray-500 mb-1">Category</label><input required value={f.category} onChange={e => setF({...f, category: e.target.value})} className={inputCls} /></div>
+      <div className="glass w-full max-w-lg shadow-2xl scale-95 animate-[scaleIn_0.2s_ease-out_forwards] overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 shrink-0">
+          <h2 className="text-lg font-bold text-white font-heading">{editId ? 'Edit Product' : 'Add New Product'}</h2>
+          <button type="button" onClick={onClose} className="p-1.5 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"><X size={18} /></button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 custom-scrollbar">
+          <div className="p-6 space-y-4">
+
+            {/* Row 1: Product Name */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1">Unit</label>
-              <select value={f.unit} onChange={e => setF({...f, unit: e.target.value})} className={inputCls}>
-                <option value="pcs">Pieces (pcs)</option><option value="kg">Kilograms (kg)</option><option value="liters">Liters</option><option value="boxes">Boxes</option><option value="custom">Custom</option>
-              </select>
+              <label className={labelCls}>Product Name *</label>
+              <input required autoFocus value={f.name} onChange={e => setF({...f, name: e.target.value})}
+                className={inputCls} placeholder="e.g. Full Cream Milk" />
+            </div>
+
+            {/* Row 2: Category + Unit */}
+            <div className="grid grid-cols-2 gap-3">
+              {/* Category custom dropdown */}
+              <div>
+                <label className={labelCls}>Category *</label>
+                <div className="relative" ref={catDropRef}>
+                  <button type="button" onClick={() => { setCatDropOpen(p => !p); setCatSearch(''); }}
+                    className={`${inputCls} text-left flex items-center justify-between ${!f.category ? 'text-gray-500' : ''}`}>
+                    <span className="truncate">{f.category || 'Select category...'}</span>
+                    <ChevronDown size={14} className={`shrink-0 ml-2 transition-transform ${catDropOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {catDropOpen && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-gray-900 border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden">
+                      <div className="p-2">
+                        <input value={catSearch} onChange={e => setCatSearch(e.target.value)}
+                          className="w-full bg-gray-950 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white outline-none focus:border-primary-500"
+                          placeholder="Search categories..." autoFocus />
+                      </div>
+                      <div className="max-h-44 overflow-y-auto custom-scrollbar">
+                        {/* Add New Category option */}
+                        {!addingCat ? (
+                          <button type="button" onClick={() => { setAddingCat(true); setCatSearch(''); }}
+                            className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-bold text-primary-400 hover:bg-primary-600/10 transition-colors">
+                            <Plus size={14} /> Add New Category
+                          </button>
+                        ) : (
+                          <div className="flex items-center gap-2 px-3 py-2">
+                            <input ref={newCatInputRef} value={newCatName} onChange={e => setNewCatName(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddCategory(); } if (e.key === 'Escape') { setAddingCat(false); setNewCatName(''); } }}
+                              className="flex-1 bg-gray-950 border border-primary-500/50 rounded-lg px-2.5 py-1.5 text-sm text-white outline-none"
+                              placeholder="New category name..." />
+                            <button type="button" onClick={handleAddCategory} disabled={addingCatLoading || !newCatName.trim()}
+                              className="p-1.5 bg-primary-600 rounded-lg text-white hover:bg-primary-700 disabled:opacity-50 transition-colors">
+                              {addingCatLoading ? '...' : '✓'}
+                            </button>
+                          </div>
+                        )}
+                        <div className="border-t border-white/5">
+                          {filteredCats.length === 0 && !addingCat && (
+                            <p className="text-xs text-gray-500 text-center py-3">No categories yet</p>
+                          )}
+                          {filteredCats.map(c => (
+                            <button key={c.id} type="button" onClick={() => { setF(p => ({...p, category: c.name})); setCatDropOpen(false); }}
+                              className={`w-full text-left px-3 py-2.5 text-sm transition-colors ${
+                                f.category === c.name ? 'bg-primary-600/20 text-primary-400 font-bold' : 'text-gray-300 hover:bg-white/5'
+                              }`}>{c.name}</button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Unit */}
+              <div>
+                <label className={labelCls}>Unit *</label>
+                <select value={f.unit} onChange={e => setF({...f, unit: e.target.value, customUnit: ''})} className={inputCls}>
+                  {PRODUCT_UNIT_OPTIONS.map(u => <option key={u} value={u}>{u === 'pcs' ? 'Pieces (pcs)' : u === 'kg' ? 'Kilograms (kg)' : u === 'g' ? 'Grams (g)' : u === 'L' ? 'Litres (L)' : u === 'ml' ? 'Millilitres (ml)' : u}</option>)}
+                </select>
+                {f.unit === 'Other' && (
+                  <input value={f.customUnit} onChange={e => setF({...f, customUnit: e.target.value})}
+                    className={`${inputCls} mt-2`} placeholder="Enter unit name..." required />
+                )}
+              </div>
+            </div>
+
+            {/* Row 3: Size + SKU */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>Size / Description</label>
+                <input value={f.size} onChange={e => setF({...f, size: e.target.value})}
+                  className={inputCls} placeholder="e.g. 500ml, 1kg bag, Large" />
+              </div>
+              <div>
+                <label className={labelCls}>SKU / Code</label>
+                <input value={f.sku} onChange={e => setF({...f, sku: e.target.value})}
+                  className={inputCls} placeholder="e.g. MLK-001" />
+              </div>
+            </div>
+
+            {/* Row 4: Threshold + Opening Stock */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>Low Stock Threshold *</label>
+                <input type="number" min="0" required value={f.lowStockThreshold}
+                  onChange={e => setF({...f, lowStockThreshold: e.target.value})} className={inputCls} />
+              </div>
+              <div>
+                <label className={`${labelCls} flex items-center gap-1.5`}>
+                  Opening Stock *
+                  <span className="relative group cursor-help">
+                    <span className="text-gray-600 text-[10px] border border-gray-700 rounded-full px-1">?</span>
+                    <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-44 bg-gray-800 text-[10px] text-white p-2 rounded-lg hidden group-hover:block z-10 text-center leading-tight shadow-xl whitespace-normal">
+                      Set once at creation. Use 'Load Stock' to add more later.
+                    </span>
+                  </span>
+                </label>
+                <input type="number" min="0" value={f.openingStock}
+                  onChange={e => setF({...f, openingStock: e.target.value})}
+                  disabled={!!editId}
+                  className={`${inputCls} ${editId ? 'opacity-50 cursor-not-allowed' : ''}`} />
+              </div>
+            </div>
+
+            {/* Row 5: Internal Note */}
+            <div>
+              <label className={labelCls}>Internal Note</label>
+              <textarea value={f.internalNote} onChange={e => setF({...f, internalNote: e.target.value})}
+                className={`${inputCls} h-16 resize-none`} placeholder="Visible only to you" />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div><label className="block text-xs font-bold text-gray-500 mb-1">Low Stock Threshold</label><input type="number" min="0" required value={f.lowStockThreshold} onChange={e => setF({...f, lowStockThreshold: e.target.value})} className={inputCls} /></div>
-            <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1 group relative">Opening Stock <span className="text-primary-500 cursor-help">ℹ️</span>
-                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-gray-800 text-[10px] text-white p-2 rounded hidden group-hover:block z-10 text-center leading-tight shadow-xl">Opening stock is set once during creation. Use 'Load Stock' to add more later.</span>
-              </label>
-              <input type="number" min="0" disabled={!!editId} value={f.openingStock} onChange={e => setF({...f, openingStock: e.target.value})} className={`${inputCls} ${editId ? 'opacity-50 cursor-not-allowed bg-gray-900' : ''}`} />
-            </div>
-          </div>
-          <div><label className="block text-xs font-bold text-gray-500 mb-1">Internal Note (Optional)</label><input type="text" value={f.note} onChange={e => setF({...f, note: e.target.value})} className={inputCls} /></div>
-          
-          <div className="flex gap-3 pt-4">
-            <button type="button" onClick={onClose} className="flex-1 py-3 border border-white/10 rounded-xl text-sm font-bold text-gray-300 hover:bg-white/5 transition-colors">Cancel</button>
-            <button type="submit" className="flex-1 py-3 bg-primary-600 rounded-xl text-sm font-bold text-white hover:bg-primary-700 transition-colors shadow-lg shadow-primary-600/20">{editId ? 'Save Changes' : 'Add Product'}</button>
+
+          {/* Footer */}
+          <div className="px-6 py-4 border-t border-white/10 flex gap-3 shrink-0">
+            <button type="button" onClick={onClose} disabled={saving} className="flex-1 py-3 border border-white/10 rounded-xl text-sm font-bold text-gray-300 hover:bg-white/5 transition-colors disabled:opacity-50">Cancel</button>
+            <button type="submit" disabled={saving} className="flex-1 py-3 bg-primary-600 rounded-xl text-sm font-bold text-white hover:bg-primary-700 transition-colors shadow-lg shadow-primary-600/20 disabled:opacity-50">
+              {saving ? 'Saving...' : editId ? 'Save Changes' : 'Add Product'}
+            </button>
           </div>
         </form>
       </div>
