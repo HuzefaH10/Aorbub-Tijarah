@@ -17,6 +17,7 @@ export default function Inventory() {
   
   // Modal States
   const [loadStockModal, setLoadStockModal] = useState({ open: false, productId: null });
+  const [quickLoadModal, setQuickLoadModal] = useState({ open: false, product: null });
   const [productModal, setProductModal] = useState({ open: false, editId: null, data: null });
   const [deleteModal, setDeleteModal] = useState({ open: false, type: null, id: null, name: '' });
 
@@ -131,7 +132,7 @@ export default function Inventory() {
         </div>
         
         <div className="p-5">
-          {activeTab === 'overview' && <TabOverview computedData={computedData.data} onEdit={(p) => setProductModal({ open: true, editId: p.id, data: p })} onDelete={(p) => setDeleteModal({ open: true, type: 'product', id: p.id, name: p.name })} onLoad={(id) => setLoadStockModal({ open: true, productId: id })} />}
+          {activeTab === 'overview' && <TabOverview computedData={computedData.data} onEdit={(p) => setProductModal({ open: true, editId: p.id, data: p })} onDelete={(p) => setDeleteModal({ open: true, type: 'product', id: p.id, name: p.name })} onLoad={(p) => setQuickLoadModal({ open: true, product: p })} />}
           {activeTab === 'history' && <TabHistory logs={stockLogs} onDelete={(l) => setDeleteModal({ open: true, type: 'log', id: l.id, name: 'this log entry' })} />}
           {activeTab === 'analytics' && <TabAnalytics computedData={computedData.data} logs={stockLogs} />}
         </div>
@@ -149,6 +150,7 @@ export default function Inventory() {
 
       {/* MODALS */}
       {loadStockModal.open && <LoadStockModal computedData={computedData.data} initialProductId={loadStockModal.productId} onClose={() => setLoadStockModal({ open: false, productId: null })} onSave={addStockLog} onUpdateProduct={updateProduct} toast={showToast} />}
+      {quickLoadModal.open && <QuickLoadModal product={quickLoadModal.product} onClose={() => setQuickLoadModal({ open: false, product: null })} onSave={addStockLog} onUpdateProduct={updateProduct} toast={showToast} />}
       {productModal.open && <ProductModal editId={productModal.editId} initialData={productModal.data} onClose={() => setProductModal({ open: false, editId: null, data: null })} onSave={productModal.editId ? updateProduct : addProduct} toast={showToast} />}
       {deleteModal.open && <DeleteModal target={deleteModal} onClose={() => setDeleteModal({ open: false, type: null, id: null, name: '' })} onConfirm={deleteModal.type === 'product' ? deleteProduct : deleteStockLog} toast={showToast} />}
 
@@ -234,7 +236,7 @@ function TabOverview({ computedData, onEdit, onDelete, onLoad }) {
                   <td className="py-3 text-right text-gray-500 text-xs">{p.lastLoaded}</td>
                   <td className="py-3">
                     <div className="flex items-center justify-end gap-2">
-                      <button onClick={() => onLoad(p.id)} className="px-2 py-1 bg-primary-600/20 text-primary-400 hover:bg-primary-600 hover:text-white rounded text-xs font-bold transition-colors">Load</button>
+                      <button onClick={() => onLoad(p)} className="px-2 py-1 bg-primary-600/20 text-primary-400 hover:bg-primary-600 hover:text-white rounded text-xs font-bold transition-colors">Load</button>
                       <button onClick={() => onEdit(p)} className="p-1.5 text-gray-500 hover:text-white hover:bg-white/10 rounded transition-colors"><Edit2 size={14} /></button>
                       <button onClick={() => onDelete(p)} className="p-1.5 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded transition-colors"><Trash2 size={14} /></button>
                     </div>
@@ -710,6 +712,123 @@ function DeleteModal({ target, onClose, onConfirm, toast }) {
           <div className="flex gap-3">
             <button type="button" onClick={onClose} className="flex-1 py-3 border border-white/10 rounded-xl text-sm font-bold text-gray-300 hover:bg-white/5 transition-colors">Cancel</button>
             <button type="submit" className="flex-1 py-3 bg-red-500 rounded-xl text-sm font-bold text-white hover:bg-red-600 transition-colors shadow-lg shadow-red-500/20">Delete</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function QuickLoadModal({ product, onClose, onSave, onUpdateProduct, toast }) {
+  const [f, setF] = useState({
+    qty: '',
+    unit: UNIT_OPTIONS.includes(product.unit) ? product.unit : (product.unit ? 'Other' : 'pcs'),
+    customUnit: UNIT_OPTIONS.includes(product.unit) ? '' : (product.unit || ''),
+    size: '',
+    threshold: product.lowStockThreshold || ''
+  });
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const qty = Number(f.qty);
+    if (!qty || qty <= 0) return toast('Valid quantity required', 'error');
+    if (f.unit === 'Other' && !f.customUnit.trim()) return toast('Custom unit required', 'error');
+    if (f.threshold === '') return toast('Threshold required', 'error');
+
+    setSaving(true);
+    try {
+      const unitLabel = f.unit === 'Other' ? f.customUnit.trim() : f.unit;
+      
+      await onSave({
+        productId: product.id,
+        productName: product.name,
+        category: product.category,
+        date: new Date().toISOString().split('T')[0],
+        quantityLoaded: qty,
+        previousStock: product.currentStock,
+        newStock: product.currentStock + qty,
+        unit: unitLabel,
+        size: f.size.trim(),
+        note: ''
+      });
+
+      const newThreshold = Number(f.threshold);
+      if (newThreshold !== product.lowStockThreshold) {
+        await onUpdateProduct(product.id, { lowStockThreshold: newThreshold });
+      }
+
+      toast('Stock loaded successfully');
+      onClose();
+    } catch {
+      toast('Failed to load stock', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inputCls = "w-full bg-gray-950 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-primary-500 transition-colors";
+  const labelCls = "block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fadeIn p-4">
+      <div className="glass w-full max-w-sm shadow-2xl p-6 scale-95 animate-[scaleIn_0.2s_ease-out_forwards]">
+        <h2 className="text-xl font-bold text-white font-heading mb-1 text-center">Restock</h2>
+        <p className="text-center text-primary-400 font-bold mb-6">{product.name}</p>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Category</label>
+              <input type="text" value={product.category || ''} disabled className={`${inputCls} opacity-60 bg-gray-900 cursor-not-allowed`} />
+            </div>
+            <div>
+              <label className={labelCls}>Product</label>
+              <input type="text" value={product.name} disabled className={`${inputCls} opacity-60 bg-gray-900 cursor-not-allowed`} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Quantity *</label>
+              <input type="number" min="1" required autoFocus value={f.qty} onChange={e => setF({...f, qty: e.target.value})} className={inputCls} placeholder="0" />
+            </div>
+            <div>
+              <label className={labelCls}>Unit *</label>
+              <select value={f.unit} onChange={e => setF({...f, unit: e.target.value, customUnit: ''})} className={inputCls}>
+                {UNIT_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {f.unit === 'Other' && (
+            <div>
+              <label className={labelCls}>Custom Unit *</label>
+              <input type="text" required value={f.customUnit} onChange={e => setF({...f, customUnit: e.target.value})} className={inputCls} placeholder="Enter unit name..." />
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Size / Desc</label>
+              <input type="text" value={f.size} onChange={e => setF({...f, size: e.target.value})} className={inputCls} placeholder="e.g. 1kg" />
+            </div>
+            <div>
+              <label className={labelCls}>Threshold *</label>
+              <input type="number" min="0" required value={f.threshold} onChange={e => setF({...f, threshold: e.target.value})} className={inputCls} />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between mt-2 p-3 bg-primary-600/10 border border-primary-500/20 rounded-xl">
+            <span className="text-xs font-bold text-primary-500/70 uppercase tracking-wider">New Stock</span>
+            <span className="font-bold text-primary-400">{product.currentStock + (Number(f.qty) || 0)}</span>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} disabled={saving} className="flex-1 py-3 border border-white/10 rounded-xl text-sm font-bold text-gray-300 hover:bg-white/5 transition-colors disabled:opacity-50">Cancel</button>
+            <button type="submit" disabled={saving} className="flex-1 py-3 bg-primary-600 rounded-xl text-sm font-bold text-white hover:bg-primary-700 transition-colors shadow-lg shadow-primary-600/20 disabled:opacity-50">
+              {saving ? 'Saving...' : 'Confirm'}
+            </button>
           </div>
         </form>
       </div>
