@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useEvents, useMilestones, useProducts, useBills, useStockLogs } from '../hooks/useFirestore';
+import { useEvents, useMilestones, useProducts, useBills, useStockLogs, useEventTemplates } from '../hooks/useFirestore';
 import { 
   Calendar as CalendarIcon, Clock, CheckCircle2, AlertTriangle, 
   ChevronLeft, ChevronRight, Plus, Search, X, Edit2, Trash2,
@@ -28,6 +28,7 @@ export default function CalendarPage() {
   const { products } = useProducts();
   const { bills } = useBills();
   const { stockLogs } = useStockLogs();
+  const { templates, addTemplate, deleteTemplate } = useEventTemplates();
   const { toast, showToast, hideToast } = useToast();
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -375,7 +376,7 @@ export default function CalendarPage() {
       </div>
 
       {/* MODALS */}
-      {eventModal.open && <EventModal {...eventModal} onClose={() => setEventModal({ open: false })} onSave={eventModal.editId ? updateEvent : addEvent} products={products} toast={showToast} />}
+      {eventModal.open && <EventModal {...eventModal} onClose={() => setEventModal({ open: false })} onSave={eventModal.editId ? updateEvent : addEvent} products={products} templates={templates} onAddTemplate={addTemplate} onDeleteTemplate={deleteTemplate} toast={showToast} />}
       {milestoneModal.open && <MilestoneModal editId={milestoneModal.editId} data={milestoneModal.data} onClose={() => setMilestoneModal({ open: false, editId: null, data: null })} onSave={milestoneModal.editId ? updateMilestone : addMilestone} toast={showToast} />}
     </div>
   );
@@ -768,7 +769,7 @@ function AgendaRow({ e, onAction, todayStr }) {
 
 // ---- Modals ----
 
-function EventModal({ editId, data, prefillDate, onClose, onSave, products = [], toast }) {
+function EventModal({ editId, data, prefillDate, onClose, onSave, products = [], templates = [], onAddTemplate, onDeleteTemplate, toast }) {
   const today = new Date().toISOString().split('T')[0];
 
   const [f, setF] = useState(() => ({
@@ -782,6 +783,32 @@ function EventModal({ editId, data, prefillDate, onClose, onSave, products = [],
     note: data?.note || '',
   }));
   const [saving, setSaving] = useState(false);
+  const [saveAsTemplate, setSaveAsTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const [managingTemplates, setManagingTemplates] = useState(false);
+
+  // Auto-fill template name
+  useEffect(() => {
+    if (saveAsTemplate && !templateName && f.linkedProductId) {
+      const p = products.find(x => x.id === f.linkedProductId);
+      if (p) setTemplateName(p.name);
+    }
+  }, [saveAsTemplate, f.linkedProductId, templateName, products]);
+
+  const handleApplyTemplate = (tid) => {
+    if (!tid) return;
+    const t = templates.find(x => x.id === tid);
+    if (!t) return;
+    setF(prev => ({
+      ...prev,
+      type: 'stock_order',
+      title: t.name,
+      linkedProductId: t.linkedProductId,
+      recurring: { enabled: true, frequency: t.frequency },
+      note: t.defaultNote || ''
+    }));
+    toast('Template applied');
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -801,6 +828,16 @@ function EventModal({ editId, data, prefillDate, onClose, onSave, products = [],
         note: f.note.trim() || null,
       };
       await onSave(editId, payload);
+      
+      if (!editId && f.type === 'stock_order' && f.recurring.enabled && saveAsTemplate && templateName.trim()) {
+        await onAddTemplate({
+          name: templateName.trim(),
+          linkedProductId: f.linkedProductId || null,
+          frequency: f.recurring.frequency,
+          defaultNote: f.note.trim() || null
+        });
+      }
+
       toast(editId ? 'Event updated' : 'Event added');
       onClose();
     } catch { toast('Error saving event', 'error'); }
@@ -815,12 +852,45 @@ function EventModal({ editId, data, prefillDate, onClose, onSave, products = [],
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fadeIn p-4 overflow-y-auto">
       <div className="glass w-full max-w-md shadow-2xl scale-95 animate-[scaleIn_0.2s_ease-out_forwards] my-auto overflow-hidden flex flex-col max-h-[90vh]">
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 shrink-0">
-          <h2 className="text-lg font-bold text-white font-heading">{editId ? 'Edit Event' : 'Add Event'}</h2>
-          <button type="button" onClick={onClose} className="p-1.5 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"><X size={18} /></button>
+          <h2 className="text-lg font-bold text-white font-heading">
+            {managingTemplates ? 'Manage Templates' : editId ? 'Edit Event' : 'Add Event'}
+          </h2>
+          <button type="button" onClick={() => managingTemplates ? setManagingTemplates(false) : onClose()} className="p-1.5 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"><X size={18} /></button>
         </div>
 
+        {managingTemplates ? (
+          <div className="overflow-y-auto flex-1 custom-scrollbar p-6 space-y-3">
+            {templates.length === 0 ? (
+              <p className="text-center text-gray-500 text-sm">No templates saved yet.</p>
+            ) : (
+              templates.map(t => (
+                <div key={t.id} className="flex items-center justify-between p-3 bg-gray-900/50 border border-white/10 rounded-xl">
+                  <div>
+                    <p className="text-sm font-bold text-white">{t.name}</p>
+                    <p className="text-[10px] text-gray-500 uppercase tracking-wider mt-0.5">{t.frequency} stock order</p>
+                  </div>
+                  <button onClick={() => { if(confirm('Delete template?')) onDeleteTemplate(t.id); }} className="p-2 text-gray-500 hover:text-red-500 transition-colors bg-gray-950 rounded-lg"><Trash2 size={14}/></button>
+                </div>
+              ))
+            )}
+            <button onClick={() => setManagingTemplates(false)} className="w-full mt-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-sm font-bold text-white transition-colors">Back</button>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 custom-scrollbar">
           <div className="p-6 space-y-4">
+
+            {!editId && templates.length > 0 && (
+              <div className="bg-primary-900/10 border border-primary-500/20 p-4 rounded-xl mb-6">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-[11px] font-bold text-primary-400 uppercase tracking-wider">Use a Template</label>
+                  <button type="button" onClick={() => setManagingTemplates(true)} className="text-[10px] text-primary-300 hover:text-primary-200 underline">Manage</button>
+                </div>
+                <select onChange={e => handleApplyTemplate(e.target.value)} className={inputCls} defaultValue="">
+                  <option value="" disabled>Select a template...</option>
+                  {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+            )}
 
             {/* Row 1: Title */}
             <div>
@@ -874,13 +944,33 @@ function EventModal({ editId, data, prefillDate, onClose, onSave, products = [],
 
             {/* Linked Product — shown only for stock_order type */}
             {f.type === 'stock_order' && (
-              <div>
-                <label className={labelCls}>Linked Product <span className="text-gray-600 normal-case font-normal">(optional)</span></label>
-                <select value={f.linkedProductId || ''} onChange={e => setF({...f, linkedProductId: e.target.value || null})} className={inputCls}>
-                  <option value="">No linked product</option>
-                  {products.map(p => <option key={p.id} value={p.id}>{p.name} {p.category ? `— ${p.category}` : ''}</option>)}
-                </select>
-                <p className="text-[10px] text-gray-600 mt-1">When a Load Stock entry is confirmed for this product, the event auto-completes.</p>
+              <div className="space-y-4 border-t border-white/5 pt-4">
+                <div>
+                  <label className={labelCls}>Linked Product <span className="text-gray-600 normal-case font-normal">(optional)</span></label>
+                  <select value={f.linkedProductId || ''} onChange={e => setF({...f, linkedProductId: e.target.value || null})} className={inputCls}>
+                    <option value="">No linked product</option>
+                    {products.map(p => <option key={p.id} value={p.id}>{p.name} {p.category ? `— ${p.category}` : ''}</option>)}
+                  </select>
+                  <p className="text-[10px] text-gray-600 mt-1">When a Load Stock entry is confirmed for this product, the event auto-completes.</p>
+                </div>
+
+                {!editId && f.recurring.enabled && (
+                  <div className="bg-gray-900/50 rounded-xl p-4 border border-white/5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-bold text-gray-300 uppercase tracking-wider">Save as Template</label>
+                      <button type="button" onClick={() => setSaveAsTemplate(!saveAsTemplate)}
+                        className={`relative w-10 h-[22px] rounded-full transition-colors duration-200 shrink-0 ${saveAsTemplate ? 'bg-primary-600' : 'bg-gray-700'}`}>
+                        <span className={`absolute top-[2px] w-[18px] h-[18px] rounded-full bg-white shadow transition-transform duration-200 ${saveAsTemplate ? 'left-[20px]' : 'left-[2px]'}`} />
+                      </button>
+                    </div>
+                    {saveAsTemplate && (
+                      <div>
+                        <input value={templateName} onChange={e => setTemplateName(e.target.value)}
+                          className={inputCls} placeholder="Template Name (e.g. Dairy Weekly)" required={saveAsTemplate} />
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -908,13 +998,14 @@ function EventModal({ editId, data, prefillDate, onClose, onSave, products = [],
             </div>
           </div>
 
-          <div className="px-6 py-4 border-t border-white/10 flex gap-3 shrink-0">
+          <div className="px-6 py-4 border-t border-white/10 flex gap-3 shrink-0 bg-gray-950/50">
             <button type="button" onClick={onClose} disabled={saving} className="flex-1 py-3 border border-white/10 rounded-xl text-sm font-bold text-gray-300 hover:bg-white/5 transition-colors disabled:opacity-50">Cancel</button>
             <button type="submit" disabled={saving} className="flex-1 py-3 bg-primary-600 rounded-xl text-sm font-bold text-white hover:bg-primary-700 transition-colors shadow-lg shadow-primary-600/20 disabled:opacity-50">
               {saving ? 'Saving...' : editId ? 'Save Changes' : 'Save Event'}
             </button>
           </div>
         </form>
+        )}
       </div>
     </div>
   );

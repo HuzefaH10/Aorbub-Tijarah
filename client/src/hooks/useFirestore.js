@@ -143,6 +143,34 @@ export function useStockLogs() {
   return { stockLogs, loading, addStockLog, deleteStockLog, updateStockLog };
 }
 
+export function useEventTemplates() {
+  const [templates, setTemplates] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'templates'), where('businessId', '==', user.uid));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setTemplates(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a, b) => a.name.localeCompare(b.name)));
+      setLoading(false);
+    });
+    return unsubscribe;
+  }, [user]);
+
+  const addTemplate = useCallback(async (data) => {
+    if (!user) return;
+    await addDoc(collection(db, 'templates'), { ...data, businessId: user.uid, createdAt: serverTimestamp() });
+  }, [user]);
+
+  const deleteTemplate = useCallback(async (id) => {
+    if (!user) return;
+    await deleteDoc(doc(db, 'templates', id));
+  }, [user]);
+
+  return { templates, loading, addTemplate, deleteTemplate };
+}
+
 export function useMilestones() {
   const [milestones, setMilestones] = useState([]);
   const [loading, setLoading] = useState(true);
