@@ -156,7 +156,8 @@ export default function WidgetPanel({ widgets, onToggle, onRename, onRemove, onO
                 )}
               </div>
             </div>
-          ))
+            );
+          })
         )}
       </div>
 
