@@ -6,6 +6,7 @@ import { ChevronDown, Settings, Sun, Moon, HelpCircle, LogOut, Palette } from 'l
 
 const titles = {
   '/': 'Dashboard',
+  '/analytics': 'Sales Analytics',
   '/profit': 'Profit Optimization',
   '/inventory': 'Inventory Management',
   '/calendar': 'Calendar & Scheduling',

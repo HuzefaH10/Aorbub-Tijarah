@@ -6,6 +6,7 @@ import {
   Download, Edit2, Trash2, ShieldAlert, ChevronDown, ChevronUp, X, Layers
 } from 'lucide-react';
 import Toast, { useToast } from '../components/ui/Toast';
+import ExportModal from '../components/inventory/ExportModal';
 
 export default function Inventory() {
   const { products, addProduct, updateProduct, deleteProduct } = useProducts();
@@ -48,6 +49,7 @@ export default function Inventory() {
   const [quickLoadModal, setQuickLoadModal] = useState({ open: false, product: null });
   const [productModal, setProductModal] = useState({ open: false, editId: null, data: null });
   const [deleteModal, setDeleteModal] = useState({ open: false, type: null, id: null, name: '' });
+  const [exportModalOpen, setExportModalOpen] = useState(false);
 
   // Compute Current Stock Logic
   const computedData = useMemo(() => {
@@ -98,26 +100,7 @@ export default function Inventory() {
     return { data, outCount, lowCount, okCount };
   }, [products, stockLogs, entries]);
 
-  // CSV Export
-  const handleExport = () => {
-    if (stockLogs.length === 0) return showToast('No stock history to export', 'error');
-    
-    const headers = ['Date', 'Product', 'Category', 'Qty Loaded', 'Previous Stock', 'New Stock', 'Supplier', 'Batch Cost', 'Note'];
-    const rows = stockLogs.map(l => [
-      l.date, `"${l.productName}"`, `"${l.category || ''}"`, l.quantityLoaded, l.previousStock, l.newStock, 
-      `"${l.supplier || ''}"`, l.batchCost || 0, `"${l.note || ''}"`
-    ]);
-    
-    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `stock_history_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('Export downloaded successfully');
-  };
+  // (Export logic moved to ExportModal)
 
   const todayStr = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
@@ -132,7 +115,7 @@ export default function Inventory() {
           <p className="text-sm text-gray-500">Last updated: {todayStr}</p>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 border border-white/10 rounded-xl text-sm font-bold text-gray-300 hover:bg-white/5 transition-colors">
+          <button onClick={() => setExportModalOpen(true)} className="flex items-center gap-2 px-4 py-2 border border-white/10 rounded-xl text-sm font-bold text-gray-300 hover:bg-white/5 transition-colors">
             <Download size={16} /> Export
           </button>
           <button onClick={() => setLoadStockModal({ open: true, productId: null })} className="flex items-center gap-2 px-5 py-2 bg-primary-600 rounded-xl text-sm font-bold text-white shadow-lg shadow-primary-600/20 hover:bg-primary-700 hover:-translate-y-0.5 transition-all">
@@ -181,6 +164,7 @@ export default function Inventory() {
       {quickLoadModal.open && <QuickLoadModal product={quickLoadModal.product} onClose={() => setQuickLoadModal({ open: false, product: null })} onSave={addStockLog} onUpdateProduct={updateProduct} events={events} onUpdateEvent={updateEvent} onAddEvent={addEvent} toast={showToast} />}
       {productModal.open && <ProductModal editId={productModal.editId} initialData={productModal.data} onClose={() => setProductModal({ open: false, editId: null, data: null })} onSave={productModal.editId ? updateProduct : addProduct} firestoreCategories={firestoreCategories} addCategory={addCategory} toast={showToast} />}
       {deleteModal.open && <DeleteModal target={deleteModal} onClose={() => setDeleteModal({ open: false, type: null, id: null, name: '' })} onConfirm={deleteModal.type === 'product' ? deleteProduct : deleteStockLog} toast={showToast} />}
+      {exportModalOpen && <ExportModal onClose={() => setExportModalOpen(false)} computedData={computedData.data} stockLogs={stockLogs} toast={showToast} />}
 
     </div>
   );
