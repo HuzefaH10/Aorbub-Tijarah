@@ -3,15 +3,25 @@ import { X, BarChart2, Table as TableIcon, TrendingUp, PieChart, BarChart, LineC
 
 // ─── Chart Picker Options ───────────────────────────────────────────
 const CHART_TYPE_OPTIONS = [
-  { value: 'area',  label: 'Line / Area' },
-  { value: 'bar',   label: 'Bar' },
-  { value: 'donut', label: 'Donut / Pie' },
+  { value: 'area',      label: 'Line / Area' },
+  { value: 'bar',       label: 'Bar Chart' },
+  { value: 'donut',     label: 'Donut / Pie' },
+  { value: 'line',      label: 'Line Chart' },
+  { value: 'radialBar', label: 'Radial Bar' },
+  { value: 'scatter',   label: 'Scatter Plot' },
+  { value: 'heatmap',   label: 'Heatmap' },
 ];
 
 const CHART_SOURCE_OPTIONS = [
-  { value: 'revenueByDate',   label: 'Revenue Over Time',  dataset: 'revenueByDate',   type: 'area', w: 12, h: 4 },
-  { value: 'salesByProduct',  label: 'Sales by Product',   dataset: 'salesByProduct',  type: 'bar',  w: 6,  h: 4 },
-  { value: 'categorySplit',   label: 'Category Split',     dataset: 'categorySplit',   type: 'donut',w: 4,  h: 4 },
+  { value: 'revenueByDate',         label: 'Revenue Over Time',    dataset: 'revenueByDate',         type: 'area',      w: 12, h: 4 },
+  { value: 'salesByProduct',        label: 'Sales by Product',     dataset: 'salesByProduct',        type: 'bar',       w: 6,  h: 4 },
+  { value: 'categorySplit',         label: 'Category Split',       dataset: 'categorySplit',         type: 'donut',     w: 4,  h: 4 },
+  { value: 'dailyOrderVolume',      label: 'Order Volume',         dataset: 'dailyOrderVolume',      type: 'bar',       w: 6,  h: 4 },
+  { value: 'revenueVsCostVsProfit', label: 'Revenue vs Profit',    dataset: 'revenueVsCostVsProfit', type: 'bar',       w: 6,  h: 4 },
+  { value: 'topProductPerformance', label: 'Product Performance',  dataset: 'topProductPerformance', type: 'radialBar', w: 4,  h: 4 },
+  { value: 'revenueVsQuantity',     label: 'Revenue vs Quantity',  dataset: 'revenueVsQuantity',     type: 'scatter',   w: 6,  h: 4 },
+  { value: 'weeklyHeatmap',         label: 'Weekly Activity',      dataset: 'weeklyHeatmap',         type: 'heatmap',   w: 6,  h: 4 },
+  { value: 'profitMarginTrend',     label: 'Profit Margin Trend',  dataset: 'profitMarginTrend',     type: 'line',      w: 12, h: 4 },
 ];
 
 // ─── Table Picker Options ────────────────────────────────────────────

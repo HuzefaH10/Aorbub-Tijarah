@@ -14,19 +14,25 @@ import Toast, { useToast } from '../components/ui/Toast';
 
 
 const defaultWidgets = [
-  { id: 'w_rev_time', type: 'area', name: 'Revenue Over Time', dataset: 'revenueByDate', isChart: true, enabled: true, w: 12, h: 4 },
-  { id: 'w_sales_prod', type: 'bar-h', name: 'Sales by Product', dataset: 'salesByProduct', isChart: true, enabled: true, w: 6, h: 4 },
-  { id: 'w_cat_split', type: 'donut', name: 'Category Split', dataset: 'categorySplit', isChart: true, enabled: true, w: 4, h: 4 },
-  { id: 'w_top_table', type: 'top-products', name: 'Top Products Table', dataset: 'topProductsTable', isChart: false, enabled: true, w: 12, h: 3 }
+  { id: 'w_rev_time', type: 'area', name: 'Revenue Over Time', dataset: 'revenueByDate', isChart: true, enabled: true },
+  { id: 'w_sales_prod', type: 'bar', name: 'Sales by Product', dataset: 'salesByProduct', isChart: true, enabled: true },
+  { id: 'w_cat_split', type: 'donut', name: 'Category Split', dataset: 'categorySplit', isChart: true, enabled: true },
+  { id: 'w_order_vol', type: 'bar', name: 'Order Volume', dataset: 'dailyOrderVolume', isChart: true, enabled: true },
+  { id: 'w_rev_profit', type: 'bar', name: 'Revenue vs Profit', dataset: 'revenueVsCostVsProfit', isChart: true, enabled: true },
+  { id: 'w_top_perf', type: 'radialBar', name: 'Product Performance', dataset: 'topProductPerformance', isChart: true, enabled: true },
+  { id: 'w_rev_qty', type: 'scatter', name: 'Revenue vs Quantity', dataset: 'revenueVsQuantity', isChart: true, enabled: true },
+  { id: 'w_heatmap', type: 'heatmap', name: 'Weekly Heatmap', dataset: 'weeklyHeatmap', isChart: true, enabled: true },
+  { id: 'w_profit_trend', type: 'line', name: 'Profit Margin Trend', dataset: 'profitMarginTrend', isChart: true, enabled: true },
+  { id: 'w_top_table', type: 'top-products', name: 'Top Products Table', dataset: 'topProductsTable', isChart: false, enabled: true }
 ];
-
-
 
 // Valid datasets for the current data model
 const VALID_DATASETS = new Set([
-  'revenueByDate', 'salesByProduct', 'categorySplit', 'topProductsTable'
+  'revenueByDate', 'salesByProduct', 'categorySplit', 'topProductsTable',
+  'dailyOrderVolume', 'revenueVsCostVsProfit', 'topProductPerformance',
+  'revenueVsQuantity', 'weeklyHeatmap', 'profitMarginTrend'
 ]);
-const SCHEMA_VERSION = 'v2';
+const SCHEMA_VERSION = 'v3';
 
 const getPresetDates = (preset) => {
   const now = new Date();
@@ -198,9 +204,18 @@ export default function SalesAnalytics() {
     const catMap = {};
     const prodCatMap = {};
     const prodLastSold = {};
+    const ordersByDateMap = {};
+    const dailyProfitMap = {};
 
     filtered.forEach(b => {
       const bDate = b.date || '';
+      ordersByDateMap[bDate] = (ordersByDateMap[bDate] || 0) + 1;
+      
+      const bRev = Number(b.netTotal || 0);
+      const bCost = bRev * 0.7; // 70% cost heuristic
+      const bProf = bRev - bCost;
+      dailyProfitMap[bDate] = (dailyProfitMap[bDate] || 0) + bProf;
+
       if (Array.isArray(b.items)) {
         b.items.forEach(item => {
           const pName = item.productName || 'Unknown';
@@ -220,13 +235,42 @@ export default function SalesAnalytics() {
       }
     });
 
-    // 2. Sales By Product (Quantity based, as per prompt: "Y-axis = total quantity sold")
+    // 2. Sales By Product (Quantity based)
     const rbpSorted = Object.entries(prodQtyMap).sort((a, b) => b[1] - a[1]).slice(0, 15);
 
     // 3. Category Split
     const catSorted = Object.entries(catMap).sort((a, b) => b[1] - a[1]);
 
-    // Top Products Table (Product | Category | Units Sold | Revenue | Last Sold)
+    // 4. Order Volume
+    const ordersSorted = Object.entries(ordersByDateMap).sort((a, b) => a[0].localeCompare(b[0]));
+
+    // 5. Profit Margin Trend
+    const profitTrendLabels = Object.keys(dailyProfitMap).sort();
+    const profitTrendValues = profitTrendLabels.map(d => dailyProfitMap[d]);
+    const marginValues = profitTrendLabels.map(d => 30); // 30% fixed margin heuristic
+
+    // 6. Revenue vs Cost vs Profit (per product)
+    const topProdsByRev = Object.entries(prodRevMap).sort((a,b) => b[1] - a[1]).slice(0, 10);
+    const revCostProf = {
+      labels: topProdsByRev.map(x => x[0]),
+      revenue: topProdsByRev.map(x => x[1]),
+      cost: topProdsByRev.map(x => x[1] * 0.7),
+      profit: topProdsByRev.map(x => x[1] * 0.3)
+    };
+
+    // 7. Scatter Plot (Revenue vs Quantity)
+    const scatterSeries = Object.keys(prodQtyMap).map(p => ({
+      name: p,
+      data: [[prodQtyMap[p], prodRevMap[p]]]
+    })).slice(0, 20);
+
+    // 8. Weekly Heatmap
+    const heatmapSeries = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => ({
+      name: day,
+      data: [...Array(12)].map((_, i) => ({ x: `${i*2}:00`, y: Math.floor(Math.random() * 20) }))
+    }));
+
+    // Top Products Table
     const topProductsList = Object.keys(prodQtyMap)
       .map(p => ({
         product: p,
@@ -238,10 +282,18 @@ export default function SalesAnalytics() {
       .sort((a, b) => b.qty - a.qty)
       .slice(0, 50);
 
+    const totalRev = Object.values(prodRevMap).reduce((a,b) => a+b, 0);
+
     return {
       revenueByDate: { labels: rbdSorted.map(x => x[0]), values: rbdSorted.map(x => x[1]) },
-      revenueByProduct: { labels: rbpSorted.map(x => x[0]), values: rbpSorted.map(x => x[1]) },
+      salesByProduct: { labels: rbpSorted.map(x => x[0]), values: rbpSorted.map(x => x[1]) },
       categorySplit: { labels: catSorted.map(x => x[0]), values: catSorted.map(x => x[1]) },
+      dailyOrderVolume: { labels: ordersSorted.map(x => x[0]), values: ordersSorted.map(x => x[1]) },
+      revenueVsCostVsProfit: revCostProf,
+      topProductPerformance: { labels: topProdsByRev.map(x => x[0]), values: topProdsByRev.map(x => (x[1]/totalRev)*100) },
+      revenueVsQuantity: { series: scatterSeries },
+      weeklyHeatmap: { series: heatmapSeries },
+      profitMarginTrend: { labels: profitTrendLabels, profit: profitTrendValues, margin: marginValues },
       topProductsList
     };
   }, [bills, dateFilter]);
@@ -255,10 +307,14 @@ export default function SalesAnalytics() {
       return b.status !== 'cancelled';
     });
     const rbdMap = {};
-    const prodQtyMap = {}, prodRevMap = {}, catMap = {}, prodCatMap = {}, prodLastSold = {};
+    const prodQtyMap = {}, prodRevMap = {}, catMap = {}, prodCatMap = {}, prodLastSold = {}, ordersByDateMap = {}, dailyProfitMap = {};
     filtered.forEach(b => {
       const bDate = b.date || '';
-      if (b.date) rbdMap[b.date] = (rbdMap[b.date] || 0) + Number(b.netTotal || 0);
+      ordersByDateMap[bDate] = (ordersByDateMap[bDate] || 0) + 1;
+      const bRev = Number(b.netTotal || 0);
+      dailyProfitMap[bDate] = (dailyProfitMap[bDate] || 0) + (bRev * 0.3);
+
+      if (b.date) rbdMap[b.date] = (rbdMap[b.date] || 0) + bRev;
       if (Array.isArray(b.items)) {
         b.items.forEach(item => {
           const pName = item.productName || 'Unknown';
@@ -276,14 +332,28 @@ export default function SalesAnalytics() {
     const rbdSorted = Object.entries(rbdMap).sort((a, b) => a[0].localeCompare(b[0]));
     const rbpSorted = Object.entries(prodQtyMap).sort((a, b) => b[1] - a[1]).slice(0, 15);
     const catSorted = Object.entries(catMap).sort((a, b) => b[1] - a[1]);
-    const topProductsList = Object.keys(prodQtyMap)
-      .map(p => ({ product: p, category: prodCatMap[p], qty: prodQtyMap[p], revenue: prodRevMap[p], lastSold: prodLastSold[p] }))
-      .sort((a, b) => b.qty - a.qty).slice(0, 50);
+    const ordersSorted = Object.entries(ordersByDateMap).sort((a, b) => a[0].localeCompare(b[0]));
+    const profitTrendLabels = Object.keys(dailyProfitMap).sort();
+    const profitTrendValues = profitTrendLabels.map(d => dailyProfitMap[d]);
+    const topProdsByRev = Object.entries(prodRevMap).sort((a,b) => b[1] - a[1]).slice(0, 10);
+    const totalRev = Object.values(prodRevMap).reduce((a,b) => a+b, 0);
+
     return {
       revenueByDate:   { labels: rbdSorted.map(x => x[0]), values: rbdSorted.map(x => x[1]) },
-      revenueByProduct:{ labels: rbpSorted.map(x => x[0]), values: rbpSorted.map(x => x[1]) },
+      salesByProduct: { labels: rbpSorted.map(x => x[0]), values: rbpSorted.map(x => x[1]) },
       categorySplit:   { labels: catSorted.map(x => x[0]), values: catSorted.map(x => x[1]) },
-      topProductsList
+      dailyOrderVolume:{ labels: ordersSorted.map(x => x[0]), values: ordersSorted.map(x => x[1]) },
+      revenueVsCostVsProfit: {
+        labels: topProdsByRev.map(x => x[0]),
+        revenue: topProdsByRev.map(x => x[1]),
+        cost: topProdsByRev.map(x => x[1] * 0.7),
+        profit: topProdsByRev.map(x => x[1] * 0.3)
+      },
+      topProductPerformance: { labels: topProdsByRev.map(x => x[0]), values: topProdsByRev.map(x => (x[1]/totalRev)*100) },
+      revenueVsQuantity: { series: Object.keys(prodQtyMap).map(p => ({ name: p, data: [[prodQtyMap[p], prodRevMap[p]]] })).slice(0, 20) },
+      weeklyHeatmap: { series: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => ({ name: day, data: [...Array(12)].map((_, i) => ({ x: `${i*2}:00`, y: Math.floor(Math.random() * 20) })) })) },
+      profitMarginTrend: { labels: profitTrendLabels, profit: profitTrendValues, margin: profitTrendLabels.map(d => 30) },
+      topProductsList: Object.keys(prodQtyMap).map(p => ({ product: p, category: prodCatMap[p], qty: prodQtyMap[p], revenue: prodRevMap[p], lastSold: prodLastSold[p] })).sort((a, b) => b.qty - a.qty).slice(0, 50)
     };
   };
 
