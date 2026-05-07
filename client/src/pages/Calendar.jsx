@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useEvents, useMilestones, useProducts } from '../hooks/useFirestore';
+import { useEvents, useMilestones, useProducts, useBills } from '../hooks/useFirestore';
 import { 
   Calendar as CalendarIcon, Clock, CheckCircle2, AlertTriangle, 
   ChevronLeft, ChevronRight, Plus, Search, X, Edit2, Trash2,
@@ -23,6 +23,7 @@ export default function CalendarPage() {
   const { events, addEvent, updateEvent, deleteEvent } = useEvents();
   const { milestones, addMilestone, deleteMilestone } = useMilestones();
   const { products } = useProducts();
+  const { bills } = useBills();
   const { toast, showToast, hideToast } = useToast();
 
   const [view, setView] = useState('month'); // 'month' | 'agenda'
@@ -65,6 +66,69 @@ export default function CalendarPage() {
     overdue: events.filter(e => e.status === 'overdue').length,
     completed: events.filter(e => e.status === 'completed').length,
   }), [events, todayStr]);
+
+  // Heatmap Data (Tint + Dots)
+  const heatmapData = useMemo(() => {
+    const data = {};
+    const viewYear = currentDate.getFullYear();
+    const viewMonthStr = String(currentDate.getMonth() + 1).padStart(2, '0');
+    const monthPrefix = `${viewYear}-${viewMonthStr}`;
+    
+    // 1. Sales Intensity (Background Tint)
+    const dailySales = {};
+    bills.forEach(b => {
+      if (b.date && b.date.startsWith(monthPrefix) && b.status !== 'cancelled') {
+        if (!dailySales[b.date]) dailySales[b.date] = 0;
+        dailySales[b.date] += (Number(b.netTotal) || 0);
+      }
+    });
+    
+    const salesArray = Object.values(dailySales).sort((a, b) => a - b);
+    let p75 = Infinity, p25 = Infinity;
+    if (salesArray.length > 0) {
+      p75 = salesArray[Math.floor(salesArray.length * 0.75)];
+      p25 = salesArray[Math.floor(salesArray.length * 0.25)];
+    }
+  
+    Object.keys(dailySales).forEach(date => {
+      if (!data[date]) data[date] = { tint: '', dots: [] };
+      const total = dailySales[date];
+      if (total >= p75) data[date].tint = 'bg-purple-900/40';
+      else if (total >= p25) data[date].tint = 'bg-blue-900/30';
+    });
+  
+    // 2. Colored Dots
+    events.forEach(e => {
+      if (!e.date) return;
+      if (!data[e.date]) data[e.date] = { tint: '', dots: [] };
+      if (e.type === 'stock_order' && e.status === 'completed') {
+        data[e.date].dots.push({ color: 'bg-green-500', label: 'Stock order cleared' });
+      } else {
+        data[e.date].dots.push({ color: 'bg-amber-500', label: e.title || 'Event' });
+      }
+    });
+  
+    bills.forEach(b => {
+      if (b.status === 'unpaid' && b.dueDate && b.dueDate < todayStr) {
+        if (!data[b.dueDate]) data[b.dueDate] = { tint: '', dots: [] };
+        data[b.dueDate].dots.push({ color: 'bg-red-500', label: 'Overdue bill' });
+      }
+    });
+  
+    products.forEach(p => {
+      if (p.expiryDate) {
+        const expTime = new Date(p.expiryDate).getTime();
+        for (let i = 0; i <= 7; i++) {
+          const d = new Date(expTime - i * 86400000);
+          const dStr = d.toISOString().split('T')[0];
+          if (!data[dStr]) data[dStr] = { tint: '', dots: [] };
+          data[dStr].dots.push({ color: 'bg-orange-500', label: `Expiring ${i === 0 ? 'today' : `in ${i}d`}: ${p.name}` });
+        }
+      }
+    });
+  
+    return data;
+  }, [bills, events, products, currentDate, todayStr]);
 
   // Calendar Grid Math
   const monthCells = useMemo(() => {
@@ -195,7 +259,7 @@ export default function CalendarPage() {
           </div>
         ) : (
           view === 'month' ? (
-            <MonthView cells={monthCells} events={filteredEvents} currentDate={currentDate} onPrev={handlePrevMonth} onNext={handleNextMonth} onDayClick={setSelectedDay} todayStr={todayStr} />
+            <MonthView cells={monthCells} events={filteredEvents} heatmapData={heatmapData} currentDate={currentDate} onPrev={handlePrevMonth} onNext={handleNextMonth} onDayClick={setSelectedDay} todayStr={todayStr} />
           ) : (
             <AgendaView events={filteredEvents} onAction={handleAction} todayStr={todayStr} />
           )
@@ -306,7 +370,7 @@ function StatCard({ label, value, icon: Icon, color, pulse }) {
   );
 }
 
-function MonthView({ cells, events, currentDate, onPrev, onNext, onDayClick, todayStr }) {
+function MonthView({ cells, events, heatmapData, currentDate, onPrev, onNext, onDayClick, todayStr }) {
   return (
     <div className="glass overflow-hidden animate-fadeIn">
       <div className="flex items-center justify-between p-4 border-b border-white/5 bg-gray-900/50">
@@ -325,13 +389,22 @@ function MonthView({ cells, events, currentDate, onPrev, onNext, onDayClick, tod
         {cells.map((cell, i) => {
           const isToday = cell.dateStr === todayStr;
           const dayEvents = events.filter(e => e.date <= cell.dateStr && (!e.endDate || e.endDate >= cell.dateStr));
+          const hData = heatmapData[cell.dateStr] || { tint: '', dots: [] };
           
           return (
             <div key={i} onClick={() => onDayClick(cell.dateStr)} 
-              className={`min-h-[100px] p-1.5 glass !rounded-none !border-0 cursor-pointer hover:bg-gray-900 transition-colors flex flex-col group ${!cell.isCurrent ? 'opacity-40' : ''}`}
+              className={`min-h-[100px] p-1.5 glass !rounded-none !border-0 cursor-pointer hover:bg-white/5 transition-colors flex flex-col group ${!cell.isCurrent ? 'opacity-40' : ''} ${hData.tint}`}
             >
-              <div className="flex justify-end mb-1">
-                <span className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-primary-600 text-white' : 'text-gray-400 group-hover:text-white'}`}>{cell.day}</span>
+              <div className="flex justify-between items-start mb-1 w-full">
+                <div className="flex flex-wrap gap-1 mt-1 max-w-[60%]">
+                  {hData.dots.slice(0, 3).map((d, idx) => (
+                    <div key={idx} className={`w-2 h-2 rounded-full ${d.color}`} title={d.label} />
+                  ))}
+                  {hData.dots.length > 3 && (
+                    <span className="text-[8px] text-gray-500 font-bold leading-none">+{hData.dots.length - 3}</span>
+                  )}
+                </div>
+                <span className={`text-xs font-bold shrink-0 w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-primary-600 text-white' : 'text-gray-400 group-hover:text-white'}`}>{cell.day}</span>
               </div>
               <div className="flex-1 flex flex-col gap-1 overflow-hidden">
                 {dayEvents.slice(0, 3).map(e => (
