@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { db } from '../services/firebase';
-import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, getDocs } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, getDocs, orderBy } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 
 export function useEntries() {
@@ -248,4 +248,42 @@ export function useCategories() {
   }, [user]);
 
   return { categories, loading, addCategory };
+}
+
+export function useStockHistory(productId) {
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (!user || !productId) { setHistory([]); setLoading(false); return; }
+    const q = query(
+      collection(db, 'stockHistory'),
+      where('businessId', '==', user.uid),
+      where('productId', '==', productId),
+      orderBy('loadedAt', 'desc')
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setHistory(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+      setLoading(false);
+    }, () => { setLoading(false); });
+    return unsubscribe;
+  }, [user, productId]);
+
+  return { history, loading };
+}
+
+export function useAddStockHistory() {
+  const { user } = useAuth();
+
+  const addStockHistory = useCallback(async (data) => {
+    if (!user) return;
+    await addDoc(collection(db, 'stockHistory'), {
+      ...data,
+      businessId: user.uid,
+      loadedAt: serverTimestamp(),
+    });
+  }, [user]);
+
+  return addStockHistory;
 }

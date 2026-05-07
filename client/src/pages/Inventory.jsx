@@ -1,12 +1,13 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { useProducts, useEntries, useStockLogs, useCategories, useEvents } from '../hooks/useFirestore';
+import { useProducts, useEntries, useStockLogs, useCategories, useEvents, useAddStockHistory } from '../hooks/useFirestore';
 import ReactApexChart from 'react-apexcharts';
 import { 
   Package, AlertTriangle, XCircle, CheckCircle, Plus, Search, Filter,
-  Download, Edit2, Trash2, ShieldAlert, ChevronDown, ChevronUp, X, Layers
+  Download, Edit2, Trash2, ShieldAlert, ChevronDown, ChevronUp, X, Layers, ClipboardList
 } from 'lucide-react';
 import Toast, { useToast } from '../components/ui/Toast';
 import ExportModal from '../components/inventory/ExportModal';
+import ProductHistoryDrawer from '../components/inventory/ProductHistoryDrawer';
 
 export default function Inventory() {
   const { products, addProduct, updateProduct, deleteProduct } = useProducts();
@@ -15,6 +16,7 @@ export default function Inventory() {
   const { categories: firestoreCategories, addCategory } = useCategories();
   const { events, addEvent, updateEvent } = useEvents();
   const { toast, showToast, hideToast } = useToast();
+  const addStockHistory = useAddStockHistory();
 
   const [activeTab, setActiveTab] = useState('overview');
   
@@ -50,6 +52,7 @@ export default function Inventory() {
   const [productModal, setProductModal] = useState({ open: false, editId: null, data: null });
   const [deleteModal, setDeleteModal] = useState({ open: false, type: null, id: null, name: '' });
   const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [historyDrawer, setHistoryDrawer] = useState({ open: false, product: null });
 
   // Compute Current Stock Logic
   const computedData = useMemo(() => {
@@ -143,7 +146,7 @@ export default function Inventory() {
         </div>
         
         <div className="p-5">
-          {activeTab === 'overview' && <TabOverview computedData={computedData.data} onEdit={(p) => setProductModal({ open: true, editId: p.id, data: p })} onDelete={(p) => setDeleteModal({ open: true, type: 'product', id: p.id, name: p.name })} onLoad={(p) => setQuickLoadModal({ open: true, product: p })} onBulkDelete={deleteProduct} onBulkUpdate={updateProduct} firestoreCategories={firestoreCategories} toast={showToast} />}
+          {activeTab === 'overview' && <TabOverview computedData={computedData.data} onEdit={(p) => setProductModal({ open: true, editId: p.id, data: p })} onDelete={(p) => setDeleteModal({ open: true, type: 'product', id: p.id, name: p.name })} onLoad={(p) => setQuickLoadModal({ open: true, product: p })} onHistory={(p) => setHistoryDrawer({ open: true, product: p })} onBulkDelete={deleteProduct} onBulkUpdate={updateProduct} firestoreCategories={firestoreCategories} toast={showToast} />}
           {activeTab === 'history' && <TabHistory logs={stockLogs} onDelete={(l) => setDeleteModal({ open: true, type: 'log', id: l.id, name: 'this log entry' })} />}
           {activeTab === 'analytics' && <TabAnalytics computedData={computedData.data} logs={stockLogs} />}
         </div>
@@ -160,11 +163,12 @@ export default function Inventory() {
       </div>
 
       {/* MODALS */}
-      {loadStockModal.open && <LoadStockModal computedData={computedData.data} initialProductId={loadStockModal.productId} onClose={() => setLoadStockModal({ open: false, productId: null })} onSave={addStockLog} onUpdateProduct={updateProduct} events={events} onUpdateEvent={updateEvent} onAddEvent={addEvent} toast={showToast} />}
+      {loadStockModal.open && <LoadStockModal computedData={computedData.data} initialProductId={loadStockModal.productId} onClose={() => setLoadStockModal({ open: false, productId: null })} onSave={addStockLog} onAddHistory={addStockHistory} onUpdateProduct={updateProduct} events={events} onUpdateEvent={updateEvent} onAddEvent={addEvent} toast={showToast} />}
       {quickLoadModal.open && <QuickLoadModal product={quickLoadModal.product} onClose={() => setQuickLoadModal({ open: false, product: null })} onSave={addStockLog} onUpdateProduct={updateProduct} events={events} onUpdateEvent={updateEvent} onAddEvent={addEvent} toast={showToast} />}
       {productModal.open && <ProductModal editId={productModal.editId} initialData={productModal.data} onClose={() => setProductModal({ open: false, editId: null, data: null })} onSave={productModal.editId ? updateProduct : addProduct} firestoreCategories={firestoreCategories} addCategory={addCategory} toast={showToast} />}
       {deleteModal.open && <DeleteModal target={deleteModal} onClose={() => setDeleteModal({ open: false, type: null, id: null, name: '' })} onConfirm={deleteModal.type === 'product' ? deleteProduct : deleteStockLog} toast={showToast} />}
       {exportModalOpen && <ExportModal onClose={() => setExportModalOpen(false)} computedData={computedData.data} stockLogs={stockLogs} toast={showToast} />}
+      {historyDrawer.open && historyDrawer.product && <ProductHistoryDrawer product={historyDrawer.product} onClose={() => setHistoryDrawer({ open: false, product: null })} />}
 
     </div>
   );
@@ -292,7 +296,7 @@ function BulkEditModal({ count, selectedProducts, onClose, onConfirm, firestoreC
   );
 }
 
-function TabOverview({ computedData, onEdit, onDelete, onLoad, onBulkDelete, onBulkUpdate, firestoreCategories, toast }) {
+function TabOverview({ computedData, onEdit, onDelete, onLoad, onHistory, onBulkDelete, onBulkUpdate, firestoreCategories, toast }) {
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -304,7 +308,13 @@ function TabOverview({ computedData, onEdit, onDelete, onLoad, onBulkDelete, onB
   const categories = ['All', ...new Set(computedData.map(p => p.category).filter(Boolean))];
 
   const filtered = computedData.filter(p => {
-    if (search && !p.name.toLowerCase().includes(search.toLowerCase()) && !p.category?.toLowerCase().includes(search.toLowerCase())) return false;
+    if (search) {
+      const s = search.toLowerCase();
+      const matchesName = p.name.toLowerCase().includes(s);
+      const matchesCategory = p.category?.toLowerCase().includes(s);
+      const matchesSku = (p.defaults?.sku || p.sku || '').toLowerCase().includes(s);
+      if (!matchesName && !matchesCategory && !matchesSku) return false;
+    }
     if (catFilter !== 'All' && p.category !== catFilter) return false;
     if (statusFilter !== 'All') {
       if (statusFilter === 'Healthy' && p.status !== 'healthy') return false;
@@ -389,7 +399,7 @@ function TabOverview({ computedData, onEdit, onDelete, onLoad, onBulkDelete, onB
       <div className="flex flex-col md:flex-row gap-3">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products..." className="w-full bg-gray-900 border border-white/10 rounded-xl pl-9 pr-3 py-2 text-sm text-white outline-none focus:border-primary-500 transition-colors" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by product name or SKU..." className="w-full bg-gray-900 border border-white/10 rounded-xl pl-9 pr-3 py-2 text-sm text-white outline-none focus:border-primary-500 transition-colors" />
         </div>
         <select value={catFilter} onChange={e => setCatFilter(e.target.value)} className="bg-gray-900 border border-white/10 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-primary-500">
           {categories.map(c => <option key={c} value={c}>{c}</option>)}
@@ -423,11 +433,12 @@ function TabOverview({ computedData, onEdit, onDelete, onLoad, onBulkDelete, onB
             <tbody>
               {filtered.map((p, i) => {
                 const isChecked = selected.has(p.id);
+                const isExactSku = search && (p.defaults?.sku === search || p.sku === search);
                 return (
                   <tr key={p.id}
                     className={`border-b border-white/5 transition-colors cursor-pointer ${
                       isChecked ? 'bg-primary-600/5' : 'hover:bg-white/[0.02]'
-                    }`}
+                    } ${isExactSku ? 'border-l-2 border-l-primary-500' : ''}`}
                     style={{ animation: `fadeIn 0.3s ease-out ${i * 0.04}s both` }}
                     onClick={() => toggleRow(p.id)}
                   >
@@ -448,8 +459,9 @@ function TabOverview({ computedData, onEdit, onDelete, onLoad, onBulkDelete, onB
                     </td>
                     <td className="py-3 text-right text-gray-500 text-xs" onClick={e => e.stopPropagation()}>{p.lastLoaded}</td>
                     <td className="py-3" onClick={e => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-1.5">
                         <button onClick={() => onLoad(p)} className="px-2 py-1 bg-primary-600/20 text-primary-400 hover:bg-primary-600 hover:text-white rounded text-xs font-bold transition-colors">Load</button>
+                        <button onClick={() => onHistory(p)} title="Stock History" className="p-1.5 text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-colors"><ClipboardList size={14} /></button>
                         <button onClick={() => onEdit(p)} className="p-1.5 text-gray-500 hover:text-white hover:bg-white/10 rounded transition-colors"><Edit2 size={14} /></button>
                         <button onClick={() => onDelete(p)} className="p-1.5 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded transition-colors"><Trash2 size={14} /></button>
                       </div>
@@ -606,7 +618,7 @@ function emptySlot() {
   return { id: Date.now() + Math.random(), category: '', product: '', qty: '', unit: 'pcs', customUnit: '', size: '', threshold: '', collapsed: false };
 }
 
-function LoadStockModal({ computedData, initialProductId, onClose, onSave, onUpdateProduct, toast }) {
+function LoadStockModal({ computedData, initialProductId, onClose, onSave, onAddHistory, onUpdateProduct, toast }) {
   const todayISO = new Date().toISOString().split('T')[0];
   const categories = [...new Set(computedData.map(p => p.category).filter(Boolean))];
 
@@ -652,6 +664,7 @@ function LoadStockModal({ computedData, initialProductId, onClose, onSave, onUpd
         const qty = Number(s.qty);
         const threshold = Number(s.threshold);
         const unitLabel = s.unit === 'Other' ? s.customUnit.trim() : s.unit;
+        const stockAfter = product.currentStock + qty;
         await onSave({
           productId: product.id,
           productName: product.name,
@@ -659,12 +672,22 @@ function LoadStockModal({ computedData, initialProductId, onClose, onSave, onUpd
           date: todayISO,
           quantityLoaded: qty,
           previousStock: product.currentStock,
-          newStock: product.currentStock + qty,
+          newStock: stockAfter,
           unit: unitLabel,
           size: s.size || '',
           note: ''
         });
         await onUpdateProduct(product.id, { lowStockThreshold: threshold });
+        // Write stockHistory entry
+        if (onAddHistory) {
+          await onAddHistory({
+            productId: product.id,
+            productName: product.name,
+            quantityAdded: qty,
+            unit: unitLabel,
+            stockAfter,
+          }).catch(() => {});
+        }
       }
       toast(`${slots.length} item${slots.length > 1 ? 's' : ''} loaded successfully`);
       onClose();
