@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, SummaryCard } from '../components/ui/Card';
 import Toast, { useToast } from '../components/ui/Toast';
 import { useProducts, useBills, useSettings } from '../hooks/useFirestore';
@@ -11,6 +12,7 @@ export default function DataEntry() {
   const { bills, addBill } = useBills();
   const { settings, updateSettings } = useSettings();
   const { toast, showToast, hideToast } = useToast();
+  const navigate = useNavigate();
 
   const todayISO = new Date().toISOString().split('T')[0];
   const todayDisplay = new Date().toLocaleDateString('en-GB');
@@ -464,8 +466,10 @@ export default function DataEntry() {
             </button>
             <div className={`overflow-hidden transition-all duration-200 ease-in-out ${billsExpanded ? 'max-h-40 mt-4' : 'max-h-0'}`}>
               <div className="pt-3 border-t border-gray-100 dark:border-gray-800">
-                <p className="text-3xl font-bold text-gray-800 dark:text-white font-heading">{todaySales}</p>
-                <p className="text-xs text-gray-500 mt-1">bill{todaySales !== 1 ? 's' : ''} created today</p>
+                <button type="button" onClick={() => navigate('/bills?filter=today')} className="text-left group cursor-pointer w-full focus:outline-none">
+                  <p className="text-3xl font-bold text-gray-800 dark:text-white font-heading group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">{todaySales}</p>
+                  <p className="text-xs text-gray-500 mt-1 group-hover:text-primary-500 transition-colors">bill{todaySales !== 1 ? 's' : ''} created today <span className="opacity-0 group-hover:opacity-100 transition-opacity ml-1">→</span></p>
+                </button>
               </div>
             </div>
           </Card>
