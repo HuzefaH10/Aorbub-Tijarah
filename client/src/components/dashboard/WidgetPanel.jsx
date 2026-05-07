@@ -1,5 +1,21 @@
 import React, { useState, useRef } from 'react';
-import { X, Check, Edit2, LayoutGrid, BarChart2, Table as TableIcon, UploadCloud, GripVertical, AlertTriangle } from 'lucide-react';
+import { 
+  X, Check, Edit2, LayoutGrid, BarChart2, Table as TableIcon, 
+  UploadCloud, GripVertical, AlertTriangle, TrendingUp, BarChart, 
+  PieChart, ShoppingCart, DollarSign, Target, Activity, Calendar 
+} from 'lucide-react';
+
+const ICON_MAP = {
+  'trending-up': TrendingUp,
+  'bar-chart': BarChart,
+  'pie-chart': PieChart,
+  'shopping-cart': ShoppingCart,
+  'dollar-sign': DollarSign,
+  'target': Target,
+  'activity': Activity,
+  'calendar': Calendar,
+  'table': TableIcon,
+};
 
 export default function WidgetPanel({ widgets, onToggle, onRename, onRemove, onOpenPicker, onReorder, onOpenCsvUploader }) {
   const [editingId, setEditingId] = useState(null);
@@ -54,49 +70,56 @@ export default function WidgetPanel({ widgets, onToggle, onRename, onRemove, onO
         {widgets.length === 0 ? (
           <p className="text-center text-xs text-gray-500 mt-6 italic">No widgets yet. Add a chart or table below.</p>
         ) : (
-          widgets.map((w, index) => (
-            <div
-              key={w.id}
-              draggable
-              onDragStart={() => handleDragStart(index)}
-              onDragEnter={() => handleDragEnter(index)}
-              onDragEnd={handleDragEnd}
-              onDragOver={(e) => e.preventDefault()}
-              className={`glass transition-all select-none ${w.enabled ? '' : 'opacity-50'}`}
-            >
-              {/* Card top row */}
-              <div className="flex items-center gap-2 p-3 pb-2">
-                {/* Drag handle */}
-                <GripVertical size={14} className="text-gray-600 cursor-grab active:cursor-grabbing shrink-0" />
+          widgets.map((w, index) => {
+            const Icon = ICON_MAP[w.icon] || BarChart2;
+            return (
+              <div
+                key={w.id}
+                draggable
+                onDragStart={() => handleDragStart(index)}
+                onDragEnter={() => handleDragEnter(index)}
+                onDragEnd={handleDragEnd}
+                onDragOver={(e) => e.preventDefault()}
+                className={`glass transition-all select-none ${w.enabled ? 'border-primary-500/30 bg-primary-500/5' : 'opacity-50'}`}
+              >
+                {/* Card top row */}
+                <div className="flex items-center gap-2 p-3 pb-2">
+                  {/* Drag handle */}
+                  <GripVertical size={14} className="text-gray-600 cursor-grab active:cursor-grabbing shrink-0" />
+                  
+                  {/* Widget Icon */}
+                  <div className={`p-1.5 rounded-lg ${w.enabled ? 'bg-primary-500/20 text-primary-400' : 'bg-gray-800 text-gray-500'}`}>
+                    <Icon size={14} />
+                  </div>
 
-                {/* Name / Edit */}
-                {editingId === w.id ? (
-                  <input
-                    autoFocus
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && saveEdit(w.id)}
-                    onBlur={() => saveEdit(w.id)}
-                    className="flex-1 bg-gray-900 border border-primary-500 rounded-lg px-2 py-1 text-xs text-white outline-none"
-                  />
-                ) : (
-                  <h3
-                    className="flex-1 text-sm font-semibold text-white truncate cursor-pointer hover:text-primary-400 transition-colors flex items-center gap-1 group"
-                    onClick={() => startEdit(w)}
+                  {/* Name / Edit */}
+                  {editingId === w.id ? (
+                    <input
+                      autoFocus
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && saveEdit(w.id)}
+                      onBlur={() => saveEdit(w.id)}
+                      className="flex-1 bg-gray-900 border border-primary-500 rounded-lg px-2 py-1 text-xs text-white outline-none"
+                    />
+                  ) : (
+                    <h3
+                      className="flex-1 text-sm font-semibold text-white truncate cursor-pointer hover:text-primary-400 transition-colors flex items-center gap-1 group"
+                      onClick={() => startEdit(w)}
+                    >
+                      {w.name}
+                      <Edit2 size={9} className="opacity-0 group-hover:opacity-60 shrink-0" />
+                    </h3>
+                  )}
+
+                  {/* Toggle */}
+                  <button
+                    onClick={() => onToggle(w.id)}
+                    className={`relative w-8 h-4 rounded-full shrink-0 transition-colors ${w.enabled ? 'bg-primary-500' : 'bg-gray-700'}`}
                   >
-                    {w.name}
-                    <Edit2 size={9} className="opacity-0 group-hover:opacity-60 shrink-0" />
-                  </h3>
-                )}
-
-                {/* Toggle */}
-                <button
-                  onClick={() => onToggle(w.id)}
-                  className={`relative w-8 h-4 rounded-full shrink-0 transition-colors ${w.enabled ? 'bg-primary-500' : 'bg-gray-700'}`}
-                >
-                  <div className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white transition-transform ${w.enabled ? 'translate-x-4' : 'translate-x-0'}`} />
-                </button>
-              </div>
+                    <div className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white transition-transform ${w.enabled ? 'translate-x-4' : 'translate-x-0'}`} />
+                  </button>
+                </div>
 
               {/* Card bottom row */}
               <div className="flex items-center justify-between px-3 pb-3">

@@ -13,23 +13,23 @@ const CHART_TYPE_OPTIONS = [
 ];
 
 const CHART_SOURCE_OPTIONS = [
-  { value: 'revenueByDate',         label: 'Revenue Over Time',    dataset: 'revenueByDate',         type: 'area',      w: 12, h: 4 },
-  { value: 'salesByProduct',        label: 'Sales by Product',     dataset: 'salesByProduct',        type: 'bar',       w: 6,  h: 4 },
-  { value: 'categorySplit',         label: 'Category Split',       dataset: 'categorySplit',         type: 'donut',     w: 4,  h: 4 },
-  { value: 'dailyOrderVolume',      label: 'Order Volume',         dataset: 'dailyOrderVolume',      type: 'bar',       w: 6,  h: 4 },
-  { value: 'revenueVsCostVsProfit', label: 'Revenue vs Profit',    dataset: 'revenueVsCostVsProfit', type: 'bar',       w: 6,  h: 4 },
-  { value: 'topProductPerformance', label: 'Product Performance',  dataset: 'topProductPerformance', type: 'radialBar', w: 4,  h: 4 },
-  { value: 'revenueVsQuantity',     label: 'Revenue vs Quantity',  dataset: 'revenueVsQuantity',     type: 'scatter',   w: 6,  h: 4 },
-  { value: 'weeklyHeatmap',         label: 'Weekly Activity',      dataset: 'weeklyHeatmap',         type: 'heatmap',   w: 6,  h: 4 },
-  { value: 'profitMarginTrend',     label: 'Profit Margin Trend',  dataset: 'profitMarginTrend',     type: 'line',      w: 12, h: 4 },
+  { value: 'revenueByDate',         label: 'Revenue Over Time',    dataset: 'revenueByDate',         type: 'area',      w: 12, h: 4, icon: 'trending-up' },
+  { value: 'salesByProduct',        label: 'Sales by Product',     dataset: 'salesByProduct',        type: 'bar',       w: 6,  h: 4, icon: 'bar-chart' },
+  { value: 'categorySplit',         label: 'Category Split',       dataset: 'categorySplit',         type: 'donut',     w: 4,  h: 4, icon: 'pie-chart' },
+  { value: 'dailyOrderVolume',      label: 'Order Volume',         dataset: 'dailyOrderVolume',      type: 'bar',       w: 6,  h: 4, icon: 'shopping-cart' },
+  { value: 'revenueVsCostVsProfit', label: 'Revenue vs Profit',    dataset: 'revenueVsCostVsProfit', type: 'bar',       w: 6,  h: 4, icon: 'dollar-sign' },
+  { value: 'topProductPerformance', label: 'Product Performance',  dataset: 'topProductPerformance', type: 'radialBar', w: 4,  h: 4, icon: 'target' },
+  { value: 'revenueVsQuantity',     label: 'Revenue vs Quantity',  dataset: 'revenueVsQuantity',     type: 'scatter',   w: 6,  h: 4, icon: 'activity' },
+  { value: 'weeklyHeatmap',         label: 'Weekly Activity',      dataset: 'weeklyHeatmap',         type: 'heatmap',   w: 6,  h: 4, icon: 'calendar' },
+  { value: 'profitMarginTrend',     label: 'Profit Margin Trend',  dataset: 'profitMarginTrend',     type: 'line',      w: 12, h: 4, icon: 'trending-up' },
 ];
 
 // ─── Table Picker Options ────────────────────────────────────────────
 const TABLE_SOURCE_OPTIONS = [
-  { value: 'topProductsTable',      label: 'Top Products',         dataset: 'topProductsTable',      w: 12, h: 3 },
-  { value: 'billsHistoryTable',     label: 'Bills History',        dataset: 'billsHistoryTable',     w: 12, h: 3 },
-  { value: 'creditUnpaidTable',     label: 'Credit / Unpaid Bills',dataset: 'creditUnpaidTable',     w: 12, h: 3 },
-  { value: 'stockOverviewTable',    label: 'Stock Overview',       dataset: 'stockOverviewTable',    w: 12, h: 3 },
+  { value: 'topProductsTable',      label: 'Top Products',         dataset: 'topProductsTable',      w: 12, h: 3, icon: 'table' },
+  { value: 'billsHistoryTable',     label: 'Bills History',        dataset: 'billsHistoryTable',     w: 12, h: 3, icon: 'table' },
+  { value: 'creditUnpaidTable',     label: 'Credit / Unpaid Bills',dataset: 'creditUnpaidTable',     w: 12, h: 3, icon: 'table' },
+  { value: 'stockOverviewTable',    label: 'Stock Overview',       dataset: 'stockOverviewTable',    w: 12, h: 3, icon: 'table' },
 ];
 
 const inputCls = "w-full bg-gray-950 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-primary-500 transition-colors";
@@ -61,6 +61,7 @@ export default function Pickers({ type, onClose, onAdd }) {
         enabled: true,
         w: src?.w || 6,
         h: src?.h || 4,
+        icon: src?.icon || 'bar-chart',
       });
     } else {
       if (!tableName.trim()) return;
@@ -74,6 +75,7 @@ export default function Pickers({ type, onClose, onAdd }) {
         enabled: true,
         w: src?.w || 12,
         h: src?.h || 3,
+        icon: src?.icon || 'table',
       });
     }
     onClose();

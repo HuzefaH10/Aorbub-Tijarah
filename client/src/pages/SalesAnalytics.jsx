@@ -14,16 +14,16 @@ import Toast, { useToast } from '../components/ui/Toast';
 
 
 const defaultWidgets = [
-  { id: 'w_rev_time', type: 'area', name: 'Revenue Over Time', dataset: 'revenueByDate', isChart: true, enabled: true },
-  { id: 'w_sales_prod', type: 'bar', name: 'Sales by Product', dataset: 'salesByProduct', isChart: true, enabled: true },
-  { id: 'w_cat_split', type: 'donut', name: 'Category Split', dataset: 'categorySplit', isChart: true, enabled: true },
-  { id: 'w_order_vol', type: 'bar', name: 'Order Volume', dataset: 'dailyOrderVolume', isChart: true, enabled: true },
-  { id: 'w_rev_profit', type: 'bar', name: 'Revenue vs Profit', dataset: 'revenueVsCostVsProfit', isChart: true, enabled: true },
-  { id: 'w_top_perf', type: 'radialBar', name: 'Product Performance', dataset: 'topProductPerformance', isChart: true, enabled: true },
-  { id: 'w_rev_qty', type: 'scatter', name: 'Revenue vs Quantity', dataset: 'revenueVsQuantity', isChart: true, enabled: true },
-  { id: 'w_heatmap', type: 'heatmap', name: 'Weekly Heatmap', dataset: 'weeklyHeatmap', isChart: true, enabled: true },
-  { id: 'w_profit_trend', type: 'line', name: 'Profit Margin Trend', dataset: 'profitMarginTrend', isChart: true, enabled: true },
-  { id: 'w_top_table', type: 'top-products', name: 'Top Products Table', dataset: 'topProductsTable', isChart: false, enabled: true }
+  { id: 'w_rev_time', type: 'area', name: 'Revenue Over Time', dataset: 'revenueByDate', isChart: true, enabled: true, icon: 'trending-up' },
+  { id: 'w_sales_prod', type: 'bar', name: 'Sales by Product', dataset: 'salesByProduct', isChart: true, enabled: true, icon: 'bar-chart' },
+  { id: 'w_cat_split', type: 'donut', name: 'Category Split', dataset: 'categorySplit', isChart: true, enabled: true, icon: 'pie-chart' },
+  { id: 'w_order_vol', type: 'bar', name: 'Order Volume', dataset: 'dailyOrderVolume', isChart: true, enabled: false, icon: 'shopping-cart' },
+  { id: 'w_rev_profit', type: 'bar', name: 'Revenue vs Profit', dataset: 'revenueVsCostVsProfit', isChart: true, enabled: false, icon: 'dollar-sign' },
+  { id: 'w_top_perf', type: 'radialBar', name: 'Product Performance', dataset: 'topProductPerformance', isChart: true, enabled: false, icon: 'target' },
+  { id: 'w_rev_qty', type: 'scatter', name: 'Revenue vs Quantity', dataset: 'revenueVsQuantity', isChart: true, enabled: false, icon: 'activity' },
+  { id: 'w_heatmap', type: 'heatmap', name: 'Weekly Heatmap', dataset: 'weeklyHeatmap', isChart: true, enabled: false, icon: 'calendar' },
+  { id: 'w_profit_trend', type: 'line', name: 'Profit Margin Trend', dataset: 'profitMarginTrend', isChart: true, enabled: false, icon: 'trending-up' },
+  { id: 'w_top_table', type: 'top-products', name: 'Top Products Table', dataset: 'topProductsTable', isChart: false, enabled: true, icon: 'table' }
 ];
 
 // Valid datasets for the current data model
@@ -32,7 +32,7 @@ const VALID_DATASETS = new Set([
   'dailyOrderVolume', 'revenueVsCostVsProfit', 'topProductPerformance',
   'revenueVsQuantity', 'weeklyHeatmap', 'profitMarginTrend'
 ]);
-const SCHEMA_VERSION = 'v3';
+const SCHEMA_VERSION = 'v4';
 
 const getPresetDates = (preset) => {
   const now = new Date();
