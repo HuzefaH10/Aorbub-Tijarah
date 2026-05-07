@@ -3,7 +3,7 @@ import { Responsive, WidthProvider } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import { useBills, useProducts } from '../hooks/useFirestore';
-import { Calendar, Settings2, Download } from 'lucide-react';
+import { Calendar, Settings2, Download, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import ChartWidget from '../components/dashboard/ChartWidget';
@@ -184,8 +184,21 @@ export default function SalesAnalytics() {
   }, [widgets]);
 
   const onLayoutChange = (layout, allLayouts) => {
-    setLayouts(allLayouts);
-    localStorage.setItem('bizDashboardLayout', JSON.stringify(allLayouts));
+    // Merge: keep layout positions for disabled widgets intact,
+    // only update entries for currently-active widgets
+    const currentActiveIds = new Set(widgets.filter(w => w.enabled).map(w => w.id));
+    const merged = {};
+    const allBreakpoints = new Set([...Object.keys(layouts), ...Object.keys(allLayouts)]);
+    for (const bp of allBreakpoints) {
+      const incoming = allLayouts[bp] || [];
+      const existing = layouts[bp] || [];
+      const incomingIds = new Set(incoming.map(l => l.i));
+      // Keep disabled widget positions from existing, add/update active from incoming
+      const disabled = existing.filter(l => !currentActiveIds.has(l.i) && !incomingIds.has(l.i));
+      merged[bp] = [...incoming, ...disabled];
+    }
+    setLayouts(merged);
+    localStorage.setItem('bizDashboardLayout', JSON.stringify(merged));
   };
 
   // Data Computations
@@ -337,6 +350,17 @@ export default function SalesAnalytics() {
   };
 
   const activeWidgets = widgets.filter(w => w.enabled);
+  const activeIds = new Set(activeWidgets.map(w => w.id));
+
+  // Filter layouts to ONLY include active widget entries — prevents ghost cards
+  const filteredLayouts = useMemo(() => {
+    const ids = new Set(widgets.filter(w => w.enabled).map(w => w.id));
+    const result = {};
+    for (const [bp, items] of Object.entries(layouts)) {
+      result[bp] = (items || []).filter(item => ids.has(item.i));
+    }
+    return result;
+  }, [layouts, widgets]);
 
   if (loading) return <div className="flex items-center justify-center h-[60vh]"><div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" /></div>;
 
@@ -434,7 +458,7 @@ export default function SalesAnalytics() {
         <div className="flex-1 overflow-y-auto p-6">
           <ResponsiveGridLayout
             className="layout"
-            layouts={layouts}
+            layouts={filteredLayouts}
             breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
             cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
             rowHeight={60}
