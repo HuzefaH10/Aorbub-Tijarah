@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import ReactApexChart from 'react-apexcharts';
 
-const PRIMARY_COLOR  = '#c9a84c'; // brand purple-gold
+const PRIMARY_COLOR  = '#c9a84c'; // brand gold
 const COMPARE_COLOR  = '#5b8dee'; // muted blue for comparison
 
 const baseTheme = {
@@ -18,6 +18,45 @@ const baseTheme = {
   yaxis: { labels: { style: { colors: '#9a9080' } } },
   legend: { labels: { colors: '#9a9080' }, position: 'bottom' }
 };
+
+// ── Wrapper that measures its container and renders ApexCharts with pixel dimensions ──
+function SizedApexChart({ options, series, type }) {
+  const containerRef = useRef(null);
+  const [size, setSize] = useState({ w: 0, h: 0 });
+
+  const measure = useCallback(() => {
+    if (containerRef.current) {
+      const { clientWidth, clientHeight } = containerRef.current;
+      setSize(prev => {
+        if (prev.w !== clientWidth || prev.h !== clientHeight) {
+          return { w: clientWidth, h: clientHeight };
+        }
+        return prev;
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (containerRef.current) ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, [measure]);
+
+  return (
+    <div ref={containerRef} className="w-full h-full">
+      {size.w > 10 && size.h > 10 && (
+        <ReactApexChart
+          options={options}
+          series={series}
+          type={type}
+          width={size.w}
+          height={size.h}
+        />
+      )}
+    </div>
+  );
+}
 
 export default function ChartWidget({ widget, data, compareData, primaryLabel, compareLabel }) {
   const { dataset } = widget;
@@ -55,8 +94,8 @@ export default function ChartWidget({ widget, data, compareData, primaryLabel, c
     const isEmpty = !values || values.length === 0;
     if (isEmpty) return <div className="w-full h-full flex items-center justify-center text-gray-600 text-sm italic">No data for this period</div>;
     return (
-      <div className="w-full h-full px-2 pb-2 pt-1" style={{ minHeight: '150px' }}>
-        <ReactApexChart options={options} series={series} type={type} height="100%" width="100%" />
+      <div className="w-full h-full px-2 pb-2 pt-1">
+        <SizedApexChart options={options} series={series} type={type} />
       </div>
     );
   }
@@ -64,7 +103,6 @@ export default function ChartWidget({ widget, data, compareData, primaryLabel, c
 
   if (dataset === 'revenueByDate') {
     type = 'area';
-    // Use a union of all dates for x-axis when comparing
     const primaryLabels = data.revenueByDate?.labels || [];
     const compareLabels = hasCompare ? (compareData.revenueByDate?.labels || []) : [];
     const allLabels = hasCompare
@@ -99,7 +137,6 @@ export default function ChartWidget({ widget, data, compareData, primaryLabel, c
     const primaryValues = data.revenueByProduct?.values || [];
 
     if (hasCompare) {
-      // Side-by-side grouped bars with primary labels
       options.plotOptions = { bar: { horizontal: true, borderRadius: 4, distributed: false, barHeight: '60%' } };
       options.xaxis.categories = primaryLabels;
       options.dataLabels = { enabled: false };
@@ -126,7 +163,6 @@ export default function ChartWidget({ widget, data, compareData, primaryLabel, c
     options.plotOptions = { pie: { donut: { labels: { show: true, total: { show: true, label: 'Total', color: '#fff' }, value: { color: '#fff' } } } } };
     options.stroke = { show: false };
     series = data.categorySplit?.values || [];
-    // Note: for donut we can't do a true dual-series; show only primary (comparison shown in table)
   }
   else if (dataset === 'dailyOrderVolume') {
     type = 'bar';
@@ -216,10 +252,8 @@ export default function ChartWidget({ widget, data, compareData, primaryLabel, c
   }
 
   return (
-    <div className="w-full h-full px-2 pb-2 pt-1" style={{ minHeight: '150px' }}>
-      <ReactApexChart options={options} series={series} type={type} height="100%" width="100%" />
+    <div className="w-full h-full px-2 pb-2 pt-1">
+      <SizedApexChart options={options} series={series} type={type} />
     </div>
   );
 }
-
-
