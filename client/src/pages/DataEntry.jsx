@@ -412,10 +412,10 @@ export default function DataEntry() {
                   <div key={item.id} className="flex justify-between items-center text-sm group">
                     <div className="flex-1 pr-2">
                       <p className="font-semibold text-gray-800 dark:text-white line-clamp-1">{item.productName}</p>
-                      <p className="text-gray-500 dark:text-gray-400 text-xs">QT: {item.quantity} × ${item.unitPrice.toFixed(2)}</p>
+                      <p className="text-gray-500 dark:text-gray-400 text-xs">QT: {item.quantity}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <p className="font-medium text-gray-700 dark:text-gray-300">${item.total.toFixed(2)}</p>
+                      <p className="font-medium text-gray-700 dark:text-gray-300">Net: ${item.total.toFixed(2)}</p>
                       <button type="button" onClick={() => removeItem(item.id)} className="opacity-0 group-hover:opacity-100 p-1 text-red-400 hover:text-red-500 transition-all"><Trash2 size={14} /></button>
                     </div>
                   </div>
