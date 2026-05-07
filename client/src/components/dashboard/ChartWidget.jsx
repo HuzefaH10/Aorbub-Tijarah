@@ -23,6 +23,48 @@ export default function ChartWidget({ widget, data }) {
   let options = JSON.parse(JSON.stringify(baseTheme)); // Deep copy to prevent mutation issues
   let type = 'bar';
 
+  // ── CSV widget: use embedded data directly ──────────────────────────────
+  if (widget.isCSV && widget.csvData) {
+    const { labels, values } = widget.csvData;
+    const csvType = widget.type === 'donut' ? 'donut' : widget.type === 'area' ? 'area' : 'bar';
+    type = csvType;
+
+    if (csvType === 'donut') {
+      options.labels = labels || [];
+      options.stroke = { show: false };
+      options.plotOptions = { pie: { donut: { labels: { show: true, total: { show: true, color: '#fff' }, value: { color: '#fff' } } } } };
+      series = values || [];
+    } else if (csvType === 'area') {
+      options.xaxis.categories = labels || [];
+      options.stroke = { curve: 'smooth', width: 2 };
+      options.fill = { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05, stops: [0, 100] } };
+      options.dataLabels = { enabled: false };
+      series = [{ name: 'Value', data: values || [] }];
+    } else {
+      options.xaxis.categories = labels || [];
+      options.plotOptions = { bar: { borderRadius: 4, distributed: labels?.length <= 12 } };
+      options.dataLabels = { enabled: false };
+      options.legend.show = false;
+      series = [{ name: 'Value', data: values || [] }];
+    }
+
+    const isEmpty = !values || values.length === 0;
+    if (isEmpty) {
+      return (
+        <div className="w-full h-full flex items-center justify-center text-gray-600 text-sm italic">
+          No data for this period
+        </div>
+      );
+    }
+
+    return (
+      <div className="w-full h-full px-2 pb-2 pt-1" style={{ minHeight: '150px' }}>
+        <ReactApexChart options={options} series={series} type={type} height="100%" width="100%" />
+      </div>
+    );
+  }
+  // ── End CSV branch ──────────────────────────────────────────────────────
+
   if (dataset === 'revenueByDate') {
     type = 'area';
     options.xaxis.categories = data.revenueByDate.labels || [];

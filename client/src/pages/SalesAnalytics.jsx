@@ -10,6 +10,7 @@ import ChartWidget from '../components/dashboard/ChartWidget';
 import TableWidget from '../components/dashboard/TableWidget';
 import WidgetPanel from '../components/dashboard/WidgetPanel';
 import Pickers from '../components/dashboard/Pickers';
+import CsvUploader from '../components/dashboard/CsvUploader';
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
@@ -34,6 +35,7 @@ export default function SalesAnalytics() {
   // State
   const [isEditMode, setIsEditMode] = useState(false);
   const [pickerType, setPickerType] = useState(null); // 'chart' or 'table'
+  const [showCsvUploader, setShowCsvUploader] = useState(false);
   
   const [widgets, setWidgets] = useState(() => {
     const saved = localStorage.getItem('bizDashboardWidgets');
@@ -207,7 +209,10 @@ export default function SalesAnalytics() {
             {activeWidgets.map(w => (
               <div key={w.id} className="glass overflow-hidden flex flex-col group">
                 <div className={`px-4 py-2.5 border-b border-white/5 flex items-center justify-between bg-black/10 ${isEditMode ? 'widget-drag-handle cursor-move' : ''}`}>
-                  <h3 className="text-sm font-bold text-gray-800 dark:text-white font-heading">{w.name}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-white font-heading">{w.name}</h3>
+                    {w.isCSV && <span className="text-[9px] font-bold px-1.5 py-0.5 bg-amber-500/20 text-amber-400 rounded">CSV</span>}
+                  </div>
                   {isEditMode && <div className="text-xs text-gray-400 font-medium">Drag</div>}
                 </div>
                 <div className="flex-1 overflow-hidden relative">
@@ -240,6 +245,7 @@ export default function SalesAnalytics() {
             onRemove={handleRemoveWidget}
             onOpenPicker={setPickerType}
             onReorder={handleReorderWidgets}
+            onOpenCsvUploader={() => setShowCsvUploader(true)}
           />
         </div>
       </div>
@@ -248,6 +254,13 @@ export default function SalesAnalytics() {
         <Pickers 
           type={pickerType}
           onClose={() => setPickerType(null)}
+          onAdd={handleAddWidget}
+        />
+      )}
+
+      {showCsvUploader && (
+        <CsvUploader
+          onClose={() => setShowCsvUploader(false)}
           onAdd={handleAddWidget}
         />
       )}

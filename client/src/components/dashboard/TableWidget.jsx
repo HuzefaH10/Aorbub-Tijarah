@@ -4,6 +4,40 @@ import { TrendingUp, TrendingDown, ArrowRight, Lightbulb, AlertTriangle, Trophy 
 export default function TableWidget({ widget, data }) {
   const { dataset } = widget;
 
+  // ── CSV widget: render raw rows ──────────────────────────────────────────
+  if (widget.isCSV && widget.csvData) {
+    const { raw = [], columns = [] } = widget.csvData;
+    if (raw.length === 0) {
+      return <div className="w-full h-full flex items-center justify-center text-gray-600 text-sm italic">No data</div>;
+    }
+    return (
+      <div className="overflow-auto w-full h-full p-4 custom-scrollbar">
+        <table className="w-full text-sm text-left">
+          <thead className="text-xs text-gray-400 uppercase border-b border-white/10">
+            <tr>
+              {columns.map(c => <th key={c} className="pb-2 pr-4 whitespace-nowrap">{c}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {raw.slice(0, 200).map((row, i) => (
+              <tr key={i} className="border-b border-white/5 hover:bg-white/[0.02]">
+                {columns.map(c => (
+                  <td key={c} className="py-2 pr-4 text-gray-300 whitespace-nowrap max-w-[200px] truncate">
+                    {String(row[c] ?? '')}
+                  </td>
+                ))}
+              </tr>
+            ))}
+            {raw.length > 200 && (
+              <tr><td colSpan={columns.length} className="py-2 text-center text-xs text-gray-600 italic">Showing first 200 of {raw.length} rows</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+  // ── End CSV branch ───────────────────────────────────────────────────────
+
   if (dataset === 'topProductsTable') {
     const list = data.topProductsList || [];
     return (

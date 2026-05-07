@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { X, Check, Edit2, LayoutGrid, BarChart2, Table as TableIcon, UploadCloud, GripVertical, AlertTriangle } from 'lucide-react';
 
-export default function WidgetPanel({ widgets, onToggle, onRename, onRemove, onOpenPicker, onReorder }) {
+export default function WidgetPanel({ widgets, onToggle, onRename, onRemove, onOpenPicker, onReorder, onOpenCsvUploader }) {
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
@@ -155,7 +155,7 @@ export default function WidgetPanel({ widgets, onToggle, onRename, onRemove, onO
         </div>
 
         <button
-          onClick={() => alert('CSV/Excel Upload coming soon!')}
+          onClick={() => onOpenCsvUploader?.()}
           className="w-full flex items-center justify-center gap-2 bg-primary-600 text-white py-3 rounded-xl text-sm font-bold hover:bg-primary-700 hover:-translate-y-0.5 transition-all shadow-lg shadow-primary-600/30"
         >
           <UploadCloud size={18} className="animate-pulse" /> Upload CSV / Excel
