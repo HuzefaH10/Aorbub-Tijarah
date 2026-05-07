@@ -4,9 +4,11 @@ import { useEvents, useMilestones, useProducts, useBills, useStockLogs } from '.
 import { 
   Calendar as CalendarIcon, Clock, CheckCircle2, AlertTriangle, 
   ChevronLeft, ChevronRight, Plus, Search, X, Edit2, Trash2,
-  CalendarDays, ListTodo, MapPin, TrendingUp, DollarSign, Package, ShieldAlert
+  CalendarDays, ListTodo, MapPin, TrendingUp, DollarSign, Package, ShieldAlert,
+  Flag
 } from 'lucide-react';
 import Toast, { useToast } from '../components/ui/Toast';
+import MilestoneModal from '../components/calendar/MilestoneModal';
 
 const EVENT_TYPES = [
   { id: 'reminder',      label: 'General Reminder',      color: '#5b8dee', bg: 'bg-blue-500',    tint: 'bg-blue-500/10 text-blue-400' },
@@ -56,7 +58,7 @@ export default function CalendarPage() {
   
   const [selectedDay, setSelectedDay] = useState(null); // String YYYY-MM-DD
   const [eventModal, setEventModal] = useState({ open: false, editId: null, data: null, prefillDate: null });
-  const [milestoneModal, setMilestoneModal] = useState(false);
+  const [milestoneModal, setMilestoneModal] = useState({ open: false, editId: null, data: null });
 
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -150,9 +152,15 @@ export default function CalendarPage() {
         }
       }
     });
+
+    milestones.forEach(m => {
+      if (!m.date) return;
+      if (!data[m.date]) data[m.date] = { tint: '', dots: [] };
+      data[m.date].dots.push({ color: 'bg-[#c9a84c]', icon: '⭐', label: `Milestone: ${m.title}` });
+    });
   
     return data;
-  }, [bills, events, products, currentDate, todayStr]);
+  }, [bills, events, products, milestones, currentDate, todayStr]);
 
   // Calendar Grid Math
   const monthCells = useMemo(() => {
@@ -310,55 +318,65 @@ export default function CalendarPage() {
         )}
       </div>
 
-      {/* MILESTONES TIMELINE */}
-      <div className="fixed bottom-0 left-[64px] right-0 bg-gray-950/80 backdrop-blur-xl border-t border-white/10 p-4 z-30">
-        <div className="flex items-center justify-between mb-3 max-w-[1400px] mx-auto px-4">
-          <h2 className="text-[11px] font-bold text-primary-500/70 uppercase tracking-[0.2em]">Business Milestones</h2>
-          <button onClick={() => setMilestoneModal(true)} className="text-xs font-bold text-gray-400 border border-white/10 px-3 py-1 rounded hover:text-white hover:border-white/30 transition-colors">+ Add Milestone</button>
+      {/* BUSINESS MILESTONES LIST */}
+      <div className="mt-8 animate-fadeIn">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Flag size={18} className="text-primary-500" />
+            <h2 className="text-lg font-bold text-white font-heading">Business Milestones</h2>
+          </div>
+          <button onClick={() => setMilestoneModal({ open: true, editId: null, data: null })} className="text-xs font-bold text-primary-400 bg-primary-600/10 hover:bg-primary-600 hover:text-white px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
+            <Plus size={14} /> Add Milestone
+          </button>
         </div>
-        <div className="flex items-center overflow-x-auto custom-scrollbar max-w-[1400px] mx-auto px-4 pb-2 relative h-[60px]">
-          {/* Main timeline axis */}
-          <div className="absolute top-1/2 left-4 right-4 h-px bg-white/10 -translate-y-1/2" />
-          
-          {milestones.length === 0 ? (
-            <p className="text-xs text-gray-600 italic">No milestones added yet.</p>
-          ) : (
-            milestones.map(m => {
+        
+        {milestones.length === 0 ? (
+          <div className="glass p-6 text-center text-gray-500 text-sm">
+            <p>No milestones yet. Track your big wins and key events here.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {milestones.map(m => {
               const isToday = m.date === todayStr;
               return (
-                <div key={m.id} className="relative flex-shrink-0 w-32 flex flex-col items-center group cursor-pointer" title={m.description}>
-                  <div className={`text-xs font-bold mb-2 truncate max-w-full px-1 ${isToday ? 'text-primary-400' : 'text-gray-300 group-hover:text-white transition-colors'}`}>{m.title}</div>
-                  <div className={`w-3 h-3 rounded-full border-2 z-10 flex items-center justify-center text-[10px] ${isToday ? 'bg-primary-600 border-primary-400 w-5 h-5' : 'bg-gray-900 border-gray-500 group-hover:border-white transition-colors'}`}>
-                    {isToday ? '⭐' : ''}
-                  </div>
-                  <div className="text-[10px] text-gray-500 mt-2">{m.date}</div>
-                  
-                  {/* Tooltip for description */}
-                  {m.description && (
-                    <div className="absolute bottom-full mb-2 bg-gray-800 text-white text-[10px] p-2 rounded shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity w-48 text-center z-50">
-                      {m.description}
+                <div key={m.id} className="glass p-4 flex items-center justify-between gap-4 group hover:border-white/20 transition-all">
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
+                    <div className="w-2.5 h-2.5 rounded-full bg-primary-500 mt-1.5 shrink-0 shadow-[0_0_8px_rgba(201,168,76,0.5)]" />
+                    <div className="min-w-0">
+                      <h4 className="font-bold text-white text-sm truncate pr-2">{m.title}</h4>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className={`text-xs ${isToday ? 'text-primary-400 font-bold' : 'text-gray-500'}`}>
+                          {isToday ? 'Today' : new Date(m.date).toLocaleDateString('en-GB', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                        {m.description && (
+                          <>
+                            <span className="text-gray-600 text-xs">•</span>
+                            <span className="text-xs text-gray-500 truncate" title={m.description}>{m.description}</span>
+                          </>
+                        )}
+                      </div>
                     </div>
-                  )}
-                  {/* Delete button */}
-                  <button onClick={(e) => { e.stopPropagation(); deleteMilestone(m.id); }} className="absolute -top-4 right-2 text-red-500/50 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <X size={12} />
-                  </button>
+                  </div>
+                  
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-primary-300 bg-primary-900/30 px-2 py-1 rounded-md hidden sm:inline-block">
+                      {m.category}
+                    </span>
+                    <div className="flex items-center gap-1 border-l border-white/10 pl-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => setMilestoneModal({ open: true, editId: m.id, data: m })} className="p-1.5 text-gray-400 hover:text-white rounded-lg transition-colors bg-gray-800/50 hover:bg-white/10"><Edit2 size={14} /></button>
+                      <button onClick={() => { if(confirm('Remove this milestone?')) deleteMilestone(m.id); }} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg transition-colors bg-gray-800/50 hover:bg-red-500/20"><Trash2 size={14} /></button>
+                    </div>
+                  </div>
                 </div>
               );
-            })
-          )}
-          {/* Today vertical marker */}
-          {milestones.some(m => m.date === todayStr) === false && (
-            <div className="absolute left-1/2 top-0 bottom-0 w-px border-l border-dashed border-primary-500/50 -translate-x-1/2 pointer-events-none flex flex-col items-center justify-center">
-              <span className="bg-gray-950 text-primary-500 text-[8px] font-bold px-1 rounded absolute top-0">TODAY</span>
-            </div>
-          )}
-        </div>
+            })}
+          </div>
+        )}
       </div>
 
       {/* MODALS */}
       {eventModal.open && <EventModal {...eventModal} onClose={() => setEventModal({ open: false })} onSave={eventModal.editId ? updateEvent : addEvent} products={products} toast={showToast} />}
-      {milestoneModal && <MilestoneModal onClose={() => setMilestoneModal(false)} onSave={addMilestone} toast={showToast} />}
+      {milestoneModal.open && <MilestoneModal editId={milestoneModal.editId} data={milestoneModal.data} onClose={() => setMilestoneModal({ open: false, editId: null, data: null })} onSave={milestoneModal.editId ? updateMilestone : addMilestone} toast={showToast} />}
     </div>
   );
 }
@@ -611,7 +629,10 @@ function MonthView({ cells, events, heatmapData, currentDate, onPrev, onNext, on
               <div className="flex justify-between items-start mb-1 w-full">
                 <div className="flex flex-wrap gap-1 mt-1 max-w-[60%]">
                   {hData.dots.slice(0, 3).map((d, idx) => (
-                    <div key={idx} className={`w-2 h-2 rounded-full ${d.color}`} title={d.label} />
+                    d.icon ? 
+                      <span key={idx} title={d.label} className="text-[10px] leading-none shrink-0">{d.icon}</span> 
+                      : 
+                      <div key={idx} className={`w-2 h-2 rounded-full ${d.color} shrink-0`} title={d.label} />
                   ))}
                   {hData.dots.length > 3 && (
                     <span className="text-[8px] text-gray-500 font-bold leading-none">+{hData.dots.length - 3}</span>
@@ -899,47 +920,3 @@ function EventModal({ editId, data, prefillDate, onClose, onSave, products = [],
   );
 }
 
-function MilestoneModal({ onClose, onSave, toast }) {
-  const [f, setF] = useState({ title: '', date: new Date().toISOString().split('T')[0], description: '', icon: '🏆' });
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!f.title || !f.date) return toast('Title and date required', 'error');
-    try {
-      await onSave(f);
-      toast('Milestone added');
-      onClose();
-    } catch {
-      toast('Error saving milestone', 'error');
-    }
-  };
-
-  const inputCls = "w-full bg-gray-950 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-primary-500 transition-colors";
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fadeIn p-4">
-      <div className="glass w-full max-w-sm shadow-2xl p-6 scale-95 animate-[scaleIn_0.2s_ease-out_forwards]">
-        <h2 className="text-xl font-bold text-white font-heading mb-6">Add Milestone</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div><label className="block text-xs font-bold text-gray-500 mb-1">Title</label><input required autoFocus value={f.title} onChange={e => setF({...f, title: e.target.value})} className={inputCls} placeholder="e.g. 1st Anniversary" /></div>
-          <div><label className="block text-xs font-bold text-gray-500 mb-1">Date</label><input type="date" required value={f.date} onChange={e => setF({...f, date: e.target.value})} className={inputCls} /></div>
-          <div><label className="block text-xs font-bold text-gray-500 mb-1">Description (Optional)</label><input value={f.description} onChange={e => setF({...f, description: e.target.value})} className={inputCls} /></div>
-          
-          <div>
-            <label className="block text-xs font-bold text-gray-500 mb-2">Select Icon</label>
-            <div className="grid grid-cols-6 gap-2">
-              {MILESTONE_ICONS.map(icon => (
-                <button key={icon} type="button" onClick={() => setF({...f, icon})} className={`text-xl p-2 rounded-lg transition-colors ${f.icon === icon ? 'bg-primary-600 shadow-lg shadow-primary-600/30' : 'bg-gray-900 hover:bg-gray-800'}`}>{icon}</button>
-              ))}
-            </div>
-          </div>
-          
-          <div className="flex gap-3 pt-4">
-            <button type="button" onClick={onClose} className="flex-1 py-3 border border-white/10 rounded-xl text-sm font-bold text-gray-300 hover:bg-white/5 transition-colors">Cancel</button>
-            <button type="submit" className="flex-1 py-3 bg-primary-600 rounded-xl text-sm font-bold text-white hover:bg-primary-700 transition-colors shadow-lg shadow-primary-600/20">Add</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}

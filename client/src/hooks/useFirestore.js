@@ -168,7 +168,12 @@ export function useMilestones() {
     await deleteDoc(doc(db, 'milestones', id));
   }, [user]);
 
-  return { milestones, loading, addMilestone, deleteMilestone };
+  const updateMilestone = useCallback(async (id, data) => {
+    if (!user) return;
+    await updateDoc(doc(db, 'milestones', id), data);
+  }, [user]);
+
+  return { milestones, loading, addMilestone, deleteMilestone, updateMilestone };
 }
 
 export function useSettings() {
