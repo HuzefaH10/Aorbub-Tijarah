@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { ChevronDown, Settings, Sun, Moon, HelpCircle, LogOut, Palette } from 'lucide-react';
+import StockAlertBell from './StockAlertBell';
 
 const titles = {
   '/': 'Dashboard',
@@ -53,8 +54,12 @@ export default function Topbar() {
         )}
       </div>
 
-      {/* Account dropdown */}
-      <div className="relative" onMouseEnter={enter} onMouseLeave={leave}>
+      {/* Right side controls */}
+      <div className="flex items-center gap-2">
+        <StockAlertBell />
+
+        {/* Account dropdown */}
+        <div className="relative" onMouseEnter={enter} onMouseLeave={leave}>
         <button className="flex items-center gap-2.5 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full pl-1.5 pr-3.5 py-1.5 transition-colors border border-gray-100 dark:border-gray-700">
           <div className="w-8 h-8 rounded-full bg-primary-600 text-white text-xs font-bold flex items-center justify-center">
             {user?.email?.charAt(0).toUpperCase() || 'A'}
@@ -108,6 +113,7 @@ export default function Topbar() {
             </div>
           </div>
         )}
+        </div>
       </div>
     </header>
   );

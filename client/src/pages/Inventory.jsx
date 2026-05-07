@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useProducts, useEntries, useStockLogs, useCategories, useEvents, useAddStockHistory } from '../hooks/useFirestore';
+import { useSearchParams } from 'react-router-dom';
 import ReactApexChart from 'react-apexcharts';
 import { 
   Package, AlertTriangle, XCircle, CheckCircle, Plus, Search, Filter,
@@ -54,6 +55,7 @@ export default function Inventory() {
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [historyDrawer, setHistoryDrawer] = useState({ open: false, product: null });
 
+
   // Compute Current Stock Logic
   const computedData = useMemo(() => {
     let outCount = 0;
@@ -102,6 +104,18 @@ export default function Inventory() {
 
     return { data, outCount, lowCount, okCount };
   }, [products, stockLogs, entries]);
+
+  // Auto-open QuickLoad from bell notification deep-link (?restock=productId)
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const restockId = searchParams.get('restock');
+    if (!restockId || !computedData.data.length) return;
+    const product = computedData.data.find(p => p.id === restockId);
+    if (product) {
+      setQuickLoadModal({ open: true, product });
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, computedData.data]);
 
   // (Export logic moved to ExportModal)
 
