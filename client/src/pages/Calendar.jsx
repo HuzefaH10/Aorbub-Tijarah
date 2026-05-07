@@ -280,15 +280,16 @@ export default function CalendarPage() {
           <AgendaView events={filteredEvents} onAction={handleAction} todayStr={todayStr} />
         )}
 
-        {/* EMPTY STATE OVERLAY (if absolutely no events exist in the app) */}
+        {/* EMPTY STATE BANNER (Subtle row below grid) */}
         {events.length === 0 && (
-          <div className="absolute inset-0 bg-gray-950/40 backdrop-blur-[2px] z-10 flex flex-col items-center justify-center text-center animate-fadeIn rounded-xl border border-white/10 m-4 sm:m-8 max-h-[400px]">
-            <CalendarIcon size={48} className="text-gray-600 mb-4" />
-            <h3 className="text-xl font-bold text-white mb-2">No events yet</h3>
-            <p className="text-gray-400 text-sm mb-6 max-w-sm">Start planning your business operations by adding reminders, credit dues, or stock orders.</p>
-            <button onClick={() => setEventModal({ open: true })} className="px-5 py-2.5 bg-primary-600 rounded-xl text-sm font-bold text-white shadow-lg shadow-primary-600/20 hover:bg-primary-700 transition-all">
-              + Add Your First Event
-            </button>
+          <div className="mt-6 glass p-3.5 flex items-center justify-center gap-2.5 text-xs sm:text-sm text-gray-500 border-white/5 animate-fadeIn">
+            <CalendarIcon size={16} className="text-gray-600" />
+            <span>
+              No events yet — Start planning by adding reminders, stock orders, or milestones.
+              <button onClick={() => setEventModal({ open: true })} className="ml-2 text-primary-400 font-bold hover:text-primary-300 transition-colors">
+                + Add Your First Event
+              </button>
+            </span>
           </div>
         )}
 
