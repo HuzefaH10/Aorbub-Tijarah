@@ -238,24 +238,26 @@ export default function CalendarPage() {
         <StatCard label="Completed" value={stats.completed} icon={CheckCircle2} color="text-green-400" />
       </div>
 
-      {/* UPCOMING STRIP */}
-      <div className="flex gap-3 overflow-x-auto custom-scrollbar pb-2">
-        {next7Days.map((d, i) => {
-          const isToday = d.dateStr === todayStr;
-          return (
-            <div key={d.dateStr} onClick={() => { setView('month'); setCurrentDate(new Date(d.dateStr)); setSelectedDay(d.dateStr); }} 
-              className={`flex-shrink-0 w-[85px] p-3 glass cursor-pointer hover:-translate-y-1 transition-all ${isToday ? '!bg-primary-900/10 border-primary-500/50' : 'hover:border-primary-500/30'}`}
-              style={{ animation: `fadeIn 0.3s ease-out ${i * 0.03}s both` }}>
-              <p className={`text-[10px] uppercase font-bold text-center mb-1 ${isToday ? 'text-primary-500' : 'text-gray-500'}`}>{d.name}</p>
-              <p className={`text-2xl font-heading font-bold text-center mb-3 ${isToday ? 'text-primary-400' : 'text-white'}`}>{d.num}</p>
-              <div className="flex justify-center gap-1 flex-wrap">
-                {d.events.slice(0, 4).map(e => <div key={e.id} className={`w-2 h-2 rounded-full ${getType(e.type).bg}`} />)}
-                {d.events.length > 4 && <span className="text-[8px] text-gray-500 leading-none">+{d.events.length - 4}</span>}
+      {/* UPCOMING STRIP (Hidden in Month View) */}
+      {view === 'agenda' && (
+        <div className="flex gap-3 overflow-x-auto custom-scrollbar pb-2">
+          {next7Days.map((d, i) => {
+            const isToday = d.dateStr === todayStr;
+            return (
+              <div key={d.dateStr} onClick={() => { setView('month'); setCurrentDate(new Date(d.dateStr)); setSelectedDay(d.dateStr); }} 
+                className={`flex-shrink-0 w-[85px] p-3 glass cursor-pointer hover:-translate-y-1 transition-all ${isToday ? '!bg-primary-900/10 border-primary-500/50' : 'hover:border-primary-500/30'}`}
+                style={{ animation: `fadeIn 0.3s ease-out ${i * 0.03}s both` }}>
+                <p className={`text-[10px] uppercase font-bold text-center mb-1 ${isToday ? 'text-primary-500' : 'text-gray-500'}`}>{d.name}</p>
+                <p className={`text-2xl font-heading font-bold text-center mb-3 ${isToday ? 'text-primary-400' : 'text-white'}`}>{d.num}</p>
+                <div className="flex justify-center gap-1 flex-wrap">
+                  {d.events.slice(0, 4).map(e => <div key={e.id} className={`w-2 h-2 rounded-full ${getType(e.type).bg}`} />)}
+                  {d.events.length > 4 && <span className="text-[8px] text-gray-500 leading-none">+{d.events.length - 4}</span>}
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* CONTROLS */}
       <div className="flex flex-col md:flex-row justify-between gap-4">
@@ -272,21 +274,22 @@ export default function CalendarPage() {
 
       {/* VIEWS */}
       <div className="relative">
-        {events.length === 0 ? (
-          <div className="glass p-10 flex flex-col items-center justify-center text-center">
-            <CalendarIcon size={48} className="text-gray-800 mb-4" />
+        {view === 'month' ? (
+          <MonthView cells={monthCells} events={filteredEvents} heatmapData={heatmapData} currentDate={currentDate} onPrev={handlePrevMonth} onNext={handleNextMonth} onDayClick={setSelectedDay} todayStr={todayStr} />
+        ) : (
+          <AgendaView events={filteredEvents} onAction={handleAction} todayStr={todayStr} />
+        )}
+
+        {/* EMPTY STATE OVERLAY (if absolutely no events exist in the app) */}
+        {events.length === 0 && (
+          <div className="absolute inset-0 bg-gray-950/40 backdrop-blur-[2px] z-10 flex flex-col items-center justify-center text-center animate-fadeIn rounded-xl border border-white/10 m-4 sm:m-8 max-h-[400px]">
+            <CalendarIcon size={48} className="text-gray-600 mb-4" />
             <h3 className="text-xl font-bold text-white mb-2">No events yet</h3>
-            <p className="text-gray-500 text-sm mb-6">Start planning your business operations</p>
+            <p className="text-gray-400 text-sm mb-6 max-w-sm">Start planning your business operations by adding reminders, credit dues, or stock orders.</p>
             <button onClick={() => setEventModal({ open: true })} className="px-5 py-2.5 bg-primary-600 rounded-xl text-sm font-bold text-white shadow-lg shadow-primary-600/20 hover:bg-primary-700 transition-all">
               + Add Your First Event
             </button>
           </div>
-        ) : (
-          view === 'month' ? (
-            <MonthView cells={monthCells} events={filteredEvents} heatmapData={heatmapData} currentDate={currentDate} onPrev={handlePrevMonth} onNext={handleNextMonth} onDayClick={setSelectedDay} todayStr={todayStr} />
-          ) : (
-            <AgendaView events={filteredEvents} onAction={handleAction} todayStr={todayStr} />
-          )
         )}
 
         {/* DAY SUMMARY POPUP */}
