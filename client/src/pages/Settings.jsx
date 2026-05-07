@@ -14,6 +14,10 @@ const TABS = [
   { id: 'security', label: 'Security', icon: Shield },
 ];
 
+const TIMEZONES = Intl.supportedValuesOf ? Intl.supportedValuesOf('timeZone') : [
+  'UTC', 'Asia/Dubai', 'Asia/Karachi', 'America/New_York', 'Europe/London'
+];
+
 export default function Settings() {
   const { user } = useAuth();
   const { toast, showToast, hideToast } = useToast();
@@ -57,8 +61,27 @@ export default function Settings() {
     name: 'Supreme Sanitory',
     address: 'Dubai Design District, UAE',
     currency: 'USD ($)',
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Dubai',
+    logoURL: ''
   });
   const [businessSaving, setBusinessSaving] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchBusiness = async () => {
+      try {
+        const docSnap = await getDoc(doc(db, 'businesses', user.uid));
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setBusiness(prev => ({ ...prev, ...data }));
+        }
+      } catch (err) {
+        console.error('Failed to load business details:', err);
+      }
+    };
+    fetchBusiness();
+  }, [user]);
 
   // ── Notifications state ──
   const [notifications, setNotifications] = useState({
@@ -155,11 +178,35 @@ export default function Settings() {
     finally { setProfileSaving(false); }
   };
 
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    if (file.size > 3 * 1024 * 1024) return showToast('File must be less than 3MB', 'error');
+    if (!file.type.startsWith('image/')) return showToast('Must be an image', 'error');
+    
+    setUploadingLogo(true);
+    try {
+      const ext = file.name.split('.').pop();
+      const storageRef = ref(storage, `logos/${user.uid}_${Date.now()}.${ext}`);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      setBusiness(p => ({ ...p, logoURL: url }));
+      await setDoc(doc(db, 'businesses', user.uid), { logoURL: url }, { merge: true });
+      showToast('Business logo updated');
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to upload logo', 'error');
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
   const handleBusinessSave = async (e) => {
     e.preventDefault();
+    if (!user) return;
     setBusinessSaving(true);
     try {
-      await updateSettings(business);
+      await setDoc(doc(db, 'businesses', user.uid), business, { merge: true });
       showToast('Business details updated');
     } catch { showToast('Failed to update business details', 'error'); }
     finally { setBusinessSaving(false); }
@@ -318,27 +365,70 @@ export default function Settings() {
               </div>
             </div>
             <form onSubmit={handleBusinessSave} className="space-y-5">
-              <div>
-                <label className={labelCls}>Business Name</label>
-                <input value={business.name} onChange={e => setBusiness({ ...business, name: e.target.value })} className={inputCls} placeholder="Your business name" />
+              {/* Logo Upload */}
+              <div className="flex items-center gap-5">
+                <div className="relative group">
+                  <div className="w-[160px] h-[60px] rounded-lg overflow-hidden bg-gray-50 dark:bg-gray-900/50 border-2 border-dashed border-gray-200 dark:border-white/10 flex items-center justify-center shrink-0 transition-colors group-hover:border-primary-500">
+                    {business.logoURL ? (
+                      <img src={business.logoURL} alt="Logo" className="w-full h-full object-contain p-1" />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center text-gray-400 dark:text-gray-500">
+                        <Camera size={16} className="mb-1" />
+                        <span className="text-[10px] font-medium uppercase tracking-wider">Upload Logo</span>
+                      </div>
+                    )}
+                  </div>
+                  <label className="absolute inset-0 flex items-center justify-center bg-black/50 text-white opacity-0 group-hover:opacity-100 rounded-lg cursor-pointer transition-opacity">
+                    <span className="text-xs font-semibold">Change Logo</span>
+                    <input type="file" accept="image/jpeg, image/png, image/svg+xml" className="hidden" onChange={handleLogoUpload} disabled={uploadingLogo} />
+                  </label>
+                  {uploadingLogo && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg">
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-gray-800 dark:text-white">Business Logo</h4>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Appears on invoices. JPG, PNG, SVG (Max 3MB).</p>
+                </div>
               </div>
-              <div>
-                <label className={labelCls}>Business Address</label>
-                <input value={business.address} onChange={e => setBusiness({ ...business, address: e.target.value })} className={inputCls} placeholder="Full business address" />
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>Business Name</label>
+                  <input value={business.name} onChange={e => setBusiness({ ...business, name: e.target.value })} className={inputCls} placeholder="Your business name" />
+                </div>
+                <div>
+                  <label className={labelCls}>Default Currency</label>
+                  <select value={business.currency} onChange={e => setBusiness({ ...business, currency: e.target.value })} className={`${inputCls} cursor-pointer`}>
+                    <option>USD ($)</option>
+                    <option>AED (د.إ)</option>
+                    <option>EUR (€)</option>
+                    <option>GBP (£)</option>
+                    <option>INR (₹)</option>
+                    <option>PKR (₨)</option>
+                  </select>
+                </div>
               </div>
-              <div>
-                <label className={labelCls}>Default Currency</label>
-                <select value={business.currency} onChange={e => setBusiness({ ...business, currency: e.target.value })} className={`${inputCls} cursor-pointer`}>
-                  <option>USD ($)</option>
-                  <option>AED (د.إ)</option>
-                  <option>EUR (€)</option>
-                  <option>GBP (£)</option>
-                  <option>INR (₹)</option>
-                  <option>PKR (₨)</option>
-                </select>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>Business Address</label>
+                  <input value={business.address} onChange={e => setBusiness({ ...business, address: e.target.value })} className={inputCls} placeholder="Full business address" />
+                </div>
+                <div>
+                  <label className={labelCls}>Timezone</label>
+                  <select value={business.timezone} onChange={e => setBusiness({ ...business, timezone: e.target.value })} className={`${inputCls} cursor-pointer`}>
+                    {TIMEZONES.map(tz => (
+                      <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
+
               <div className="pt-2 flex justify-end">
-                <button type="submit" disabled={businessSaving} className={saveBtnCls}>
+                <button type="submit" disabled={businessSaving || uploadingLogo} className={saveBtnCls}>
                   {businessSaving ? 'Saving...' : <><Save size={15} /> Save Details</>}
                 </button>
               </div>
