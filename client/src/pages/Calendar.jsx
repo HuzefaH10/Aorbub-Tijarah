@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useEvents, useMilestones, useProducts, useBills } from '../hooks/useFirestore';
+import { useEvents, useMilestones, useProducts, useBills, useStockLogs } from '../hooks/useFirestore';
 import { 
   Calendar as CalendarIcon, Clock, CheckCircle2, AlertTriangle, 
   ChevronLeft, ChevronRight, Plus, Search, X, Edit2, Trash2,
-  CalendarDays, ListTodo, MapPin
+  CalendarDays, ListTodo, MapPin, TrendingUp, DollarSign, Package, ShieldAlert
 } from 'lucide-react';
 import Toast, { useToast } from '../components/ui/Toast';
 
@@ -24,6 +24,7 @@ export default function CalendarPage() {
   const { milestones, addMilestone, deleteMilestone } = useMilestones();
   const { products } = useProducts();
   const { bills } = useBills();
+  const { stockLogs } = useStockLogs();
   const { toast, showToast, hideToast } = useToast();
 
   const [view, setView] = useState('month'); // 'month' | 'agenda'
@@ -265,41 +266,20 @@ export default function CalendarPage() {
           )
         )}
 
-        {/* DAY DETAIL PANEL OVERLAY */}
+        {/* DAY SUMMARY POPUP */}
         {selectedDay && (
-          <div className="absolute inset-y-0 right-0 w-full md:w-80 bg-gray-950/95 backdrop-blur-md border-l border-white/10 shadow-2xl p-5 z-20 flex flex-col animate-[slideInRight_0.25s_ease-out_forwards]">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="font-bold text-lg text-white font-heading">{new Date(selectedDay).toLocaleDateString('en-GB', { weekday: 'long', month: 'long', day: 'numeric' })}</h3>
-              <button onClick={() => setSelectedDay(null)} className="p-1 text-gray-500 hover:text-white rounded transition-colors"><X size={20} /></button>
-            </div>
-            <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar pr-2">
-              {filteredEvents.filter(e => e.date <= selectedDay && (!e.endDate || e.endDate >= selectedDay)).length === 0 ? (
-                <p className="text-gray-500 text-sm">No events scheduled.</p>
-              ) : (
-                filteredEvents.filter(e => e.date <= selectedDay && (!e.endDate || e.endDate >= selectedDay)).map(e => (
-                  <div key={e.id} className="bg-gray-900 border border-white/5 rounded-xl p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-sm uppercase tracking-wider ${getType(e.type).tint}`}>{getType(e.type).label}</span>
-                      {e.status === 'completed' && <CheckCircle2 size={16} className="text-green-500" />}
-                      {e.status === 'overdue' && <AlertTriangle size={16} className="text-red-500" />}
-                    </div>
-                    <h4 className="font-bold text-white text-sm mb-1">{e.title}</h4>
-                    {e.note && <p className="text-xs text-gray-500 line-clamp-2 mb-3">{e.note}</p>}
-                    <div className="flex gap-2 mt-3">
-                      {e.status !== 'completed' && <button onClick={() => handleAction('complete', e)} className="flex-1 py-1.5 bg-green-500/10 hover:bg-green-500 text-green-500 hover:text-white text-xs font-bold rounded-lg transition-colors border border-green-500/20">Complete</button>}
-                      <button onClick={() => handleAction('edit', e)} className="p-1.5 text-gray-400 hover:text-white border border-white/10 rounded-lg hover:bg-white/5 transition-colors"><Edit2 size={14} /></button>
-                      <button onClick={() => handleAction('delete', e)} className="p-1.5 text-red-400 hover:text-white border border-red-500/20 rounded-lg hover:bg-red-500 transition-colors"><Trash2 size={14} /></button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-            <div className="pt-4 border-t border-white/10 mt-auto">
-              <button onClick={() => setEventModal({ open: true, prefillDate: selectedDay })} className="w-full py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-bold text-white transition-colors">
-                + Add event on this day
-              </button>
-            </div>
-          </div>
+          <DaySummaryPopup
+            dateStr={selectedDay}
+            onClose={() => setSelectedDay(null)}
+            events={filteredEvents}
+            bills={bills}
+            products={products}
+            stockLogs={stockLogs}
+            todayStr={todayStr}
+            onAddEvent={() => setEventModal({ open: true, prefillDate: selectedDay })}
+            onEventAction={handleAction}
+            getType={getType}
+          />
         )}
       </div>
 
@@ -366,6 +346,205 @@ function StatCard({ label, value, icon: Icon, color, pulse }) {
         <Icon size={16} className={`text-gray-600 ${pulse && value > 0 ? 'animate-pulse text-red-500' : ''}`} />
       </div>
       <div className={`text-3xl font-bold font-heading ${color}`}>{value}</div>
+    </div>
+  );
+}
+
+function DaySummaryPopup({ dateStr, onClose, events, bills, products, stockLogs, todayStr, onAddEvent, onEventAction, getType }) {
+  // Format the title: "Thursday, 7 May 2026"
+  const dateObj = new Date(dateStr + 'T12:00:00'); // noon to avoid timezone issues
+  const formattedDate = dateObj.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  // 1. Sales Summary for this day
+  const dayBills = useMemo(() => bills.filter(b => b.date === dateStr), [bills, dateStr]);
+  const dayRevenue = useMemo(() => dayBills.filter(b => b.status === 'paid').reduce((s, b) => s + (Number(b.netTotal) || 0), 0), [dayBills]);
+  const dayCash = useMemo(() => dayBills.filter(b => b.paymentMethod === 'cash' && b.status === 'paid').reduce((s, b) => s + (Number(b.netTotal) || 0), 0), [dayBills]);
+  const dayCredit = useMemo(() => dayBills.filter(b => b.paymentMethod === 'credit').reduce((s, b) => s + (Number(b.netTotal) || 0), 0), [dayBills]);
+
+  // 2. Events & Reminders for this day
+  const dayEvents = useMemo(() => events.filter(e => e.date === dateStr), [events, dateStr]);
+
+  // 3. Overdue Credits (unpaid bills with dueDate <= this day)
+  const overdueCredits = useMemo(() =>
+    bills.filter(b => b.status === 'unpaid' && b.credit?.dueDate && b.credit.dueDate <= dateStr),
+  [bills, dateStr]);
+
+  // 4. Stock Alerts for this day
+  const expiringProducts = useMemo(() => {
+    const dayMs = new Date(dateStr + 'T12:00:00').getTime();
+    return products.filter(p => {
+      if (!p.expiryDate) return false;
+      const expMs = new Date(p.expiryDate).getTime();
+      const diffDays = Math.round((expMs - dayMs) / 86400000);
+      return diffDays >= 0 && diffDays <= 7;
+    });
+  }, [products, dateStr]);
+
+  const loadedOnDay = useMemo(() => stockLogs.filter(l => l.date === dateStr), [stockLogs, dateStr]);
+
+  // 5. Weekly Revenue (Mon–Sun of the week containing this date)
+  const weekRevenue = useMemo(() => {
+    const d = new Date(dateStr + 'T12:00:00');
+    const day = d.getDay(); // 0=Sun
+    const monday = new Date(d); monday.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+    const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+    const monStr = monday.toISOString().split('T')[0];
+    const sunStr = sunday.toISOString().split('T')[0];
+    return bills
+      .filter(b => b.status === 'paid' && b.date >= monStr && b.date <= sunStr)
+      .reduce((s, b) => s + (Number(b.netTotal) || 0), 0);
+  }, [bills, dateStr]);
+
+  const fmt = (n) => `$${Number(n).toFixed(2)}`;
+  const daysOverdue = (dueDate) => { const diff = Math.floor((new Date(todayStr) - new Date(dueDate)) / 86400000); return diff; };
+
+  const SectionHeader = ({ icon: Icon, label, color = 'text-gray-400' }) => (
+    <div className={`flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider mb-2 ${color}`}>
+      <Icon size={13} />{label}
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm animate-fadeIn p-4">
+      <div className="glass w-full max-w-md shadow-2xl scale-95 animate-[scaleIn_0.2s_ease-out_forwards] overflow-hidden flex flex-col max-h-[88vh]">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 shrink-0">
+          <div>
+            <h2 className="text-base font-bold text-white font-heading">{formattedDate}</h2>
+            {dateStr === todayStr && <span className="text-[10px] font-bold text-primary-400 uppercase tracking-wider">Today</span>}
+          </div>
+          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"><X size={18} /></button>
+        </div>
+
+        {/* Scrollable body */}
+        <div className="overflow-y-auto flex-1 custom-scrollbar">
+          <div className="p-6 space-y-6">
+
+            {/* 1. Sales Summary */}
+            <div>
+              <SectionHeader icon={TrendingUp} label="Sales Summary" color="text-primary-400" />
+              {dayBills.length === 0 ? (
+                <p className="text-sm text-gray-600 italic">No sales recorded</p>
+              ) : (
+                <div className="bg-gray-900/60 rounded-xl p-4 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Bills</span>
+                    <span className="font-bold text-white">{dayBills.length}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Revenue</span>
+                    <span className="font-bold text-green-400">{fmt(dayRevenue)}</span>
+                  </div>
+                  <div className="border-t border-white/5 pt-2 flex gap-4 text-xs text-gray-500">
+                    <span>Cash: <span className="text-white font-bold">{fmt(dayCash)}</span></span>
+                    <span>Credit: <span className="text-white font-bold">{fmt(dayCredit)}</span></span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 2. Events & Reminders */}
+            <div>
+              <SectionHeader icon={CalendarIcon} label="Events & Reminders" color="text-amber-400" />
+              {dayEvents.length === 0 ? (
+                <p className="text-sm text-gray-600 italic">No events scheduled</p>
+              ) : (
+                <div className="space-y-2">
+                  {dayEvents.map(e => {
+                    const t = getType(e.type);
+                    const linkedProduct = e.linkedProductId ? products.find(p => p.id === e.linkedProductId) : null;
+                    return (
+                      <div key={e.id} className="bg-gray-900/60 rounded-xl p-3 flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 ${t.tint}`}>{t.label}</span>
+                            <span className={`text-[9px] font-bold uppercase ${
+                              e.status === 'completed' ? 'text-green-500' : e.status === 'overdue' ? 'text-red-500' : 'text-gray-500'
+                            }`}>{e.status}</span>
+                          </div>
+                          <p className="text-sm font-bold text-white truncate">{e.title}</p>
+                          {linkedProduct && <p className="text-[11px] text-orange-400 mt-0.5">🔗 {linkedProduct.name}</p>}
+                          {e.note && <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{e.note}</p>}
+                        </div>
+                        <div className="flex gap-1 shrink-0">
+                          {e.status !== 'completed' && (
+                            <button onClick={() => onEventAction('complete', e)} className="p-1.5 text-green-500 hover:bg-green-500/10 rounded-lg transition-colors" title="Complete"><CheckCircle2 size={14} /></button>
+                          )}
+                          <button onClick={() => onEventAction('edit', e)} className="p-1.5 text-gray-500 hover:text-white hover:bg-white/5 rounded-lg transition-colors"><Edit2 size={14} /></button>
+                          <button onClick={() => onEventAction('delete', e)} className="p-1.5 text-red-500/50 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"><Trash2 size={14} /></button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* 3. Overdue Credits */}
+            {overdueCredits.length > 0 && (
+              <div>
+                <SectionHeader icon={ShieldAlert} label="Overdue Credits" color="text-red-400" />
+                <div className="space-y-2">
+                  {overdueCredits.map(b => (
+                    <div key={b.id} className="bg-red-500/5 border border-red-500/20 rounded-xl p-3 flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-bold text-white">{b.credit?.customerName || 'Unknown'}</p>
+                        <p className="text-xs text-red-400 mt-0.5">{daysOverdue(b.credit.dueDate)}d overdue · Due {b.credit.dueDate}</p>
+                      </div>
+                      <span className="font-bold text-red-400 text-sm">{fmt(b.netTotal)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 4. Stock Alerts */}
+            {(expiringProducts.length > 0 || loadedOnDay.length > 0) && (
+              <div>
+                <SectionHeader icon={Package} label="Stock Alerts" color="text-orange-400" />
+                <div className="space-y-2">
+                  {expiringProducts.map(p => {
+                    const dayMs = new Date(dateStr + 'T12:00:00').getTime();
+                    const expMs = new Date(p.expiryDate).getTime();
+                    const diffDays = Math.round((expMs - dayMs) / 86400000);
+                    return (
+                      <div key={p.id} className="bg-orange-500/5 border border-orange-500/20 rounded-xl p-3 flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-bold text-white">{p.name}</p>
+                          <p className="text-xs text-orange-400 mt-0.5">{diffDays === 0 ? 'Expires today' : `Expires in ${diffDays} day${diffDays !== 1 ? 's' : ''}`}</p>
+                        </div>
+                        <span className="text-[10px] font-bold text-orange-400 bg-orange-500/10 px-2 py-1 rounded-lg">{p.category || '—'}</span>
+                      </div>
+                    );
+                  })}
+                  {loadedOnDay.map(l => (
+                    <div key={l.id} className="bg-green-500/5 border border-green-500/20 rounded-xl p-3 flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-bold text-white">{l.productName}</p>
+                        <p className="text-xs text-green-400 mt-0.5">Loaded: +{l.quantityLoaded} {l.unit || ''}</p>
+                      </div>
+                      <span className="text-[10px] font-bold text-green-400 bg-green-500/10 px-2 py-1 rounded-lg">Stocked</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+          </div>
+        </div>
+
+        {/* Footer: Add Event + Weekly Revenue */}
+        <div className="px-6 py-4 border-t border-white/10 shrink-0 space-y-3">
+          <div className="flex items-center justify-between text-xs text-gray-500">
+            <div className="flex items-center gap-1.5"><TrendingUp size={12} className="text-primary-500" /><span>This week</span></div>
+            <span className="font-bold text-white">{fmt(weekRevenue)}</span>
+          </div>
+          <button onClick={() => { onAddEvent(); onClose(); }}
+            className="w-full py-2.5 bg-primary-600/20 hover:bg-primary-600 border border-primary-500/30 hover:border-primary-500 rounded-xl text-sm font-bold text-primary-400 hover:text-white transition-all">
+            + Add Event on This Day
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

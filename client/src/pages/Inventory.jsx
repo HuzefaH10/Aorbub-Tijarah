@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { useProducts, useEntries, useStockLogs, useCategories } from '../hooks/useFirestore';
+import { useProducts, useEntries, useStockLogs, useCategories, useEvents } from '../hooks/useFirestore';
 import ReactApexChart from 'react-apexcharts';
 import { 
   Package, AlertTriangle, XCircle, CheckCircle, Plus, Search, Filter,
@@ -12,10 +12,37 @@ export default function Inventory() {
   const { entries } = useEntries();
   const { stockLogs, addStockLog, deleteStockLog, updateStockLog } = useStockLogs();
   const { categories: firestoreCategories, addCategory } = useCategories();
+  const { events, addEvent, updateEvent } = useEvents();
   const { toast, showToast, hideToast } = useToast();
 
   const [activeTab, setActiveTab] = useState('overview');
   
+  // Auto-create expiry_warning events for products expiring within 7 days
+  useEffect(() => {
+    if (!products.length || !addEvent) return;
+    const todayMs = Date.now();
+    products.forEach(p => {
+      if (!p.expiryDate) return;
+      const expMs = new Date(p.expiryDate).getTime();
+      const daysUntil = Math.round((expMs - todayMs) / 86400000);
+      if (daysUntil < 0 || daysUntil > 7) return;
+      // Only create if no existing expiry_warning event for this product
+      const alreadyExists = events.some(e => e.type === 'expiry_warning' && e.linkedProductId === p.id && e.status !== 'completed');
+      if (!alreadyExists) {
+        addEvent(null, {
+          title: `Expiry Warning — ${p.name}`,
+          type: 'expiry_warning',
+          date: p.expiryDate,
+          status: 'pending',
+          recurring: { enabled: false, frequency: null },
+          linkedProductId: p.id,
+          linkedBillId: null,
+          note: `${p.name} expires in ${daysUntil} day${daysUntil !== 1 ? 's' : ''}.`,
+        }).catch(() => {});
+      }
+    });
+  }, [products]); // runs when product list changes
+
   // Modal States
   const [loadStockModal, setLoadStockModal] = useState({ open: false, productId: null });
   const [quickLoadModal, setQuickLoadModal] = useState({ open: false, product: null });
@@ -150,8 +177,8 @@ export default function Inventory() {
       </div>
 
       {/* MODALS */}
-      {loadStockModal.open && <LoadStockModal computedData={computedData.data} initialProductId={loadStockModal.productId} onClose={() => setLoadStockModal({ open: false, productId: null })} onSave={addStockLog} onUpdateProduct={updateProduct} toast={showToast} />}
-      {quickLoadModal.open && <QuickLoadModal product={quickLoadModal.product} onClose={() => setQuickLoadModal({ open: false, product: null })} onSave={addStockLog} onUpdateProduct={updateProduct} toast={showToast} />}
+      {loadStockModal.open && <LoadStockModal computedData={computedData.data} initialProductId={loadStockModal.productId} onClose={() => setLoadStockModal({ open: false, productId: null })} onSave={addStockLog} onUpdateProduct={updateProduct} events={events} onUpdateEvent={updateEvent} onAddEvent={addEvent} toast={showToast} />}
+      {quickLoadModal.open && <QuickLoadModal product={quickLoadModal.product} onClose={() => setQuickLoadModal({ open: false, product: null })} onSave={addStockLog} onUpdateProduct={updateProduct} events={events} onUpdateEvent={updateEvent} onAddEvent={addEvent} toast={showToast} />}
       {productModal.open && <ProductModal editId={productModal.editId} initialData={productModal.data} onClose={() => setProductModal({ open: false, editId: null, data: null })} onSave={productModal.editId ? updateProduct : addProduct} firestoreCategories={firestoreCategories} addCategory={addCategory} toast={showToast} />}
       {deleteModal.open && <DeleteModal target={deleteModal} onClose={() => setDeleteModal({ open: false, type: null, id: null, name: '' })} onConfirm={deleteModal.type === 'product' ? deleteProduct : deleteStockLog} toast={showToast} />}
 
@@ -912,7 +939,7 @@ function DeleteModal({ target, onClose, onConfirm, toast }) {
   );
 }
 
-function QuickLoadModal({ product, onClose, onSave, onUpdateProduct, toast }) {
+function QuickLoadModal({ product, onClose, onSave, onUpdateProduct, events = [], onUpdateEvent, onAddEvent, toast }) {
   const [f, setF] = useState({
     qty: '',
     unit: UNIT_OPTIONS.includes(product.unit) ? product.unit : (product.unit ? 'Other' : 'pcs'),
@@ -932,12 +959,13 @@ function QuickLoadModal({ product, onClose, onSave, onUpdateProduct, toast }) {
     setSaving(true);
     try {
       const unitLabel = f.unit === 'Other' ? f.customUnit.trim() : f.unit;
+      const todayStr = new Date().toISOString().split('T')[0];
       
       await onSave({
         productId: product.id,
         productName: product.name,
         category: product.category,
-        date: new Date().toISOString().split('T')[0],
+        date: todayStr,
         quantityLoaded: qty,
         previousStock: product.currentStock,
         newStock: product.currentStock + qty,
@@ -949,6 +977,25 @@ function QuickLoadModal({ product, onClose, onSave, onUpdateProduct, toast }) {
       const newThreshold = Number(f.threshold);
       if (newThreshold !== product.lowStockThreshold) {
         await onUpdateProduct(product.id, { lowStockThreshold: newThreshold });
+      }
+
+      // Auto-complete linked stock_order events for this product
+      if (onUpdateEvent && onAddEvent) {
+        const linkedEvents = events.filter(e =>
+          e.type === 'stock_order' && e.linkedProductId === product.id && e.status !== 'completed'
+        );
+        for (const ev of linkedEvents) {
+          await onUpdateEvent(ev.id, { status: 'completed' });
+          // Auto-generate next recurrence if recurring
+          if (ev.recurring?.enabled && ev.recurring?.frequency) {
+            const nextDate = new Date(ev.date + 'T12:00:00');
+            if (ev.recurring.frequency === 'daily') nextDate.setDate(nextDate.getDate() + 1);
+            else if (ev.recurring.frequency === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
+            else if (ev.recurring.frequency === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
+            const nextDateStr = nextDate.toISOString().split('T')[0];
+            await onAddEvent(null, { ...ev, id: undefined, date: nextDateStr, status: 'pending' }).catch(() => {});
+          }
+        }
       }
 
       toast('Stock loaded successfully');

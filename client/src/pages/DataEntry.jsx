@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, SummaryCard } from '../components/ui/Card';
 import Toast, { useToast } from '../components/ui/Toast';
-import { useProducts, useBills, useSettings } from '../hooks/useFirestore';
+import { useProducts, useBills, useSettings, useEvents } from '../hooks/useFirestore';
 import { ClipboardList, ShoppingCart, DollarSign, Settings2, X, Plus, Trash2, ChevronDown } from 'lucide-react';
 
 const DEFAULT_FIELDS = { unitPrice: false, unit: false, tax: false, notes: false };
@@ -11,6 +11,7 @@ export default function DataEntry() {
   const { products } = useProducts();
   const { bills, addBill } = useBills();
   const { settings, updateSettings } = useSettings();
+  const { addEvent } = useEvents();
   const { toast, showToast, hideToast } = useToast();
   const navigate = useNavigate();
 
@@ -149,7 +150,7 @@ export default function DataEntry() {
   const submitCredit = async () => {
     if (!creditModal.customerName.trim()) { showToast('Customer name is required', 'error'); return; }
     try {
-      await addBill(buildBillDoc({
+      const billRef = await addBill(buildBillDoc({
         status: 'unpaid',
         credit: {
           customerName: creditModal.customerName.trim(),
@@ -157,6 +158,21 @@ export default function DataEntry() {
           dueDate: creditModal.dueDate || null,
         },
       }));
+      // Auto-create credit_due event if a due date was set
+      if (creditModal.dueDate) {
+        try {
+          await addEvent(null, {
+            title: `Credit due — ${creditModal.customerName.trim()}`,
+            type: 'credit_due',
+            date: creditModal.dueDate,
+            status: 'pending',
+            recurring: { enabled: false, frequency: null },
+            linkedBillId: billRef?.id || null,
+            linkedProductId: null,
+            note: `Amount: $${(Number(creditModal.creditAmount) || netTotal).toFixed(2)}`,
+          });
+        } catch { /* silent — event creation failure shouldn't block bill */ }
+      }
       showToast('Credit bill recorded!');
       setCreditModal({ open: false, customerName: '', creditAmount: '', dueDate: '' });
       resetAll();

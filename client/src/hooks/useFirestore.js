@@ -214,7 +214,8 @@ export function useBills() {
 
   const addBill = useCallback(async (data) => {
     if (!user) return;
-    await addDoc(collection(db, 'bills'), { ...data, businessId: user.uid, createdAt: serverTimestamp() });
+    const ref = await addDoc(collection(db, 'bills'), { ...data, businessId: user.uid, createdAt: serverTimestamp() });
+    return ref;
   }, [user]);
 
   return { bills, loading, addBill };
