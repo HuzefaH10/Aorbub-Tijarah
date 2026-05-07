@@ -15,7 +15,7 @@ export default function Layout() {
         <Sidebar />
         <div className="ml-[64px] relative z-10">
           <Topbar />
-          <main className="p-6 pt-16">
+          <main className="p-6 mt-16">
             <AnimatePresence mode="wait">
               <motion.div
                 key={location.pathname}
