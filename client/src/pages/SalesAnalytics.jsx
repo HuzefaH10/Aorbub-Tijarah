@@ -32,7 +32,7 @@ const VALID_DATASETS = new Set([
   'dailyOrderVolume', 'revenueVsCostVsProfit', 'topProductPerformance',
   'revenueVsQuantity', 'weeklyHeatmap', 'profitMarginTrend'
 ]);
-const SCHEMA_VERSION = 'v4';
+const SCHEMA_VERSION = 'v5';
 
 const getPresetDates = (preset) => {
   const now = new Date();
