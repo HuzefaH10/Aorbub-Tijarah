@@ -69,12 +69,32 @@ export default function Settings() {
     }
   }, [settings]);
 
+  // Handle scroll spy
+  useEffect(() => {
+    const handleScroll = () => {
+      const sections = TABS.map(t => document.getElementById(t.id));
+      const scrollPosition = window.scrollY + 120;
+
+      for (let i = sections.length - 1; i >= 0; i--) {
+        const section = sections[i];
+        if (section && section.offsetTop <= scrollPosition) {
+          if (activeTab !== section.id) {
+            setActiveTab(section.id);
+          }
+          break;
+        }
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [activeTab]);
+
   // ── Handlers ──
   const handleProfileSave = async (e) => {
     e.preventDefault();
     setProfileSaving(true);
     try {
-      // Profile is local-only for now (no Firestore user doc)
       await new Promise(r => setTimeout(r, 400));
       showToast('Profile saved successfully');
     } catch { showToast('Failed to save profile', 'error'); }
@@ -117,19 +137,60 @@ export default function Settings() {
 
   const toggleNotif = (key) => setNotifications(prev => ({ ...prev, [key]: !prev[key] }));
 
+  const scrollToSection = (id) => {
+    const element = document.getElementById(id);
+    if (element) {
+      const topbarOffset = 64;
+      const elementPosition = element.getBoundingClientRect().top + window.scrollY;
+      const offsetPosition = elementPosition - topbarOffset - 24;
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth'
+      });
+    }
+  };
+
   // ── Shared styles ──
   const inputCls = "w-full h-[44px] bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-white/10 text-gray-800 dark:text-white px-4 text-sm outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500/30 transition-all rounded-lg";
   const labelCls = "block text-[11px] font-bold text-gray-400 dark:text-gray-500 mb-1.5 uppercase tracking-wider";
   const cardCls = "bg-white dark:bg-gray-900/80 border border-gray-200/60 dark:border-white/[0.06] rounded-xl p-7";
   const saveBtnCls = "h-[44px] flex items-center justify-center gap-2 bg-primary-600 text-white px-6 rounded-lg text-sm font-bold hover:bg-primary-700 transition-all shadow-lg shadow-primary-600/20 disabled:opacity-50 disabled:cursor-not-allowed";
-  const secondaryBtnCls = "h-[44px] flex items-center justify-center gap-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 px-6 rounded-lg text-sm font-bold hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors";
 
-  // ── Tab content ──
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'profile':
-        return (
-          <div className={cardCls}>
+  return (
+    <div className="w-full animate-fadeIn pb-24">
+      {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
+
+      {/* Page Header */}
+      <div className="border-b border-gray-100 dark:border-gray-800/60 pb-4 mb-6 px-6">
+        <h2 className="text-xl font-bold text-gray-800 dark:text-white font-heading">Settings</h2>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Manage your account and business preferences</p>
+      </div>
+
+      {/* Two-column layout */}
+      <div className="flex gap-8 px-6">
+        {/* Left Sidebar — fixed 200px */}
+        <nav className="w-[200px] shrink-0 space-y-1.5 sticky top-24 self-start">
+          {TABS.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => scrollToSection(id)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                activeTab === id
+                  ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/20'
+                  : 'text-gray-500 dark:text-gray-400 hover:bg-primary-50 dark:hover:bg-primary-900/10 hover:text-primary-600 dark:hover:text-primary-400'
+              }`}
+            >
+              <Icon size={18} />
+              {label}
+            </button>
+          ))}
+        </nav>
+
+        {/* Right Content — max-width 680px */}
+        <div className="flex-1 max-w-[680px] space-y-6">
+          
+          {/* PROFILE SECTION */}
+          <div id="profile" className={cardCls}>
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100 dark:border-white/[0.06]">
               <div className="p-2 rounded-lg bg-primary-500/10">
                 <User size={20} className="text-primary-500" />
@@ -162,11 +223,9 @@ export default function Settings() {
               </div>
             </form>
           </div>
-        );
 
-      case 'business':
-        return (
-          <div className={cardCls}>
+          {/* BUSINESS SECTION */}
+          <div id="business" className={cardCls}>
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100 dark:border-white/[0.06]">
               <div className="p-2 rounded-lg bg-primary-500/10">
                 <Building2 size={20} className="text-primary-500" />
@@ -203,11 +262,9 @@ export default function Settings() {
               </div>
             </form>
           </div>
-        );
 
-      case 'notifications':
-        return (
-          <div className={cardCls}>
+          {/* NOTIFICATIONS SECTION */}
+          <div id="notifications" className={cardCls}>
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100 dark:border-white/[0.06]">
               <div className="p-2 rounded-lg bg-primary-500/10">
                 <Bell size={20} className="text-primary-500" />
@@ -245,12 +302,9 @@ export default function Settings() {
               </div>
             </form>
           </div>
-        );
 
-      case 'security':
-        return (
-          <div className="space-y-6">
-            {/* Master Password Info */}
+          {/* SECURITY SECTION */}
+          <div id="security" className="space-y-6">
             <div className={cardCls}>
               <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100 dark:border-white/[0.06]">
                 <div className="p-2 rounded-lg bg-amber-500/10">
@@ -269,7 +323,6 @@ export default function Settings() {
               </div>
             </div>
 
-            {/* Change Password */}
             <div className={cardCls}>
               <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100 dark:border-white/[0.06]">
                 <div className="p-2 rounded-lg bg-primary-500/10">
@@ -337,46 +390,7 @@ export default function Settings() {
               </form>
             </div>
           </div>
-        );
 
-      default:
-        return null;
-    }
-  };
-
-  return (
-    <div className="w-full animate-fadeIn">
-      {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
-
-      {/* Page Header */}
-      <div className="border-b border-gray-100 dark:border-gray-800/60 pb-4 mb-6 px-6">
-        <h2 className="text-xl font-bold text-gray-800 dark:text-white font-heading">Settings</h2>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Manage your account and business preferences</p>
-      </div>
-
-      {/* Two-column layout */}
-      <div className="flex gap-8 px-6">
-        {/* Left Sidebar — fixed 200px */}
-        <nav className="w-[200px] shrink-0 space-y-1.5 sticky top-24 self-start">
-          {TABS.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              onClick={() => setActiveTab(id)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all duration-200 ${
-                activeTab === id
-                  ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/20'
-                  : 'text-gray-500 dark:text-gray-400 hover:bg-primary-50 dark:hover:bg-primary-900/10 hover:text-primary-600 dark:hover:text-primary-400'
-              }`}
-            >
-              <Icon size={18} />
-              {label}
-            </button>
-          ))}
-        </nav>
-
-        {/* Right Content — max-width 680px */}
-        <div className="flex-1 max-w-[680px]">
-          {renderContent()}
         </div>
       </div>
     </div>
