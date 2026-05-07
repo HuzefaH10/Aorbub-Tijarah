@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useEvents, useMilestones, useProducts, useBills, useStockLogs } from '../hooks/useFirestore';
 import { 
   Calendar as CalendarIcon, Clock, CheckCircle2, AlertTriangle, 
@@ -27,8 +28,30 @@ export default function CalendarPage() {
   const { stockLogs } = useStockLogs();
   const { toast, showToast, hideToast } = useToast();
 
-  const [view, setView] = useState('month'); // 'month' | 'agenda'
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  // View toggle: Use URL param first, then localStorage, defaulting to 'month'
+  const viewParam = searchParams.get('view');
+  const storedView = typeof window !== 'undefined' ? localStorage.getItem('calendar_view') : null;
+  const view = viewParam === 'agenda' || (!viewParam && storedView === 'agenda') ? 'agenda' : 'month';
+
+  const monthParam = searchParams.get('month');
+  const currentDate = useMemo(() => {
+    if (monthParam) {
+      const [y, m] = monthParam.split('-');
+      if (y && m) return new Date(Number(y), Number(m) - 1, 1);
+    }
+    const d = new Date();
+    d.setDate(1); // Set to 1st of month to avoid overflow bugs when shifting months
+    return d;
+  }, [monthParam]);
+
+  const setView = (v) => {
+    localStorage.setItem('calendar_view', v);
+    setSearchParams(p => { p.set('view', v); return p; });
+  };
+  const setCurrentDate = (d) => setSearchParams(p => { p.set('month', `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`); return p; });
+
   const [search, setSearch] = useState('');
   
   const [selectedDay, setSelectedDay] = useState(null); // String YYYY-MM-DD
@@ -404,6 +427,8 @@ function DaySummaryPopup({ dateStr, onClose, events, bills, products, stockLogs,
     </div>
   );
 
+  const isFuture = dateStr > todayStr;
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm animate-fadeIn p-4">
       <div className="glass w-full max-w-md shadow-2xl scale-95 animate-[scaleIn_0.2s_ease-out_forwards] overflow-hidden flex flex-col max-h-[88vh]">
@@ -412,6 +437,7 @@ function DaySummaryPopup({ dateStr, onClose, events, bills, products, stockLogs,
           <div>
             <h2 className="text-base font-bold text-white font-heading">{formattedDate}</h2>
             {dateStr === todayStr && <span className="text-[10px] font-bold text-primary-400 uppercase tracking-wider">Today</span>}
+            {isFuture && <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider ml-2">Future</span>}
           </div>
           <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"><X size={18} /></button>
         </div>
@@ -421,27 +447,29 @@ function DaySummaryPopup({ dateStr, onClose, events, bills, products, stockLogs,
           <div className="p-6 space-y-6">
 
             {/* 1. Sales Summary */}
-            <div>
-              <SectionHeader icon={TrendingUp} label="Sales Summary" color="text-primary-400" />
-              {dayBills.length === 0 ? (
-                <p className="text-sm text-gray-600 italic">No sales recorded</p>
-              ) : (
-                <div className="bg-gray-900/60 rounded-xl p-4 space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Bills</span>
-                    <span className="font-bold text-white">{dayBills.length}</span>
+            {!isFuture && (
+              <div>
+                <SectionHeader icon={TrendingUp} label="Sales Summary" color="text-primary-400" />
+                {dayBills.length === 0 ? (
+                  <p className="text-sm text-gray-600 italic">No sales recorded</p>
+                ) : (
+                  <div className="bg-gray-900/60 rounded-xl p-4 space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-400">Bills</span>
+                      <span className="font-bold text-white">{dayBills.length}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-400">Revenue</span>
+                      <span className="font-bold text-green-400">{fmt(dayRevenue)}</span>
+                    </div>
+                    <div className="border-t border-white/5 pt-2 flex gap-4 text-xs text-gray-500">
+                      <span>Cash: <span className="text-white font-bold">{fmt(dayCash)}</span></span>
+                      <span>Credit: <span className="text-white font-bold">{fmt(dayCredit)}</span></span>
+                    </div>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Revenue</span>
-                    <span className="font-bold text-green-400">{fmt(dayRevenue)}</span>
-                  </div>
-                  <div className="border-t border-white/5 pt-2 flex gap-4 text-xs text-gray-500">
-                    <span>Cash: <span className="text-white font-bold">{fmt(dayCash)}</span></span>
-                    <span>Credit: <span className="text-white font-bold">{fmt(dayCredit)}</span></span>
-                  </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
 
             {/* 2. Events & Reminders */}
             <div>
@@ -481,7 +509,7 @@ function DaySummaryPopup({ dateStr, onClose, events, bills, products, stockLogs,
             </div>
 
             {/* 3. Overdue Credits */}
-            {overdueCredits.length > 0 && (
+            {!isFuture && overdueCredits.length > 0 && (
               <div>
                 <SectionHeader icon={ShieldAlert} label="Overdue Credits" color="text-red-400" />
                 <div className="space-y-2">
@@ -499,7 +527,7 @@ function DaySummaryPopup({ dateStr, onClose, events, bills, products, stockLogs,
             )}
 
             {/* 4. Stock Alerts */}
-            {(expiringProducts.length > 0 || loadedOnDay.length > 0) && (
+            {!isFuture && (expiringProducts.length > 0 || loadedOnDay.length > 0) && (
               <div>
                 <SectionHeader icon={Package} label="Stock Alerts" color="text-orange-400" />
                 <div className="space-y-2">
@@ -535,10 +563,12 @@ function DaySummaryPopup({ dateStr, onClose, events, bills, products, stockLogs,
 
         {/* Footer: Add Event + Weekly Revenue */}
         <div className="px-6 py-4 border-t border-white/10 shrink-0 space-y-3">
-          <div className="flex items-center justify-between text-xs text-gray-500">
-            <div className="flex items-center gap-1.5"><TrendingUp size={12} className="text-primary-500" /><span>This week</span></div>
-            <span className="font-bold text-white">{fmt(weekRevenue)}</span>
-          </div>
+          {!isFuture && (
+            <div className="flex items-center justify-between text-xs text-gray-500">
+              <div className="flex items-center gap-1.5"><TrendingUp size={12} className="text-primary-500" /><span>This week</span></div>
+              <span className="font-bold text-white">{fmt(weekRevenue)}</span>
+            </div>
+          )}
           <button onClick={() => { onAddEvent(); onClose(); }}
             className="w-full py-2.5 bg-primary-600/20 hover:bg-primary-600 border border-primary-500/30 hover:border-primary-500 rounded-xl text-sm font-bold text-primary-400 hover:text-white transition-all">
             + Add Event on This Day
