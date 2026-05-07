@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Responsive, WidthProvider } from 'react-grid-layout';
-import { useEntries, useProducts } from '../hooks/useFirestore';
+import 'react-grid-layout/css/styles.css';
+import 'react-resizable/css/styles.css';
+import { useBills, useProducts } from '../hooks/useFirestore';
 import { Calendar, Settings2, ShoppingCart } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -26,7 +28,7 @@ const defaultLayout = [
 ];
 
 export default function SalesAnalytics() {
-  const { entries, loading } = useEntries();
+  const { bills, loading } = useBills();
   const navigate = useNavigate();
   
   // State
@@ -57,131 +59,76 @@ export default function SalesAnalytics() {
 
   // Data Computations
   const computedData = useMemo(() => {
-    const filtered = entries.filter(e => {
-      if (dateFilter.from && e.date < dateFilter.from) return false;
-      if (dateFilter.to && e.date > dateFilter.to) return false;
-      return true;
+    const filtered = bills.filter(b => {
+      // Use bill date or default to empty string for safety
+      const d = b.date || '';
+      if (dateFilter.from && d < dateFilter.from) return false;
+      if (dateFilter.to && d > dateFilter.to) return false;
+      return b.status !== 'cancelled';
     });
 
     // 1. Revenue By Date
     const rbdMap = {};
-    filtered.forEach(e => { rbdMap[e.date] = (rbdMap[e.date] || 0) + e.revenue; });
+    filtered.forEach(b => { 
+      if (b.date) {
+        rbdMap[b.date] = (rbdMap[b.date] || 0) + Number(b.netTotal || 0);
+      }
+    });
     const rbdSorted = Object.entries(rbdMap).sort((a, b) => a[0].localeCompare(b[0]));
     
-    // 2. Revenue By Product
-    const rbpMap = {};
-    filtered.forEach(e => { rbpMap[e.product] = (rbpMap[e.product] || 0) + e.revenue; });
-    const rbpSorted = Object.entries(rbpMap).sort((a, b) => b[1] - a[1]).slice(0, 10);
+    // Process items for Product & Category metrics
+    const prodQtyMap = {};
+    const prodRevMap = {};
+    const catMap = {};
+    const prodCatMap = {};
+    const prodLastSold = {};
+
+    filtered.forEach(b => {
+      const bDate = b.date || '';
+      if (Array.isArray(b.items)) {
+        b.items.forEach(item => {
+          const pName = item.productName || 'Unknown';
+          const pCat = item.category || 'Uncategorized';
+          const qty = Number(item.quantity) || 0;
+          const rev = Number(item.total) || 0;
+
+          prodQtyMap[pName] = (prodQtyMap[pName] || 0) + qty;
+          prodRevMap[pName] = (prodRevMap[pName] || 0) + rev;
+          prodCatMap[pName] = pCat;
+          catMap[pCat] = (catMap[pCat] || 0) + rev;
+
+          if (!prodLastSold[pName] || prodLastSold[pName] < bDate) {
+            prodLastSold[pName] = bDate;
+          }
+        });
+      }
+    });
+
+    // 2. Sales By Product (Quantity based, as per prompt: "Y-axis = total quantity sold")
+    const rbpSorted = Object.entries(prodQtyMap).sort((a, b) => b[1] - a[1]).slice(0, 15);
 
     // 3. Category Split
-    const catMap = {};
-    filtered.forEach(e => { catMap[e.category] = (catMap[e.category] || 0) + e.revenue; });
-    const catSorted = Object.entries(catMap);
+    const catSorted = Object.entries(catMap).sort((a, b) => b[1] - a[1]);
 
-    // 4. Daily Order Volume
-    const ordersMap = {};
-    filtered.forEach(e => { ordersMap[e.date] = (ordersMap[e.date] || 0) + 1; });
-    const ordersSorted = Object.entries(ordersMap).sort((a, b) => a[0].localeCompare(b[0]));
-
-    // 5. Profit By Product
-    const pbpMap = {};
-    filtered.forEach(e => {
-      if (!pbpMap[e.product]) pbpMap[e.product] = { r: 0, c: 0, p: 0 };
-      pbpMap[e.product].r += e.revenue;
-      pbpMap[e.product].c += e.cost;
-      pbpMap[e.product].p += (e.revenue - e.cost);
-    });
-    const pbpSorted = Object.entries(pbpMap).sort((a, b) => b[1].p - a[1].p).slice(0, 10);
-
-    // 6. Velocity
-    const prodQtyMap = {};
-    const prodDates = {};
-    filtered.forEach(e => {
-      prodQtyMap[e.product] = (prodQtyMap[e.product] || 0) + e.quantitySold;
-      if (!prodDates[e.product]) prodDates[e.product] = new Set();
-      prodDates[e.product].add(e.date);
-    });
-    const velocityList = Object.entries(prodQtyMap).map(([p, q]) => ({
-      product: p, avg: (q / (prodDates[p]?.size || 1)).toFixed(1)
-    })).sort((a, b) => b.avg - a.avg);
-
-    // 7. Weekly Heatmap (Simplified for ApexCharts format)
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    const heatmapMap = {};
-    filtered.forEach(e => {
-      const d = new Date(e.date);
-      const w = `Week ${Math.ceil(d.getDate() / 7)}`;
-      const dayName = days[d.getDay() === 0 ? 6 : d.getDay() - 1]; // Make Monday 0
-      if (!heatmapMap[w]) heatmapMap[w] = { Mon:0, Tue:0, Wed:0, Thu:0, Fri:0, Sat:0, Sun:0 };
-      heatmapMap[w][dayName] += e.revenue;
-    });
-    const heatmapSeries = Object.entries(heatmapMap).map(([w, dMap]) => ({
-      name: w, data: days.map(d => ({ x: d, y: dMap[d] }))
-    }));
-
-    // 8. Profit Trend (Scatter/Dual Axis)
-    const profitTrend = { labels: rbdSorted.map(x => x[0]), profit: [], margin: [] };
-    rbdSorted.forEach(([date, rev]) => {
-      const dayEntries = filtered.filter(e => e.date === date);
-      const dayCost = dayEntries.reduce((s, e) => s + e.cost, 0);
-      const dayProfit = rev - dayCost;
-      profitTrend.profit.push(dayProfit);
-      profitTrend.margin.push(rev > 0 ? ((dayProfit / rev) * 100).toFixed(1) : 0);
-    });
-
-    // 9. Scatter
-    const scatterSeries = [{
-      name: 'Sales',
-      data: filtered.map(e => [e.quantitySold, e.revenue])
-    }];
-
-    // Insights Generation
-    const insights = [];
-    if (rbpSorted.length > 0) insights.push(`🏆 ${rbpSorted[0][0]} is your top earner at $${rbpSorted[0][1].toLocaleString()}`);
-    const negativeProfit = pbpSorted.find(x => x[1].p < 0);
-    if (negativeProfit) insights.push(`⚠️ ${negativeProfit[0]} has negative profit — review pricing`);
-    if (velocityList.length > 0) insights.push(`🔁 ${velocityList[0].product} sells rapidly at ${velocityList[0].avg} units/day`);
-
-    // Top Products Table
-    const topProductsList = rbpSorted.map(x => ({ product: x[0], revenue: x[1], qty: prodQtyMap[x[0]] }));
-
-    // Period Comparison
-    const ws = d => { const dd = new Date(d); dd.setDate(dd.getDate() - dd.getDay()); return dd.toISOString().split('T')[0]; };
-    const today = new Date();
-    const twStart = ws(today), lwStart = ws(new Date(today.getTime() - 7 * 86400000));
-    const twEntries = entries.filter(e => e.date >= twStart);
-    const lwEntries = entries.filter(e => e.date >= lwStart && e.date < twStart);
-    const periodComparison = {
-      twRev: twEntries.reduce((s, e) => s + e.revenue, 0),
-      lwRev: lwEntries.reduce((s, e) => s + e.revenue, 0),
-      twProfit: twEntries.reduce((s, e) => s + (e.revenue - e.cost), 0),
-      lwProfit: lwEntries.reduce((s, e) => s + (e.revenue - e.cost), 0)
-    };
+    // Top Products Table (Product | Category | Units Sold | Revenue | Last Sold)
+    const topProductsList = Object.keys(prodQtyMap)
+      .map(p => ({
+        product: p,
+        category: prodCatMap[p],
+        qty: prodQtyMap[p],
+        revenue: prodRevMap[p],
+        lastSold: prodLastSold[p]
+      }))
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, 50);
 
     return {
       revenueByDate: { labels: rbdSorted.map(x => x[0]), values: rbdSorted.map(x => x[1]) },
       revenueByProduct: { labels: rbpSorted.map(x => x[0]), values: rbpSorted.map(x => x[1]) },
       categorySplit: { labels: catSorted.map(x => x[0]), values: catSorted.map(x => x[1]) },
-      ordersByDate: { labels: ordersSorted.map(x => x[0]), values: ordersSorted.map(x => x[1]) },
-      profitByProduct: { 
-        labels: pbpSorted.map(x => x[0]), 
-        revenue: pbpSorted.map(x => x[1].r), 
-        cost: pbpSorted.map(x => x[1].c), 
-        profit: pbpSorted.map(x => x[1].p) 
-      },
-      topProducts: {
-        labels: rbpSorted.map(x => x[0]),
-        percentages: rbpSorted.map(x => Math.round((x[1] / (rbpSorted[0]?.[1] || 1)) * 100))
-      },
-      scatterPlot: { series: scatterSeries },
-      weeklyHeatmap: { series: heatmapSeries },
-      profitTrend,
-      topProductsList,
-      salesVelocity: velocityList,
-      insights,
-      periodComparison
+      topProductsList
     };
-  }, [entries, dateFilter]);
+  }, [bills, dateFilter]);
 
   // Handlers
   const handleToggleWidget = (id) => {

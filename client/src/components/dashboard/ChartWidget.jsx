@@ -34,10 +34,10 @@ export default function ChartWidget({ widget, data }) {
   else if (dataset === 'salesByProduct') {
     type = 'bar';
     options.plotOptions = { bar: { horizontal: true, borderRadius: 4, distributed: true } };
-    options.xaxis.categories = data.revenueByProduct.labels || [];
+    options.xaxis.categories = data.revenueByProduct?.labels || [];
     options.dataLabels = { enabled: false };
     options.legend.show = false;
-    series = [{ name: 'Revenue', data: data.revenueByProduct.values || [] }];
+    series = [{ name: 'Quantity Sold', data: data.revenueByProduct?.values || [] }];
   }
   else if (dataset === 'categorySplit') {
     type = 'donut';
