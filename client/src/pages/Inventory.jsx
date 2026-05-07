@@ -143,7 +143,7 @@ export default function Inventory() {
         </div>
         
         <div className="p-5">
-          {activeTab === 'overview' && <TabOverview computedData={computedData.data} onEdit={(p) => setProductModal({ open: true, editId: p.id, data: p })} onDelete={(p) => setDeleteModal({ open: true, type: 'product', id: p.id, name: p.name })} onLoad={(p) => setQuickLoadModal({ open: true, product: p })} />}
+          {activeTab === 'overview' && <TabOverview computedData={computedData.data} onEdit={(p) => setProductModal({ open: true, editId: p.id, data: p })} onDelete={(p) => setDeleteModal({ open: true, type: 'product', id: p.id, name: p.name })} onLoad={(p) => setQuickLoadModal({ open: true, product: p })} onBulkDelete={deleteProduct} onBulkUpdate={updateProduct} firestoreCategories={firestoreCategories} toast={showToast} />}
           {activeTab === 'history' && <TabHistory logs={stockLogs} onDelete={(l) => setDeleteModal({ open: true, type: 'log', id: l.id, name: 'this log entry' })} />}
           {activeTab === 'analytics' && <TabAnalytics computedData={computedData.data} logs={stockLogs} />}
         </div>
@@ -184,10 +184,122 @@ function StatCard({ label, value, icon: Icon, color = "text-white" }) {
   );
 }
 
-function TabOverview({ computedData, onEdit, onDelete, onLoad }) {
+const BULK_UNIT_OPTIONS = ['pcs', 'kg', 'g', 'L', 'ml', 'box', 'dozen', 'carton', 'pack', 'bag', 'pair'];
+
+function BulkDeleteModal({ count, onClose, onConfirm, loading }) {
+  return (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fadeIn p-4">
+      <div className="glass w-full max-w-sm shadow-2xl rounded-2xl overflow-hidden">
+        <div className="p-6 text-center space-y-3">
+          <div className="w-14 h-14 bg-red-500/10 border border-red-500/20 rounded-full flex items-center justify-center mx-auto">
+            <Trash2 size={24} className="text-red-500" />
+          </div>
+          <h3 className="text-lg font-bold text-white font-heading">Delete {count} product{count !== 1 ? 's' : ''}?</h3>
+          <p className="text-sm text-gray-400">This cannot be undone. All selected products will be permanently removed from your inventory.</p>
+        </div>
+        <div className="px-6 pb-6 flex gap-3">
+          <button onClick={onClose} disabled={loading} className="flex-1 py-2.5 border border-white/10 rounded-xl text-sm font-bold text-gray-300 hover:bg-white/5 transition-colors disabled:opacity-50">Cancel</button>
+          <button onClick={onConfirm} disabled={loading} className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 rounded-xl text-sm font-bold text-white transition-colors disabled:opacity-50 shadow-lg shadow-red-600/20">
+            {loading ? 'Deleting…' : 'Delete'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BulkEditModal({ count, selectedProducts, onClose, onConfirm, firestoreCategories, loading }) {
+  const inputCls = "w-full bg-gray-950 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-primary-500 transition-colors disabled:opacity-40";
+  const labelCls = "block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5";
+
+  const [fields, setFields] = useState({
+    category: { apply: false, value: '' },
+    unit:     { apply: false, value: 'pcs' },
+    threshold:{ apply: false, value: 5 },
+  });
+
+  const toggle = (key) => setFields(f => ({ ...f, [key]: { ...f[key], apply: !f[key].apply } }));
+  const set = (key, value) => setFields(f => ({ ...f, [key]: { ...f[key], value } }));
+
+  const anyApplied = Object.values(fields).some(f => f.apply);
+  const catList = [...new Set(selectedProducts.map(p => p.category).filter(Boolean)),
+    ...(firestoreCategories || []).map(c => c.name).filter(Boolean)
+  ].filter((v, i, a) => a.indexOf(v) === i);
+
+  const ApplyToggle = ({ fieldKey, label, children }) => (
+    <div className={`p-4 rounded-xl border transition-all ${fields[fieldKey].apply ? 'border-primary-500/50 bg-primary-600/5' : 'border-white/5 bg-gray-900/40'}`}>
+      <div className="flex items-center justify-between mb-3">
+        <label className={labelCls + ' mb-0'}>{label}</label>
+        <button type="button" onClick={() => toggle(fieldKey)}
+          className={`flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-lg transition-all ${
+            fields[fieldKey].apply ? 'bg-primary-600 text-white' : 'bg-gray-800 text-gray-500 hover:text-gray-300'
+          }`}>
+          {fields[fieldKey].apply ? '✓ Apply' : 'Apply'}
+        </button>
+      </div>
+      <div className={fields[fieldKey].apply ? '' : 'opacity-40 pointer-events-none'}>{children}</div>
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fadeIn p-4">
+      <div className="glass w-full max-w-md shadow-2xl rounded-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 shrink-0">
+          <div>
+            <h2 className="text-base font-bold text-white font-heading">Bulk Edit</h2>
+            <p className="text-xs text-gray-500 mt-0.5">{count} product{count !== 1 ? 's' : ''} selected — toggle fields to apply</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"><X size={18} /></button>
+        </div>
+
+        {/* Fields */}
+        <div className="p-6 space-y-3 overflow-y-auto custom-scrollbar">
+          <ApplyToggle fieldKey="category" label="Category">
+            <select value={fields.category.value} onChange={e => set('category', e.target.value)} className={inputCls}>
+              <option value="">Select category…</option>
+              {catList.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </ApplyToggle>
+
+          <ApplyToggle fieldKey="unit" label="Unit">
+            <select value={fields.unit.value} onChange={e => set('unit', e.target.value)} className={inputCls}>
+              {BULK_UNIT_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
+            </select>
+          </ApplyToggle>
+
+          <ApplyToggle fieldKey="threshold" label="Low Stock Threshold">
+            <input type="number" min="0" value={fields.threshold.value}
+              onChange={e => set('threshold', Number(e.target.value))}
+              className={inputCls} placeholder="e.g. 10" />
+          </ApplyToggle>
+
+          {!anyApplied && (
+            <p className="text-xs text-amber-400 text-center pt-1">Toggle at least one field to apply changes</p>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-white/10 flex gap-3 shrink-0">
+          <button onClick={onClose} disabled={loading} className="flex-1 py-2.5 border border-white/10 rounded-xl text-sm font-bold text-gray-300 hover:bg-white/5 transition-colors disabled:opacity-50">Cancel</button>
+          <button onClick={() => onConfirm(fields)} disabled={!anyApplied || loading}
+            className="flex-[2] py-2.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl text-sm font-bold text-white transition-colors shadow-lg shadow-primary-600/20">
+            {loading ? 'Saving…' : `Apply to ${count} product${count !== 1 ? 's' : ''}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TabOverview({ computedData, onEdit, onDelete, onLoad, onBulkDelete, onBulkUpdate, firestoreCategories, toast }) {
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [selected, setSelected] = useState(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkEditOpen, setBulkEditOpen] = useState(false);
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   const categories = ['All', ...new Set(computedData.map(p => p.category).filter(Boolean))];
 
@@ -202,8 +314,78 @@ function TabOverview({ computedData, onEdit, onDelete, onLoad }) {
     return true;
   });
 
+  const allFilteredSelected = filtered.length > 0 && filtered.every(p => selected.has(p.id));
+  const someSelected = selected.size > 0;
+  const selectedProducts = computedData.filter(p => selected.has(p.id));
+
+  const toggleRow = (id) => setSelected(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+
+  const toggleAll = () => {
+    if (allFilteredSelected) {
+      setSelected(prev => { const n = new Set(prev); filtered.forEach(p => n.delete(p.id)); return n; });
+    } else {
+      setSelected(prev => { const n = new Set(prev); filtered.forEach(p => n.add(p.id)); return n; });
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    setBulkLoading(true);
+    try {
+      await Promise.all([...selected].map(id => onBulkDelete(id)));
+      toast(`${selected.size} product${selected.size !== 1 ? 's' : ''} deleted`);
+      setSelected(new Set());
+      setBulkDeleteOpen(false);
+    } catch {
+      toast('Failed to delete some products', 'error');
+    } finally { setBulkLoading(false); }
+  };
+
+  const handleBulkEdit = async (fields) => {
+    setBulkLoading(true);
+    try {
+      const patch = {};
+      if (fields.category.apply && fields.category.value) patch.category = fields.category.value;
+      if (fields.unit.apply) patch.unit = fields.unit.value;
+      if (fields.threshold.apply) patch.lowStockThreshold = fields.threshold.value;
+      await Promise.all([...selected].map(id => onBulkUpdate(id, patch)));
+      toast(`${selected.size} product${selected.size !== 1 ? 's' : ''} updated`);
+      setSelected(new Set());
+      setBulkEditOpen(false);
+    } catch {
+      toast('Failed to update some products', 'error');
+    } finally { setBulkLoading(false); }
+  };
+
   return (
-    <div className="space-y-4 animate-fadeIn">
+    <div className="space-y-3 animate-fadeIn">
+      {/* Bulk Action Bar */}
+      <div className={`transition-all duration-300 overflow-hidden ${
+        someSelected ? 'max-h-16 opacity-100' : 'max-h-0 opacity-0'
+      }`}>
+        <div className="flex items-center justify-between px-4 py-2.5 bg-primary-600/10 border border-primary-500/30 rounded-xl">
+          <span className="text-sm font-bold text-primary-300">{selected.size} item{selected.size !== 1 ? 's' : ''} selected</span>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setBulkEditOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-600/20 hover:bg-primary-600/40 text-primary-300 rounded-lg text-xs font-bold transition-colors">
+              <Edit2 size={13} /> Edit Selected
+            </button>
+            <button onClick={() => setBulkDeleteOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/20 hover:bg-red-500/40 text-red-400 rounded-lg text-xs font-bold transition-colors">
+              <Trash2 size={13} /> Delete Selected
+            </button>
+            <button onClick={() => setSelected(new Set())}
+              className="flex items-center gap-1 px-2 py-1.5 text-gray-500 hover:text-gray-300 rounded-lg text-xs font-bold transition-colors">
+              <X size={13} /> Clear
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Filters */}
       <div className="flex flex-col md:flex-row gap-3">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
@@ -217,6 +399,7 @@ function TabOverview({ computedData, onEdit, onDelete, onLoad }) {
         </select>
       </div>
 
+      {/* Table */}
       <div className="overflow-x-auto -mx-5 px-5">
         {filtered.length === 0 ? (
           <div className="text-center py-10 text-gray-500">No products found.</div>
@@ -224,6 +407,10 @@ function TabOverview({ computedData, onEdit, onDelete, onLoad }) {
           <table className="w-full text-sm text-left">
             <thead>
               <tr className="text-gray-500 border-b border-white/5">
+                <th className="py-3 pr-3 w-8">
+                  <input type="checkbox" checked={allFilteredSelected} onChange={toggleAll}
+                    className="w-4 h-4 accent-primary-600 cursor-pointer rounded" />
+                </th>
                 <th className="py-3 font-medium">Product</th>
                 <th className="py-3 font-medium">Category</th>
                 <th className="py-3 font-medium text-right">Current Stock</th>
@@ -234,31 +421,66 @@ function TabOverview({ computedData, onEdit, onDelete, onLoad }) {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((p, i) => (
-                <tr key={p.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors" style={{ animation: `fadeIn 0.3s ease-out ${i * 0.04}s both` }}>
-                  <td className="py-3 font-bold text-gray-200">{p.name}</td>
-                  <td className="py-3 text-gray-500">{p.category}</td>
-                  <td className={`py-3 text-right font-bold ${p.status === 'out' ? 'text-red-500' : p.status === 'low' ? 'text-amber-500' : 'text-gray-200'}`}>{p.currentStock} <span className="text-xs text-gray-600 font-normal">{p.unit}</span></td>
-                  <td className="py-3 text-right text-gray-500">{p.lowStockThreshold}</td>
-                  <td className="py-3 text-center">
-                    {p.status === 'out' ? <span className="text-[10px] font-bold text-red-400 bg-red-400/10 border border-red-400/20 px-2 py-1 rounded-full uppercase tracking-wider">Out of Stock</span> :
-                     p.status === 'low' ? <span className="text-[10px] font-bold text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2 py-1 rounded-full uppercase tracking-wider">Low Stock</span> :
-                     <span className="text-[10px] font-bold text-green-400 bg-green-400/10 border border-green-400/20 px-2 py-1 rounded-full uppercase tracking-wider">Healthy</span>}
-                  </td>
-                  <td className="py-3 text-right text-gray-500 text-xs">{p.lastLoaded}</td>
-                  <td className="py-3">
-                    <div className="flex items-center justify-end gap-2">
-                      <button onClick={() => onLoad(p)} className="px-2 py-1 bg-primary-600/20 text-primary-400 hover:bg-primary-600 hover:text-white rounded text-xs font-bold transition-colors">Load</button>
-                      <button onClick={() => onEdit(p)} className="p-1.5 text-gray-500 hover:text-white hover:bg-white/10 rounded transition-colors"><Edit2 size={14} /></button>
-                      <button onClick={() => onDelete(p)} className="p-1.5 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded transition-colors"><Trash2 size={14} /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {filtered.map((p, i) => {
+                const isChecked = selected.has(p.id);
+                return (
+                  <tr key={p.id}
+                    className={`border-b border-white/5 transition-colors cursor-pointer ${
+                      isChecked ? 'bg-primary-600/5' : 'hover:bg-white/[0.02]'
+                    }`}
+                    style={{ animation: `fadeIn 0.3s ease-out ${i * 0.04}s both` }}
+                    onClick={() => toggleRow(p.id)}
+                  >
+                    <td className="py-3 pr-3" onClick={e => e.stopPropagation()}>
+                      <input type="checkbox" checked={isChecked} onChange={() => toggleRow(p.id)}
+                        className="w-4 h-4 accent-primary-600 cursor-pointer rounded" />
+                    </td>
+                    <td className="py-3 font-bold text-gray-200" onClick={e => e.stopPropagation()}>{p.name}</td>
+                    <td className="py-3 text-gray-500" onClick={e => e.stopPropagation()}>{p.category}</td>
+                    <td className={`py-3 text-right font-bold ${p.status === 'out' ? 'text-red-500' : p.status === 'low' ? 'text-amber-500' : 'text-gray-200'}`} onClick={e => e.stopPropagation()}>
+                      {p.currentStock} <span className="text-xs text-gray-600 font-normal">{p.unit}</span>
+                    </td>
+                    <td className="py-3 text-right text-gray-500" onClick={e => e.stopPropagation()}>{p.lowStockThreshold}</td>
+                    <td className="py-3 text-center" onClick={e => e.stopPropagation()}>
+                      {p.status === 'out' ? <span className="text-[10px] font-bold text-red-400 bg-red-400/10 border border-red-400/20 px-2 py-1 rounded-full uppercase tracking-wider">Out of Stock</span> :
+                       p.status === 'low' ? <span className="text-[10px] font-bold text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2 py-1 rounded-full uppercase tracking-wider">Low Stock</span> :
+                       <span className="text-[10px] font-bold text-green-400 bg-green-400/10 border border-green-400/20 px-2 py-1 rounded-full uppercase tracking-wider">Healthy</span>}
+                    </td>
+                    <td className="py-3 text-right text-gray-500 text-xs" onClick={e => e.stopPropagation()}>{p.lastLoaded}</td>
+                    <td className="py-3" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-2">
+                        <button onClick={() => onLoad(p)} className="px-2 py-1 bg-primary-600/20 text-primary-400 hover:bg-primary-600 hover:text-white rounded text-xs font-bold transition-colors">Load</button>
+                        <button onClick={() => onEdit(p)} className="p-1.5 text-gray-500 hover:text-white hover:bg-white/10 rounded transition-colors"><Edit2 size={14} /></button>
+                        <button onClick={() => onDelete(p)} className="p-1.5 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded transition-colors"><Trash2 size={14} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
       </div>
+
+      {/* Bulk Modals */}
+      {bulkDeleteOpen && (
+        <BulkDeleteModal
+          count={selected.size}
+          onClose={() => setBulkDeleteOpen(false)}
+          onConfirm={handleBulkDelete}
+          loading={bulkLoading}
+        />
+      )}
+      {bulkEditOpen && (
+        <BulkEditModal
+          count={selected.size}
+          selectedProducts={selectedProducts}
+          firestoreCategories={firestoreCategories}
+          onClose={() => setBulkEditOpen(false)}
+          onConfirm={handleBulkEdit}
+          loading={bulkLoading}
+        />
+      )}
     </div>
   );
 }
