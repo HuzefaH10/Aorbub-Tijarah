@@ -44,7 +44,7 @@ export default function Topbar() {
   };
 
   return (
-    <header className="h-16 glass !rounded-none !border-t-0 !border-x-0 flex items-center justify-between px-6 sticky top-0 z-40 transition-colors duration-300">
+    <header className="h-16 glass !rounded-none !border-t-0 !border-x-0 flex items-center justify-between px-6 fixed top-0 left-[64px] right-0 z-50 transition-colors duration-300">
       <div>
         {location.pathname !== '/data-entry' && (
           <>
