@@ -3,7 +3,7 @@ import { Responsive, WidthProvider } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import { useBills, useProducts } from '../hooks/useFirestore';
-import { Calendar, Settings2, ShoppingCart } from 'lucide-react';
+import { Calendar, Settings2, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import ChartWidget from '../components/dashboard/ChartWidget';
@@ -11,6 +11,8 @@ import TableWidget from '../components/dashboard/TableWidget';
 import WidgetPanel from '../components/dashboard/WidgetPanel';
 import Pickers from '../components/dashboard/Pickers';
 import CsvUploader from '../components/dashboard/CsvUploader';
+import ExportModal from '../components/dashboard/ExportModal';
+import Toast, { useToast } from '../components/ui/Toast';
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
@@ -64,11 +66,13 @@ const getPresetDates = (preset) => {
 export default function SalesAnalytics() {
   const { bills, loading } = useBills();
   const navigate = useNavigate();
+  const { toast, showToast, hideToast } = useToast();
   
   // State
   const [isEditMode, setIsEditMode] = useState(false);
   const [pickerType, setPickerType] = useState(null); // 'chart' or 'table'
   const [showCsvUploader, setShowCsvUploader] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   
   const [widgets, setWidgets] = useState(() => {
     try {
@@ -220,7 +224,8 @@ export default function SalesAnalytics() {
   if (loading) return <div className="flex items-center justify-center h-[60vh]"><div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden relative">
+      {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
       
       {/* Date Filter Bar */}
       <div className="glass !rounded-none !border-t-0 !border-x-0 px-6 py-3 flex items-center justify-between shrink-0 z-10">
@@ -266,13 +271,22 @@ export default function SalesAnalytics() {
           )}
         </div>
         
-        <button 
-          onClick={() => setIsEditMode(!isEditMode)}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${isEditMode ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/20' : 'glass hover:bg-white/5'}`}
-        >
-          <Settings2 size={16} />
-          {isEditMode ? 'Done Editing' : 'Edit Layout'}
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setShowExportModal(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold glass hover:bg-white/5 transition-all text-white"
+          >
+            <Download size={16} />
+            Export
+          </button>
+          <button 
+            onClick={() => setIsEditMode(!isEditMode)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${isEditMode ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/20' : 'glass hover:bg-white/5'}`}
+          >
+            <Settings2 size={16} />
+            {isEditMode ? 'Done Editing' : 'Edit Layout'}
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
@@ -346,6 +360,16 @@ export default function SalesAnalytics() {
         <CsvUploader
           onClose={() => setShowCsvUploader(false)}
           onAdd={handleAddWidget}
+        />
+      )}
+
+      {showExportModal && (
+        <ExportModal 
+          widgets={widgets} 
+          computedData={computedData} 
+          dateFilter={dateFilter} 
+          onClose={() => setShowExportModal(false)}
+          toast={showToast}
         />
       )}
     </div>
