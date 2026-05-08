@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../hooks/useFirestore';
 import { useRole, useTeam } from '../hooks/useRole';
+import { useAuditLog, writeAuditLog, ACTION_TYPES } from '../hooks/useAuditLog';
 import { useTheme } from '../context/ThemeContext';
-import { Save, Bell, Shield, KeyRound, Building2, User, BellRing, BellOff, Eye, EyeOff, Check, Camera, MonitorSmartphone, LogOut, Users, Send, X, Crown, ShieldCheck, UserCog, Palette, Clock, Copy, Download, Upload, Database, FileJson, FileSpreadsheet, AlertTriangle } from 'lucide-react';
+import { Save, Bell, Shield, KeyRound, Building2, User, BellRing, BellOff, Eye, EyeOff, Check, Camera, MonitorSmartphone, LogOut, Users, Send, X, Crown, ShieldCheck, UserCog, Palette, Clock, Copy, Download, Upload, Database, FileJson, FileSpreadsheet, AlertTriangle, ScrollText, Search, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import Toast, { useToast } from '../components/ui/Toast';
 import { db } from '../services/firebase';
 import { doc, getDoc, setDoc, collection, query, where, getDocs, addDoc, deleteDoc, writeBatch } from 'firebase/firestore';
@@ -17,6 +18,7 @@ const TABS = [
   { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'security', label: 'Security', icon: Shield },
   { id: 'data', label: 'Data & Privacy', icon: Database },
+  { id: 'audit', label: 'Audit Log', icon: ScrollText, ownerOnly: true },
 ];
 
 const ROLE_CONFIG = {
@@ -83,9 +85,10 @@ export default function Settings() {
   const { user, logout } = useAuth();
   const { toast, showToast, hideToast } = useToast();
   const { settings, updateSettings } = useSettings();
-  const { role, hasPermission, isOwner } = useRole();
+  const { role, hasPermission, isOwner, isAdmin } = useRole();
   const { members, invites, sendInvite, cancelInvite, removeMember } = useTeam();
   const { theme, changeTheme } = useTheme();
+  const auditLog = useAuditLog();
 
   const [activeTab, setActiveTab] = useState('profile');
 
@@ -323,6 +326,7 @@ export default function Settings() {
       const dateStr = new Date().toISOString().split('T')[0];
       downloadFile(JSON.stringify(backup, null, 2), `aorbub-tijarah-full-backup-${dateStr}.json`, 'application/json');
       showToast('Full backup created');
+      writeAuditLog(user, role, 'Backup created', 'Full business data backup downloaded');
     } catch (err) {
       console.error(err);
       showToast('Failed to create backup', 'error');
@@ -399,6 +403,7 @@ export default function Settings() {
       }
 
       showToast('Data restored successfully! Refreshing...');
+      writeAuditLog(user, role, 'Restore performed', `Restored: ${restoreModal.summary.join(', ')}`);
       setRestoreModal(null);
       setTimeout(() => window.location.reload(), 1500);
     } catch (err) {
@@ -462,6 +467,7 @@ export default function Settings() {
         photoURL: profile.photoURL
       }, { merge: true });
       showToast('Profile saved successfully');
+      writeAuditLog(user, role, 'Settings changed', 'Profile information updated');
     } catch { showToast('Failed to save profile', 'error'); }
     finally { setProfileSaving(false); }
   };
@@ -493,6 +499,7 @@ export default function Settings() {
     try {
       await setDoc(doc(db, 'businesses', user.uid), business, { merge: true });
       showToast('Business details updated');
+      writeAuditLog(user, role, 'Settings changed', 'Business details updated');
     } catch { showToast('Failed to update business details', 'error'); }
     finally { setBusinessSaving(false); }
   };
@@ -506,6 +513,7 @@ export default function Settings() {
         businessHours: { enabled: hoursEnabled, hours: businessHours }
       }, { merge: true });
       showToast('Business hours saved');
+      writeAuditLog(user, role, 'Settings changed', `Business hours ${hoursEnabled ? 'enabled' : 'disabled'}`);
     } catch { showToast('Failed to save hours', 'error'); }
     finally { setHoursSaving(false); }
   };
@@ -532,6 +540,7 @@ export default function Settings() {
         notificationPreferences: notifications
       }, { merge: true });
       showToast('Notification preferences saved');
+      writeAuditLog(user, role, 'Settings changed', 'Notification preferences updated');
     } catch { showToast('Failed to save preferences', 'error'); }
     finally { setNotifSaving(false); }
   };
@@ -549,6 +558,7 @@ export default function Settings() {
         await reauthenticateWithCredential(user, credential);
         await updatePassword(user, security.newPassword);
         showToast('Password updated successfully');
+        writeAuditLog(user, role, 'Password changed', 'Login password changed');
         setSecurity({ currentPassword: '', newPassword: '', confirmPassword: '' });
       }
     } catch (err) {
@@ -588,6 +598,7 @@ export default function Settings() {
     try {
       await sendInvite(inviteEmail, inviteRole);
       showToast(`Invite sent to ${inviteEmail}`);
+      writeAuditLog(user, role, 'Team member invited', `Invited ${inviteEmail} as ${inviteRole}`, inviteEmail);
       setInviteEmail('');
       setInviteRole('staff');
     } catch (err) {
@@ -602,6 +613,7 @@ export default function Settings() {
     try {
       await removeMember(member.id, member.uid);
       showToast(`${member.email} removed from team`);
+      writeAuditLog(user, role, 'Team member removed', `Removed ${member.email}`, member.email);
     } catch (err) {
       showToast('Failed to remove member', 'error');
     }
@@ -649,7 +661,7 @@ export default function Settings() {
       <div className="flex gap-8 px-6">
         {/* Left Sidebar — fixed 200px */}
         <nav className="w-[200px] shrink-0 space-y-1.5 sticky top-24 self-start">
-          {TABS.map(({ id, label, icon: Icon }) => (
+          {TABS.filter(t => !t.ownerOnly || isOwner || isAdmin).map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               onClick={() => scrollToSection(id)}
@@ -1482,6 +1494,110 @@ export default function Settings() {
               </div>
             </div>
           )}
+
+          {/* AUDIT LOG SECTION — owner/admin only */}
+          {(isOwner || isAdmin) && (
+            <div id="audit" className={cardCls}>
+              <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-100 dark:border-white/[0.06]">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-primary-500/10">
+                    <ScrollText size={20} className="text-primary-500" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-gray-800 dark:text-white font-heading">Audit Log</h3>
+                    <p className="text-xs text-gray-400 dark:text-gray-500">Activity history for your business (last 90 days)</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={auditLog.refreshLogs} className="p-2 text-gray-400 hover:text-primary-500 transition-colors rounded-lg hover:bg-primary-50 dark:hover:bg-primary-500/10" title="Refresh">
+                    <RefreshCw size={16} />
+                  </button>
+                  <button onClick={auditLog.exportCSV} className="flex items-center gap-1.5 px-3 py-2 bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-400 rounded-lg text-xs font-bold hover:bg-primary-100 dark:hover:bg-primary-500/20 transition-colors">
+                    <Download size={14} /> Export CSV
+                  </button>
+                </div>
+              </div>
+
+              {/* Filters */}
+              <div className="flex flex-wrap gap-3 mb-5">
+                <div className="flex items-center gap-1.5">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">From</label>
+                  <input type="date" value={auditLog.filters.dateFrom} onChange={e => auditLog.applyFilters({ ...auditLog.filters, dateFrom: e.target.value })} className="h-[34px] bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-white/10 text-gray-800 dark:text-white px-2.5 text-xs outline-none focus:border-primary-500 rounded-lg" />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">To</label>
+                  <input type="date" value={auditLog.filters.dateTo} onChange={e => auditLog.applyFilters({ ...auditLog.filters, dateTo: e.target.value })} className="h-[34px] bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-white/10 text-gray-800 dark:text-white px-2.5 text-xs outline-none focus:border-primary-500 rounded-lg" />
+                </div>
+                <select value={auditLog.filters.action} onChange={e => auditLog.applyFilters({ ...auditLog.filters, action: e.target.value })} className="h-[34px] bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-white/10 text-gray-800 dark:text-white px-2.5 text-xs outline-none focus:border-primary-500 rounded-lg cursor-pointer">
+                  <option value="">All Actions</option>
+                  {ACTION_TYPES.map(a => <option key={a} value={a}>{a}</option>)}
+                </select>
+                <div className="relative flex-1 min-w-[160px]">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    value={auditLog.filters.search}
+                    onChange={e => auditLog.applyFilters({ ...auditLog.filters, search: e.target.value })}
+                    placeholder="Search details..."
+                    className="h-[34px] w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-white/10 text-gray-800 dark:text-white pl-9 pr-3 text-xs outline-none focus:border-primary-500 rounded-lg"
+                  />
+                </div>
+              </div>
+
+              {/* Table */}
+              <div className="overflow-x-auto rounded-xl border border-gray-200/60 dark:border-white/[0.06]">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-gray-50 dark:bg-gray-900/80 border-b border-gray-200/60 dark:border-white/[0.06]">
+                      <th className="text-left px-4 py-3 font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider text-[10px] w-[160px]">Time</th>
+                      <th className="text-left px-4 py-3 font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider text-[10px] w-[100px]">User</th>
+                      <th className="text-left px-4 py-3 font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider text-[10px] w-[70px]">Role</th>
+                      <th className="text-left px-4 py-3 font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider text-[10px] w-[140px]">Action</th>
+                      <th className="text-left px-4 py-3 font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider text-[10px]">Details</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {auditLog.loading ? (
+                      <tr><td colSpan={5} className="text-center py-10 text-gray-400"><div className="w-5 h-5 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto" /></td></tr>
+                    ) : auditLog.logs.length === 0 ? (
+                      <tr><td colSpan={5} className="text-center py-10 text-gray-400 dark:text-gray-600">No audit log entries found</td></tr>
+                    ) : (
+                      auditLog.logs.map(log => (
+                        <tr key={log.id} className="border-b border-gray-100/50 dark:border-white/[0.03] hover:bg-gray-50/50 dark:hover:bg-gray-900/30 transition-colors">
+                          <td className="px-4 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                            {log.timestamp.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}{' '}
+                            <span className="text-gray-400 dark:text-gray-600">{log.timestamp.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
+                          </td>
+                          <td className="px-4 py-3 text-gray-800 dark:text-white font-semibold">{log.userName}</td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${ROLE_CONFIG[log.userRole]?.color || 'bg-gray-100 text-gray-500'}`}>
+                              {log.userRole}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-gray-700 dark:text-gray-300 font-medium">{log.action}</td>
+                          <td className="px-4 py-3 text-gray-500 dark:text-gray-400 max-w-[200px] truncate" title={log.details}>{log.details}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              <div className="flex items-center justify-between mt-4">
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Page {auditLog.page + 1} · {auditLog.logs.length} entries</p>
+                <div className="flex items-center gap-2">
+                  <button onClick={auditLog.prevPage} disabled={auditLog.page === 0} className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-gray-500 hover:text-primary-500 bg-gray-50 dark:bg-gray-800 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+                    <ChevronLeft size={14} /> Prev
+                  </button>
+                  <button onClick={auditLog.nextPage} disabled={auditLog.logs.length < auditLog.PAGE_SIZE} className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-gray-500 hover:text-primary-500 bg-gray-50 dark:bg-gray-800 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+                    Next <ChevronRight size={14} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
 
         </div>
       </div>
