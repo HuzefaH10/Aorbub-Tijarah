@@ -39,6 +39,7 @@ export function useAuditLog() {
 
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [indexError, setIndexError] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(0);
   const [lastDocs, setLastDocs] = useState([]); // cursor stack for pagination
@@ -56,6 +57,7 @@ export function useAuditLog() {
   const fetchLogs = useCallback(async (pageNum = 0, currentFilters = filters) => {
     if (!user) return;
     setLoading(true);
+    setIndexError(false);
     try {
       let constraints = [
         where('businessId', '==', user.uid),
@@ -121,6 +123,9 @@ export function useAuditLog() {
       setPage(pageNum);
     } catch (err) {
       console.error('Failed to fetch audit logs:', err);
+      if (err.message?.includes('index') || err.code === 'failed-precondition') {
+        setIndexError(true);
+      }
     } finally {
       setLoading(false);
     }
@@ -206,7 +211,7 @@ export function useAuditLog() {
   }, [user, filters]);
 
   return {
-    logs, loading, page, PAGE_SIZE,
+    logs, loading, indexError, page, PAGE_SIZE,
     filters, applyFilters,
     nextPage, prevPage, refreshLogs,
     exportCSV,
