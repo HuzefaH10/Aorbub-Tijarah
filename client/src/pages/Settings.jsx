@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../hooks/useFirestore';
-import { Save, Bell, Shield, KeyRound, Building2, User, BellRing, BellOff, Eye, EyeOff, Check, Camera, MonitorSmartphone, LogOut } from 'lucide-react';
+import { useRole, useTeam } from '../hooks/useRole';
+import { Save, Bell, Shield, KeyRound, Building2, User, BellRing, BellOff, Eye, EyeOff, Check, Camera, MonitorSmartphone, LogOut, Users, Send, X, Crown, ShieldCheck, UserCog } from 'lucide-react';
 import Toast, { useToast } from '../components/ui/Toast';
 import { db, storage } from '../services/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -11,9 +12,16 @@ import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 
 const TABS = [
   { id: 'profile', label: 'My Profile', icon: User },
   { id: 'business', label: 'Business Details', icon: Building2 },
+  { id: 'team', label: 'Team', icon: Users },
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'security', label: 'Security', icon: Shield },
 ];
+
+const ROLE_CONFIG = {
+  owner: { label: 'Owner', color: 'bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-400', icon: Crown },
+  admin: { label: 'Admin', color: 'bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-400', icon: ShieldCheck },
+  staff: { label: 'Staff', color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300', icon: UserCog },
+};
 
 const TIMEZONES = Intl.supportedValuesOf ? Intl.supportedValuesOf('timeZone') : [
   'UTC', 'Asia/Dubai', 'Asia/Karachi', 'America/New_York', 'Europe/London'
@@ -45,8 +53,15 @@ export default function Settings() {
   const { user, logout } = useAuth();
   const { toast, showToast, hideToast } = useToast();
   const { settings, updateSettings } = useSettings();
+  const { role, hasPermission, isOwner } = useRole();
+  const { members, invites, sendInvite, cancelInvite, removeMember } = useTeam();
 
   const [activeTab, setActiveTab] = useState('profile');
+
+  // ── Team state ──
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('staff');
+  const [inviteSending, setInviteSending] = useState(false);
 
   // ── Profile state ──
   const [profile, setProfile] = useState({
@@ -280,6 +295,41 @@ export default function Settings() {
   };
 
   const toggleNotif = (key) => setNotifications(prev => ({ ...prev, [key]: !prev[key] }));
+
+  const handleSendInvite = async (e) => {
+    e.preventDefault();
+    if (!inviteEmail.trim()) return showToast('Email is required', 'error');
+    setInviteSending(true);
+    try {
+      await sendInvite(inviteEmail, inviteRole);
+      showToast(`Invite sent to ${inviteEmail}`);
+      setInviteEmail('');
+      setInviteRole('staff');
+    } catch (err) {
+      showToast(err.message || 'Failed to send invite', 'error');
+    } finally {
+      setInviteSending(false);
+    }
+  };
+
+  const handleRemoveMember = async (member) => {
+    if (!window.confirm(`Remove ${member.email} from this business?`)) return;
+    try {
+      await removeMember(member.id, member.uid);
+      showToast(`${member.email} removed from team`);
+    } catch (err) {
+      showToast('Failed to remove member', 'error');
+    }
+  };
+
+  const handleCancelInvite = async (invite) => {
+    try {
+      await cancelInvite(invite.id);
+      showToast('Invite cancelled');
+    } catch {
+      showToast('Failed to cancel invite', 'error');
+    }
+  };
 
   const scrollToSection = (id) => {
     const element = document.getElementById(id);
@@ -517,6 +567,143 @@ export default function Settings() {
                 </button>
               </div>
             </form>
+          </div>
+
+          {/* TEAM SECTION */}
+          <div id="team" className={cardCls}>
+            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100 dark:border-white/[0.06]">
+              <div className="p-2 rounded-lg bg-primary-500/10">
+                <Users size={20} className="text-primary-500" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-bold text-gray-800 dark:text-white font-heading">Team & Access</h3>
+                <p className="text-xs text-gray-400 dark:text-gray-500">Invite members and manage roles for your business</p>
+              </div>
+              <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${ROLE_CONFIG[role]?.color || ''}`}>
+                {ROLE_CONFIG[role]?.label || role}
+              </span>
+            </div>
+
+            {/* Invite Form — Owner only */}
+            {isOwner && (
+              <form onSubmit={handleSendInvite} className="mb-6">
+                <label className={labelCls}>Invite a team member</label>
+                <div className="flex gap-3">
+                  <input
+                    type="email"
+                    value={inviteEmail}
+                    onChange={e => setInviteEmail(e.target.value)}
+                    className={`${inputCls} flex-1`}
+                    placeholder="colleague@email.com"
+                  />
+                  <select
+                    value={inviteRole}
+                    onChange={e => setInviteRole(e.target.value)}
+                    className={`${inputCls} w-[130px] cursor-pointer`}
+                  >
+                    <option value="owner">Owner</option>
+                    <option value="admin">Admin</option>
+                    <option value="staff">Staff</option>
+                  </select>
+                  <button
+                    type="submit"
+                    disabled={inviteSending}
+                    className="h-[44px] flex items-center justify-center gap-2 bg-primary-600 text-white px-5 rounded-lg text-sm font-bold hover:bg-primary-700 transition-all shadow-lg shadow-primary-600/20 disabled:opacity-50 shrink-0"
+                  >
+                    {inviteSending ? 'Sending...' : <><Send size={14} /> Invite</>}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Pending Invites */}
+            {invites.length > 0 && (
+              <div className="mb-6">
+                <p className={`${labelCls} mb-3`}>Pending Invites</p>
+                <div className="space-y-2">
+                  {invites.map((inv) => (
+                    <div key={inv.id} className="flex items-center justify-between py-3 px-4 bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200/40 dark:border-amber-500/10 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-800/30 flex items-center justify-center">
+                          <Send size={14} className="text-amber-600 dark:text-amber-400" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-800 dark:text-white">{inv.email}</p>
+                          <p className="text-[10px] text-amber-600 dark:text-amber-400 font-bold uppercase tracking-wider">Pending · {inv.role}</p>
+                        </div>
+                      </div>
+                      {isOwner && (
+                        <button onClick={() => handleCancelInvite(inv)} className="p-1.5 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10">
+                          <X size={16} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Current Team Members */}
+            <div>
+              <p className={`${labelCls} mb-3`}>Team Members</p>
+              <div className="space-y-2">
+                {/* Current user — always shown first */}
+                <div className="flex items-center justify-between py-3 px-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-100 dark:border-white/5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-primary-100 dark:bg-primary-500/20 flex items-center justify-center">
+                      <span className="text-sm font-bold text-primary-700 dark:text-primary-300">
+                        {(profile.name || 'A').charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800 dark:text-white">{profile.name || 'You'}</p>
+                      <p className="text-[11px] text-gray-400">{user?.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${ROLE_CONFIG[role]?.color || ''}`}>
+                      {(() => { const RIcon = ROLE_CONFIG[role]?.icon; return RIcon ? <RIcon size={12} /> : null; })()}
+                      {ROLE_CONFIG[role]?.label || role}
+                    </span>
+                    <span className="flex items-center gap-1 text-[10px] text-green-600 dark:text-green-400 font-bold">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500" /> You
+                    </span>
+                  </div>
+                </div>
+
+                {/* Other team members */}
+                {members.map((member) => (
+                  <div key={member.id} className="flex items-center justify-between py-3 px-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-100 dark:border-white/5">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                        <span className="text-sm font-bold text-gray-500 dark:text-gray-300">
+                          {(member.displayName || member.email || 'U').charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800 dark:text-white">{member.displayName || 'Team Member'}</p>
+                        <p className="text-[11px] text-gray-400">{member.email}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${ROLE_CONFIG[member.role]?.color || ROLE_CONFIG.staff.color}`}>
+                        {(() => { const MIcon = ROLE_CONFIG[member.role]?.icon; return MIcon ? <MIcon size={12} /> : null; })()}
+                        {ROLE_CONFIG[member.role]?.label || member.role}
+                      </span>
+                      {isOwner && (
+                        <button onClick={() => handleRemoveMember(member)} className="p-1.5 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10" title="Remove member">
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                {members.length === 0 && (
+                  <p className="text-xs text-gray-400 dark:text-gray-500 text-center py-6">No other team members yet. Send an invite above to get started.</p>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* SECURITY SECTION */}
