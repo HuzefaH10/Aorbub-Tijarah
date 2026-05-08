@@ -1579,15 +1579,7 @@ export default function Settings() {
                     </tr>
                   </thead>
                   <tbody>
-                    {auditLog.indexError ? (
-                      <tr><td colSpan={5} className="text-center py-10">
-                        <div className="flex flex-col items-center gap-2">
-                          <AlertTriangle size={20} className="text-amber-500" />
-                          <p className="text-xs font-semibold text-gray-600 dark:text-gray-400">Firestore index is building</p>
-                          <p className="text-[10px] text-gray-400 dark:text-gray-600 max-w-[300px]">The audit log requires a composite index. If you've already created it, please wait 1-3 minutes and click Refresh.</p>
-                        </div>
-                      </td></tr>
-                    ) : auditLog.loading ? (
+                    {auditLog.loading ? (
                       <tr><td colSpan={5} className="text-center py-10 text-gray-400"><div className="w-5 h-5 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto" /></td></tr>
                     ) : auditLog.logs.length === 0 ? (
                       <tr><td colSpan={5} className="text-center py-10 text-gray-400 dark:text-gray-600">No audit log entries found</td></tr>

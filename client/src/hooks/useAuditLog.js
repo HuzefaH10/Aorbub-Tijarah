@@ -1,8 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { db } from '../services/firebase';
 import {
-  collection, query, where, orderBy, limit, startAfter,
-  getDocs, addDoc, serverTimestamp, Timestamp
+  collection, query, where, getDocs, addDoc, serverTimestamp
 } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import { useRole } from './useRole';
@@ -32,17 +31,17 @@ export async function writeAuditLog(user, role, action, details, affectedEntity 
 
 /**
  * useAuditLog — Hook for reading and filtering the audit log.
+ * Uses a single `where` clause with client-side sorting/filtering/pagination
+ * to avoid requiring a Firestore composite index.
  */
 export function useAuditLog() {
   const { user } = useAuth();
   const { role } = useRole();
 
-  const [logs, setLogs] = useState([]);
+  const [allLogs, setAllLogs] = useState([]);    // full fetched set
+  const [logs, setLogs] = useState([]);           // current page slice
   const [loading, setLoading] = useState(true);
-  const [indexError, setIndexError] = useState(false);
-  const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(0);
-  const [lastDocs, setLastDocs] = useState([]); // cursor stack for pagination
   const [filters, setFilters] = useState({
     dateFrom: '',
     dateTo: '',
@@ -53,39 +52,17 @@ export function useAuditLog() {
 
   const PAGE_SIZE = 25;
 
-  // Fetch logs with filters and pagination
-  const fetchLogs = useCallback(async (pageNum = 0, currentFilters = filters) => {
+  // Fetch ALL logs for this business (simple single-field query — no index needed)
+  const fetchAllLogs = useCallback(async () => {
     if (!user) return;
     setLoading(true);
-    setIndexError(false);
     try {
-      let constraints = [
-        where('businessId', '==', user.uid),
-        orderBy('timestamp', 'desc'),
-      ];
-
-      // Date filters
-      if (currentFilters.dateFrom) {
-        const from = new Date(currentFilters.dateFrom);
-        from.setHours(0, 0, 0, 0);
-        constraints.push(where('timestamp', '>=', Timestamp.fromDate(from)));
-      }
-      if (currentFilters.dateTo) {
-        const to = new Date(currentFilters.dateTo);
-        to.setHours(23, 59, 59, 999);
-        constraints.push(where('timestamp', '<=', Timestamp.fromDate(to)));
-      }
-
-      // Build base query
-      let q = query(collection(db, 'auditLog'), ...constraints, limit(PAGE_SIZE));
-
-      // Pagination cursor
-      if (pageNum > 0 && lastDocs[pageNum - 1]) {
-        q = query(collection(db, 'auditLog'), ...constraints, startAfter(lastDocs[pageNum - 1]), limit(PAGE_SIZE));
-      }
-
+      const q = query(
+        collection(db, 'auditLog'),
+        where('businessId', '==', user.uid)
+      );
       const snap = await getDocs(q);
-      let results = snap.docs.map(d => {
+      const results = snap.docs.map(d => {
         const data = d.data();
         return {
           id: d.id,
@@ -94,124 +71,139 @@ export function useAuditLog() {
         };
       });
 
-      // Client-side filters (user, action, search) since Firestore can't combine these with orderBy
-      if (currentFilters.user) {
-        results = results.filter(r => r.userEmail === currentFilters.user || r.userName === currentFilters.user);
-      }
-      if (currentFilters.action) {
-        results = results.filter(r => r.action === currentFilters.action);
-      }
-      if (currentFilters.search) {
-        const s = currentFilters.search.toLowerCase();
-        results = results.filter(r =>
-          (r.details || '').toLowerCase().includes(s) ||
-          (r.action || '').toLowerCase().includes(s) ||
-          (r.affectedEntity || '').toLowerCase().includes(s)
-        );
-      }
-
-      // Save cursor for next page
-      if (snap.docs.length > 0) {
-        setLastDocs(prev => {
-          const updated = [...prev];
-          updated[pageNum] = snap.docs[snap.docs.length - 1];
-          return updated;
-        });
-      }
-
-      setLogs(results);
-      setPage(pageNum);
+      // Sort newest first (client-side)
+      results.sort((a, b) => b.timestamp - a.timestamp);
+      setAllLogs(results);
     } catch (err) {
       console.error('Failed to fetch audit logs:', err);
-      if (err.message?.includes('index') || err.code === 'failed-precondition') {
-        setIndexError(true);
-      }
     } finally {
       setLoading(false);
     }
-  }, [user, filters, lastDocs]);
+  }, [user]);
 
   // Initial load
   useEffect(() => {
-    if (user) fetchLogs(0, filters);
-  }, [user]);
+    if (user) fetchAllLogs();
+  }, [user, fetchAllLogs]);
+
+  // Apply filters + pagination whenever allLogs, filters, or page change
+  useEffect(() => {
+    let filtered = [...allLogs];
+
+    // Date filters
+    if (filters.dateFrom) {
+      const from = new Date(filters.dateFrom);
+      from.setHours(0, 0, 0, 0);
+      filtered = filtered.filter(r => r.timestamp >= from);
+    }
+    if (filters.dateTo) {
+      const to = new Date(filters.dateTo);
+      to.setHours(23, 59, 59, 999);
+      filtered = filtered.filter(r => r.timestamp <= to);
+    }
+
+    // User filter
+    if (filters.user) {
+      filtered = filtered.filter(r => r.userEmail === filters.user || r.userName === filters.user);
+    }
+
+    // Action filter
+    if (filters.action) {
+      filtered = filtered.filter(r => r.action === filters.action);
+    }
+
+    // Search filter
+    if (filters.search) {
+      const s = filters.search.toLowerCase();
+      filtered = filtered.filter(r =>
+        (r.details || '').toLowerCase().includes(s) ||
+        (r.action || '').toLowerCase().includes(s) ||
+        (r.affectedEntity || '').toLowerCase().includes(s)
+      );
+    }
+
+    // Paginate
+    const start = page * PAGE_SIZE;
+    setLogs(filtered.slice(start, start + PAGE_SIZE));
+  }, [allLogs, filters, page]);
 
   const applyFilters = (newFilters) => {
     setFilters(newFilters);
-    setLastDocs([]);
-    fetchLogs(0, newFilters);
+    setPage(0);
   };
 
-  const nextPage = () => fetchLogs(page + 1, filters);
-  const prevPage = () => { if (page > 0) fetchLogs(page - 1, filters); };
-  const refreshLogs = () => { setLastDocs([]); fetchLogs(0, filters); };
+  const nextPage = () => setPage(p => p + 1);
+  const prevPage = () => setPage(p => Math.max(0, p - 1));
+  const refreshLogs = () => fetchAllLogs();
+
+  // Get total filtered count for pagination
+  const getFilteredCount = useCallback(() => {
+    let filtered = [...allLogs];
+    if (filters.dateFrom) {
+      const from = new Date(filters.dateFrom); from.setHours(0, 0, 0, 0);
+      filtered = filtered.filter(r => r.timestamp >= from);
+    }
+    if (filters.dateTo) {
+      const to = new Date(filters.dateTo); to.setHours(23, 59, 59, 999);
+      filtered = filtered.filter(r => r.timestamp <= to);
+    }
+    if (filters.user) filtered = filtered.filter(r => r.userEmail === filters.user || r.userName === filters.user);
+    if (filters.action) filtered = filtered.filter(r => r.action === filters.action);
+    if (filters.search) {
+      const s = filters.search.toLowerCase();
+      filtered = filtered.filter(r => (r.details || '').toLowerCase().includes(s) || (r.action || '').toLowerCase().includes(s));
+    }
+    return filtered.length;
+  }, [allLogs, filters]);
 
   // Export filtered logs as CSV
-  const exportCSV = useCallback(async () => {
-    if (!user) return;
-    try {
-      // Fetch all matching logs (up to 1000)
-      let constraints = [
-        where('businessId', '==', user.uid),
-        orderBy('timestamp', 'desc'),
-        limit(1000),
-      ];
-
-      if (filters.dateFrom) {
-        const from = new Date(filters.dateFrom);
-        from.setHours(0, 0, 0, 0);
-        constraints.push(where('timestamp', '>=', Timestamp.fromDate(from)));
-      }
-      if (filters.dateTo) {
-        const to = new Date(filters.dateTo);
-        to.setHours(23, 59, 59, 999);
-        constraints.push(where('timestamp', '<=', Timestamp.fromDate(to)));
-      }
-
-      const q = query(collection(db, 'auditLog'), ...constraints);
-      const snap = await getDocs(q);
-      let results = snap.docs.map(d => {
-        const data = d.data();
-        return {
-          Time: data.timestamp?.toDate?.()?.toISOString() || '',
-          User: data.userName || '',
-          Email: data.userEmail || '',
-          Role: data.userRole || '',
-          Action: data.action || '',
-          Details: data.details || '',
-          Entity: data.affectedEntity || '',
-        };
-      });
-
-      if (filters.user) results = results.filter(r => r.Email === filters.user || r.User === filters.user);
-      if (filters.action) results = results.filter(r => r.Action === filters.action);
-      if (filters.search) {
-        const s = filters.search.toLowerCase();
-        results = results.filter(r => r.Details.toLowerCase().includes(s) || r.Action.toLowerCase().includes(s));
-      }
-
-      if (!results.length) return;
-
-      const keys = Object.keys(results[0]);
-      const csv = [
-        keys.join(','),
-        ...results.map(r => keys.map(k => `"${String(r[k]).replace(/"/g, '""')}"`).join(','))
-      ].join('\n');
-
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `audit-log-${new Date().toISOString().split('T')[0]}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error('Failed to export audit log:', err);
+  const exportCSV = useCallback(() => {
+    let filtered = [...allLogs];
+    if (filters.dateFrom) {
+      const from = new Date(filters.dateFrom); from.setHours(0, 0, 0, 0);
+      filtered = filtered.filter(r => r.timestamp >= from);
     }
-  }, [user, filters]);
+    if (filters.dateTo) {
+      const to = new Date(filters.dateTo); to.setHours(23, 59, 59, 999);
+      filtered = filtered.filter(r => r.timestamp <= to);
+    }
+    if (filters.user) filtered = filtered.filter(r => r.userEmail === filters.user || r.userName === filters.user);
+    if (filters.action) filtered = filtered.filter(r => r.action === filters.action);
+    if (filters.search) {
+      const s = filters.search.toLowerCase();
+      filtered = filtered.filter(r => (r.details || '').toLowerCase().includes(s) || (r.action || '').toLowerCase().includes(s));
+    }
+
+    if (!filtered.length) return;
+
+    const rows = filtered.map(r => ({
+      Time: r.timestamp?.toISOString?.() || '',
+      User: r.userName || '',
+      Email: r.userEmail || '',
+      Role: r.userRole || '',
+      Action: r.action || '',
+      Details: r.details || '',
+      Entity: r.affectedEntity || '',
+    }));
+
+    const keys = Object.keys(rows[0]);
+    const csv = [
+      keys.join(','),
+      ...rows.map(r => keys.map(k => `"${String(r[k]).replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `audit-log-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [allLogs, filters]);
 
   return {
-    logs, loading, indexError, page, PAGE_SIZE,
+    logs, loading, page, PAGE_SIZE,
+    totalFiltered: getFilteredCount(),
     filters, applyFilters,
     nextPage, prevPage, refreshLogs,
     exportCSV,
