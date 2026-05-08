@@ -4,9 +4,8 @@ import { useSettings } from '../hooks/useFirestore';
 import { useRole, useTeam } from '../hooks/useRole';
 import { Save, Bell, Shield, KeyRound, Building2, User, BellRing, BellOff, Eye, EyeOff, Check, Camera, MonitorSmartphone, LogOut, Users, Send, X, Crown, ShieldCheck, UserCog } from 'lucide-react';
 import Toast, { useToast } from '../components/ui/Toast';
-import { db, storage } from '../services/firebase';
+import { db } from '../services/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 
 const TABS = [
@@ -47,6 +46,34 @@ const parseUserAgent = (ua) => {
   if (ua.includes("like Mac")) os = "iOS";
 
   return `${browser} on ${os}`;
+};
+
+// Compress image to a base64 data URL using canvas
+const compressImage = (file, maxWidth, maxHeight, quality = 0.8) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let w = img.width;
+        let h = img.height;
+
+        if (w > maxWidth) { h = (maxWidth / w) * h; w = maxWidth; }
+        if (h > maxHeight) { w = (maxHeight / h) * w; h = maxHeight; }
+
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 };
 
 export default function Settings() {
@@ -174,12 +201,9 @@ export default function Settings() {
     
     setUploadingPhoto(true);
     try {
-      const ext = file.name.split('.').pop();
-      const storageRef = ref(storage, `profiles/${user.uid}_${Date.now()}.${ext}`);
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
-      setProfile(p => ({ ...p, photoURL: url }));
-      await setDoc(doc(db, 'users', user.uid), { photoURL: url }, { merge: true });
+      const dataUrl = await compressImage(file, 200, 200, 0.85);
+      setProfile(p => ({ ...p, photoURL: dataUrl }));
+      await setDoc(doc(db, 'users', user.uid), { photoURL: dataUrl }, { merge: true });
       showToast('Profile photo updated');
     } catch (err) {
       console.error(err);
@@ -212,12 +236,9 @@ export default function Settings() {
     
     setUploadingLogo(true);
     try {
-      const ext = file.name.split('.').pop();
-      const storageRef = ref(storage, `logos/${user.uid}_${Date.now()}.${ext}`);
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
-      setBusiness(p => ({ ...p, logoURL: url }));
-      await setDoc(doc(db, 'businesses', user.uid), { logoURL: url }, { merge: true });
+      const dataUrl = await compressImage(file, 400, 120, 0.9);
+      setBusiness(p => ({ ...p, logoURL: dataUrl }));
+      await setDoc(doc(db, 'businesses', user.uid), { logoURL: dataUrl }, { merge: true });
       showToast('Business logo updated');
     } catch (err) {
       console.error(err);
