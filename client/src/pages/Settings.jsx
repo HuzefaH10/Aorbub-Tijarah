@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../hooks/useFirestore';
 import { useRole, useTeam } from '../hooks/useRole';
 import { useTheme } from '../context/ThemeContext';
-import { Save, Bell, Shield, KeyRound, Building2, User, BellRing, BellOff, Eye, EyeOff, Check, Camera, MonitorSmartphone, LogOut, Users, Send, X, Crown, ShieldCheck, UserCog, Palette } from 'lucide-react';
+import { Save, Bell, Shield, KeyRound, Building2, User, BellRing, BellOff, Eye, EyeOff, Check, Camera, MonitorSmartphone, LogOut, Users, Send, X, Crown, ShieldCheck, UserCog, Palette, Clock, Copy } from 'lucide-react';
 import Toast, { useToast } from '../components/ui/Toast';
 import { db } from '../services/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -154,6 +154,34 @@ export default function Settings() {
     fetchBusiness();
   }, [user]);
 
+  const DAYS = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+  const DAY_LABELS = { monday:'Monday', tuesday:'Tuesday', wednesday:'Wednesday', thursday:'Thursday', friday:'Friday', saturday:'Saturday', sunday:'Sunday' };
+  const defaultHours = () => Object.fromEntries(DAYS.map(d => [d, { open: '09:00', close: '18:00', closed: false }]));
+
+  const [hoursEnabled, setHoursEnabled] = useState(false);
+  const [businessHours, setBusinessHours] = useState(defaultHours);
+  const [hoursSaving, setHoursSaving] = useState(false);
+
+  // Load business hours from fetched business data
+  useEffect(() => {
+    if (!user) return;
+    const loadHours = async () => {
+      try {
+        const docSnap = await getDoc(doc(db, 'businesses', user.uid));
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.businessHours) {
+            setHoursEnabled(data.businessHours.enabled || false);
+            if (data.businessHours.hours) setBusinessHours(prev => ({ ...prev, ...data.businessHours.hours }));
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load business hours:', err);
+      }
+    };
+    loadHours();
+  }, [user]);
+
   // ── Notifications state ──
   const [notifications, setNotifications] = useState({
     lowStock: true,
@@ -260,6 +288,32 @@ export default function Settings() {
       showToast('Business details updated');
     } catch { showToast('Failed to update business details', 'error'); }
     finally { setBusinessSaving(false); }
+  };
+
+  const handleHoursSave = async (e) => {
+    e.preventDefault();
+    if (!user) return;
+    setHoursSaving(true);
+    try {
+      await setDoc(doc(db, 'businesses', user.uid), {
+        businessHours: { enabled: hoursEnabled, hours: businessHours }
+      }, { merge: true });
+      showToast('Business hours saved');
+    } catch { showToast('Failed to save hours', 'error'); }
+    finally { setHoursSaving(false); }
+  };
+
+  const updateDayHours = (day, field, value) => {
+    setBusinessHours(prev => ({ ...prev, [day]: { ...prev[day], [field]: value } }));
+  };
+
+  const copyMondayToAll = () => {
+    const mon = businessHours.monday;
+    setBusinessHours(prev => {
+      const updated = { ...prev };
+      DAYS.slice(1).forEach(d => { updated[d] = { ...mon }; });
+      return updated;
+    });
   };
 
   const handleNotifSave = async (e) => {
@@ -550,6 +604,95 @@ export default function Settings() {
                 </button>
               </div>
             </form>
+          </div>
+
+          {/* BUSINESS HOURS CARD */}
+          <div className={cardCls}>
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-100 dark:border-white/[0.06]">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary-500/10">
+                  <Clock size={20} className="text-primary-500" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-800 dark:text-white font-heading">Business Hours</h3>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">Optional — set your store's operating hours</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Enable</span>
+                <button
+                  type="button"
+                  onClick={() => setHoursEnabled(p => !p)}
+                  className={`relative w-11 h-6 rounded-full transition-colors duration-200 shrink-0 ${hoursEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-700'}`}
+                >
+                  <span className={`absolute top-[3px] w-[18px] h-[18px] rounded-full bg-white shadow-sm transition-all duration-200 ${hoursEnabled ? 'left-[22px]' : 'left-[3px]'}`} />
+                </button>
+              </div>
+            </div>
+
+            {!hoursEnabled ? (
+              <p className="text-xs text-gray-400 dark:text-gray-600 text-center py-4">Business hours are not set. Enable the toggle above to configure.</p>
+            ) : (
+              <form onSubmit={handleHoursSave}>
+                <div className="space-y-2">
+                  {DAYS.map((day, i) => (
+                    <div key={day} className={`flex items-center gap-3 py-3 px-4 rounded-lg border transition-colors ${
+                      businessHours[day].closed
+                        ? 'bg-gray-50/50 dark:bg-gray-900/30 border-gray-100 dark:border-white/[0.03] opacity-60'
+                        : 'bg-gray-50 dark:bg-gray-900/50 border-gray-100 dark:border-white/5'
+                    }`}>
+                      <span className="w-[90px] text-sm font-semibold text-gray-800 dark:text-white shrink-0">{DAY_LABELS[day]}</span>
+
+                      {/* Closed toggle */}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => updateDayHours(day, 'closed', !businessHours[day].closed)}
+                          className={`relative w-9 h-5 rounded-full transition-colors duration-200 ${businessHours[day].closed ? 'bg-red-400' : 'bg-gray-300 dark:bg-gray-700'}`}
+                        >
+                          <span className={`absolute top-[3px] w-[14px] h-[14px] rounded-full bg-white shadow-sm transition-all duration-200 ${businessHours[day].closed ? 'left-[18px]' : 'left-[3px]'}`} />
+                        </button>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider w-[42px]">{businessHours[day].closed ? 'Closed' : 'Open'}</span>
+                      </div>
+
+                      {!businessHours[day].closed && (
+                        <div className="flex items-center gap-2 flex-1">
+                          <input
+                            type="time"
+                            value={businessHours[day].open}
+                            onChange={e => updateDayHours(day, 'open', e.target.value)}
+                            className="h-[36px] bg-white dark:bg-gray-800 border border-gray-200 dark:border-white/10 text-gray-800 dark:text-white px-2.5 text-xs outline-none focus:border-primary-500 rounded-lg w-[110px]"
+                          />
+                          <span className="text-[10px] text-gray-400 font-bold">to</span>
+                          <input
+                            type="time"
+                            value={businessHours[day].close}
+                            onChange={e => updateDayHours(day, 'close', e.target.value)}
+                            className="h-[36px] bg-white dark:bg-gray-800 border border-gray-200 dark:border-white/10 text-gray-800 dark:text-white px-2.5 text-xs outline-none focus:border-primary-500 rounded-lg w-[110px]"
+                          />
+                        </div>
+                      )}
+
+                      {i > 0 && !businessHours[day].closed && (
+                        <button
+                          type="button"
+                          onClick={() => updateDayHours(day, 'open', businessHours.monday.open) || updateDayHours(day, 'close', businessHours.monday.close) || updateDayHours(day, 'closed', businessHours.monday.closed)}
+                          className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-500/10 rounded-md transition-colors shrink-0"
+                          title="Copy Monday's hours"
+                        >
+                          <Copy size={10} /> Mon
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="pt-5 flex justify-end">
+                  <button type="submit" disabled={hoursSaving} className={saveBtnCls}>
+                    {hoursSaving ? 'Saving...' : <><Save size={15} /> Save Hours</>}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
 
           {/* NOTIFICATIONS SECTION */}
