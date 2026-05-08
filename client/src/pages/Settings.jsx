@@ -3,10 +3,10 @@ import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../hooks/useFirestore';
 import { useRole, useTeam } from '../hooks/useRole';
 import { useTheme } from '../context/ThemeContext';
-import { Save, Bell, Shield, KeyRound, Building2, User, BellRing, BellOff, Eye, EyeOff, Check, Camera, MonitorSmartphone, LogOut, Users, Send, X, Crown, ShieldCheck, UserCog, Palette, Clock, Copy } from 'lucide-react';
+import { Save, Bell, Shield, KeyRound, Building2, User, BellRing, BellOff, Eye, EyeOff, Check, Camera, MonitorSmartphone, LogOut, Users, Send, X, Crown, ShieldCheck, UserCog, Palette, Clock, Copy, Download, Upload, Database, FileJson, FileSpreadsheet, AlertTriangle } from 'lucide-react';
 import Toast, { useToast } from '../components/ui/Toast';
 import { db } from '../services/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, where, getDocs, addDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 
 const TABS = [
@@ -16,6 +16,7 @@ const TABS = [
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'security', label: 'Security', icon: Shield },
+  { id: 'data', label: 'Data & Privacy', icon: Database },
 ];
 
 const ROLE_CONFIG = {
@@ -201,6 +202,212 @@ export default function Settings() {
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [securitySaving, setSecuritySaving] = useState(false);
+
+  // ── Data & Privacy state ──
+  const [exportOptions, setExportOptions] = useState({
+    bills: true, products: true, categories: true, events: true, team: true,
+  });
+  const [exportFormat, setExportFormat] = useState('json');
+  const [exporting, setExporting] = useState(false);
+  const [restoreModal, setRestoreModal] = useState(null);
+  const [restoring, setRestoring] = useState(false);
+
+  // Collection configs for fetching
+  const EXPORT_COLLECTIONS = {
+    bills: { name: 'bills', field: 'businessId' },
+    products: { name: 'products', field: 'businessId' },
+    categories: { name: 'categories', field: 'businessId' },
+    events: { name: 'events', field: 'businessId' },
+    milestones: { name: 'milestones', field: 'userId' },
+    stockHistory: { name: 'stockHistory', field: 'businessId' },
+    stockLogs: { name: 'stockLogs', field: 'userId' },
+    entries: { name: 'entries', field: 'userId' },
+    templates: { name: 'templates', field: 'businessId' },
+    team: { name: 'teamMembers', field: 'businessId' },
+  };
+
+  const fetchCollectionData = async (colName, field) => {
+    if (!user) return [];
+    const q = query(collection(db, colName), where(field, '==', user.uid));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => {
+      const data = d.data();
+      // Convert Firestore timestamps to ISO strings for serialization
+      const cleaned = {};
+      for (const [k, v] of Object.entries(data)) {
+        cleaned[k] = v && typeof v.toDate === 'function' ? v.toDate().toISOString() : v;
+      }
+      return { id: d.id, ...cleaned };
+    });
+  };
+
+  const downloadFile = (content, filename, mimeType) => {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const flattenForCSV = (data) => {
+    if (!data.length) return '';
+    const keys = [...new Set(data.flatMap(d => Object.keys(d)))];
+    const header = keys.join(',');
+    const rows = data.map(row => keys.map(k => {
+      const v = row[k];
+      if (v === null || v === undefined) return '';
+      const s = typeof v === 'object' ? JSON.stringify(v) : String(v);
+      return `"${s.replace(/"/g, '""')}"`;
+    }).join(','));
+    return [header, ...rows].join('\n');
+  };
+
+  const handleExportData = async () => {
+    if (!user) return;
+    setExporting(true);
+    try {
+      const result = {};
+      const selectedKeys = Object.entries(exportOptions).filter(([, v]) => v).map(([k]) => k);
+
+      for (const key of selectedKeys) {
+        if (key === 'events') {
+          result.events = await fetchCollectionData('events', 'businessId');
+          result.milestones = await fetchCollectionData('milestones', 'userId');
+        } else if (EXPORT_COLLECTIONS[key]) {
+          const cfg = EXPORT_COLLECTIONS[key];
+          result[key] = await fetchCollectionData(cfg.name, cfg.field);
+        }
+      }
+
+      const dateStr = new Date().toISOString().split('T')[0];
+
+      if (exportFormat === 'json') {
+        downloadFile(JSON.stringify(result, null, 2), `aorbub-tijarah-backup-${dateStr}.json`, 'application/json');
+      } else {
+        // CSV — export each collection as a separate section
+        let csv = '';
+        for (const [key, data] of Object.entries(result)) {
+          if (data.length) {
+            csv += `--- ${key.toUpperCase()} ---\n`;
+            csv += flattenForCSV(data) + '\n\n';
+          }
+        }
+        downloadFile(csv, `aorbub-tijarah-backup-${dateStr}.csv`, 'text/csv');
+      }
+      showToast('Data exported successfully');
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to export data', 'error');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleCreateBackup = async () => {
+    if (!user) return;
+    setExporting(true);
+    try {
+      const backup = { _meta: { version: 1, createdAt: new Date().toISOString(), businessId: user.uid } };
+
+      for (const [key, cfg] of Object.entries(EXPORT_COLLECTIONS)) {
+        if (key === 'team') continue; // skip team in full backup
+        backup[key] = await fetchCollectionData(cfg.name, cfg.field);
+      }
+
+      // Also include business settings
+      const bizDoc = await getDoc(doc(db, 'businesses', user.uid));
+      if (bizDoc.exists()) backup.businessSettings = bizDoc.data();
+
+      const dateStr = new Date().toISOString().split('T')[0];
+      downloadFile(JSON.stringify(backup, null, 2), `aorbub-tijarah-full-backup-${dateStr}.json`, 'application/json');
+      showToast('Full backup created');
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to create backup', 'error');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleRestoreFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (!data || typeof data !== 'object') throw new Error('Invalid file');
+
+        const summary = [];
+        const restorableKeys = ['products', 'bills', 'categories', 'events', 'milestones', 'stockHistory', 'stockLogs', 'entries', 'templates'];
+        const restoreData = {};
+
+        for (const key of restorableKeys) {
+          if (data[key] && Array.isArray(data[key]) && data[key].length > 0) {
+            restoreData[key] = data[key];
+            summary.push(`${data[key].length} ${key}`);
+          }
+        }
+
+        if (summary.length === 0) {
+          showToast('No valid data found in backup file', 'error');
+          return;
+        }
+
+        setRestoreModal({ data: restoreData, summary });
+      } catch {
+        showToast('Invalid backup file', 'error');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = ''; // reset input
+  };
+
+  const handleConfirmRestore = async () => {
+    if (!user || !restoreModal) return;
+    setRestoring(true);
+    try {
+      const { data } = restoreModal;
+
+      for (const [colName, items] of Object.entries(data)) {
+        // Determine the correct field name for this collection
+        const cfg = EXPORT_COLLECTIONS[colName];
+        const ownerField = cfg?.field || 'businessId';
+
+        // Delete existing documents first
+        const existingQ = query(collection(db, colName), where(ownerField, '==', user.uid));
+        const existingSnap = await getDocs(existingQ);
+        const batch = writeBatch(db);
+        existingSnap.docs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+
+        // Write new documents in batches of 500
+        for (let i = 0; i < items.length; i += 400) {
+          const chunk = items.slice(i, i + 400);
+          const writeBatchRef = writeBatch(db);
+          for (const item of chunk) {
+            const { id, ...rest } = item;
+            // Re-assign ownership
+            rest[ownerField] = user.uid;
+            const newRef = doc(collection(db, colName));
+            writeBatchRef.set(newRef, rest);
+          }
+          await writeBatchRef.commit();
+        }
+      }
+
+      showToast('Data restored successfully! Refreshing...');
+      setRestoreModal(null);
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to restore data', 'error');
+    } finally {
+      setRestoring(false);
+    }
+  };
 
   // Handle scroll spy
   useEffect(() => {
@@ -1123,6 +1330,158 @@ export default function Settings() {
               </div>
             </div>
           </div>
+
+          {/* DATA & PRIVACY SECTION */}
+          <div id="data" className="space-y-6">
+            {/* Export Data Card */}
+            <div className={cardCls}>
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100 dark:border-white/[0.06]">
+                <div className="p-2 rounded-lg bg-primary-500/10">
+                  <Download size={20} className="text-primary-500" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-800 dark:text-white font-heading">Export Business Data</h3>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">Download a full copy of your business data</p>
+                </div>
+              </div>
+
+              <div className="mb-5">
+                <p className={labelCls}>What to include</p>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  {[
+                    { key: 'bills', label: 'Bills & Transactions' },
+                    { key: 'products', label: 'Inventory & Products' },
+                    { key: 'categories', label: 'Categories' },
+                    { key: 'events', label: 'Calendar Events & Milestones' },
+                    { key: 'team', label: 'Team Members' },
+                  ].map(({ key, label }) => (
+                    <label key={key} className="flex items-center gap-2.5 py-2.5 px-3 rounded-lg bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-white/5 cursor-pointer hover:border-primary-400 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={exportOptions[key]}
+                        onChange={() => setExportOptions(p => ({ ...p, [key]: !p[key] }))}
+                        className="w-4 h-4 rounded accent-primary-600"
+                      />
+                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mr-2">Format</p>
+                  <button
+                    type="button"
+                    onClick={() => setExportFormat('json')}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all ${exportFormat === 'json' ? 'bg-primary-600 text-white shadow-sm' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-gray-700'}`}
+                  >
+                    <FileJson size={14} /> JSON
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExportFormat('csv')}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all ${exportFormat === 'csv' ? 'bg-primary-600 text-white shadow-sm' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-gray-700'}`}
+                  >
+                    <FileSpreadsheet size={14} /> CSV
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleExportData}
+                  disabled={exporting}
+                  className={saveBtnCls}
+                >
+                  {exporting ? 'Exporting...' : <><Download size={15} /> Export Now</>}
+                </button>
+              </div>
+            </div>
+
+            {/* Backup & Restore Card */}
+            <div className={cardCls}>
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100 dark:border-white/[0.06]">
+                <div className="p-2 rounded-lg bg-amber-500/10">
+                  <Database size={20} className="text-amber-500" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-800 dark:text-white font-heading">Backup & Restore</h3>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">Restore your data from a previously exported JSON backup file</p>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <button
+                  type="button"
+                  onClick={handleCreateBackup}
+                  disabled={exporting}
+                  className="flex-1 h-[60px] flex flex-col items-center justify-center gap-1.5 bg-primary-50 dark:bg-primary-500/10 hover:bg-primary-100 dark:hover:bg-primary-500/20 border-2 border-dashed border-primary-300 dark:border-primary-500/30 rounded-xl transition-colors cursor-pointer"
+                >
+                  <Download size={18} className="text-primary-600 dark:text-primary-400" />
+                  <span className="text-xs font-bold text-primary-700 dark:text-primary-300">{exporting ? 'Creating...' : 'Create Backup'}</span>
+                </button>
+
+                <label className="flex-1 h-[60px] flex flex-col items-center justify-center gap-1.5 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 border-2 border-dashed border-amber-300 dark:border-amber-500/30 rounded-xl transition-colors cursor-pointer">
+                  <Upload size={18} className="text-amber-600 dark:text-amber-400" />
+                  <span className="text-xs font-bold text-amber-700 dark:text-amber-300">Restore from Backup</span>
+                  <input type="file" accept=".json" className="hidden" onChange={handleRestoreFile} />
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {/* Restore Confirmation Modal */}
+          {restoreModal && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] animate-fadeIn">
+              <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-white/10 shadow-2xl p-7">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2.5 rounded-full bg-red-100 dark:bg-red-500/20">
+                    <AlertTriangle size={22} className="text-red-500" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-gray-800 dark:text-white">Confirm Restore</h3>
+                    <p className="text-xs text-red-500 font-semibold">This will overwrite your current data. This cannot be undone.</p>
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 mb-5 space-y-1.5">
+                  <p className={labelCls}>What will be restored:</p>
+                  {restoreModal.summary.map((line, i) => (
+                    <p key={i} className="text-xs text-gray-600 dark:text-gray-300 flex items-center gap-2">
+                      <Check size={12} className="text-green-500" /> {line}
+                    </p>
+                  ))}
+                </div>
+
+                {restoring && (
+                  <div className="mb-4">
+                    <div className="h-2 w-full bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-primary-500 rounded-full animate-pulse" style={{ width: '60%' }} />
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1.5 text-center">Restoring data... please wait</p>
+                  </div>
+                )}
+
+                <div className="flex gap-3 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setRestoreModal(null)}
+                    disabled={restoring}
+                    className="h-[44px] px-5 rounded-lg text-sm font-bold text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmRestore}
+                    disabled={restoring}
+                    className="h-[44px] flex items-center justify-center gap-2 bg-red-600 text-white px-6 rounded-lg text-sm font-bold hover:bg-red-700 transition-all shadow-lg shadow-red-600/20 disabled:opacity-50"
+                  >
+                    {restoring ? 'Restoring...' : <><Upload size={15} /> Confirm Restore</>}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
         </div>
       </div>
