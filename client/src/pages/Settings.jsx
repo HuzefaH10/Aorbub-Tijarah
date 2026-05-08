@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../hooks/useFirestore';
 import { useRole, useTeam } from '../hooks/useRole';
-import { Save, Bell, Shield, KeyRound, Building2, User, BellRing, BellOff, Eye, EyeOff, Check, Camera, MonitorSmartphone, LogOut, Users, Send, X, Crown, ShieldCheck, UserCog } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
+import { Save, Bell, Shield, KeyRound, Building2, User, BellRing, BellOff, Eye, EyeOff, Check, Camera, MonitorSmartphone, LogOut, Users, Send, X, Crown, ShieldCheck, UserCog, Palette } from 'lucide-react';
 import Toast, { useToast } from '../components/ui/Toast';
 import { db } from '../services/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -13,6 +14,7 @@ const TABS = [
   { id: 'business', label: 'Business Details', icon: Building2 },
   { id: 'team', label: 'Team', icon: Users },
   { id: 'notifications', label: 'Notifications', icon: Bell },
+  { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'security', label: 'Security', icon: Shield },
 ];
 
@@ -82,6 +84,7 @@ export default function Settings() {
   const { settings, updateSettings } = useSettings();
   const { role, hasPermission, isOwner } = useRole();
   const { members, invites, sendInvite, cancelInvite, removeMember } = useTeam();
+  const { theme, changeTheme } = useTheme();
 
   const [activeTab, setActiveTab] = useState('profile');
 
@@ -725,6 +728,119 @@ export default function Settings() {
                 )}
               </div>
             </div>
+          </div>
+
+          {/* APPEARANCE SECTION */}
+          <div id="appearance" className={cardCls}>
+            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100 dark:border-white/[0.06]">
+              <div className="p-2 rounded-lg bg-primary-500/10">
+                <Palette size={20} className="text-primary-500" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-gray-800 dark:text-white font-heading">Appearance</h3>
+                <p className="text-xs text-gray-400 dark:text-gray-500">Customize how Aorbub Tijarah looks for you</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              {/* Royal Purple */}
+              <button
+                onClick={() => changeTheme('royal-purple')}
+                className={`group relative rounded-xl overflow-hidden border-2 transition-all duration-200 ${
+                  theme === 'royal-purple'
+                    ? 'border-primary-500 ring-2 ring-primary-500/30 shadow-lg shadow-primary-500/10'
+                    : 'border-gray-200 dark:border-white/10 hover:border-primary-400'
+                }`}
+              >
+                <div className="w-full h-[80px] relative" style={{ background: '#0D0D1A' }}>
+                  <div className="absolute inset-0 p-2.5">
+                    <div className="w-full h-1.5 rounded-full mb-1.5" style={{ background: '#7C3AED', width: '60%' }} />
+                    <div className="flex gap-1.5">
+                      <div className="w-1/2 h-6 rounded" style={{ background: '#1a1a2e' }} />
+                      <div className="w-1/2 h-6 rounded" style={{ background: '#1a1a2e' }} />
+                    </div>
+                    <div className="mt-1.5 w-full h-3 rounded" style={{ background: '#1a1a2e' }}>
+                      <div className="h-full rounded" style={{ background: '#7C3AED', width: '40%', opacity: 0.5 }} />
+                    </div>
+                  </div>
+                  {theme === 'royal-purple' && (
+                    <div className="absolute top-1.5 right-1.5 w-5 h-5 bg-primary-500 rounded-full flex items-center justify-center">
+                      <Check size={12} className="text-white" />
+                    </div>
+                  )}
+                </div>
+                <div className="px-3 py-2.5 bg-white dark:bg-gray-900/80">
+                  <p className="text-xs font-bold text-gray-800 dark:text-white">Royal Purple</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">Default</p>
+                </div>
+              </button>
+
+              {/* Light Mode */}
+              <button
+                onClick={() => changeTheme('light')}
+                className={`group relative rounded-xl overflow-hidden border-2 transition-all duration-200 ${
+                  theme === 'light'
+                    ? 'border-primary-500 ring-2 ring-primary-500/30 shadow-lg shadow-primary-500/10'
+                    : 'border-gray-200 dark:border-white/10 hover:border-primary-400'
+                }`}
+              >
+                <div className="w-full h-[80px] relative" style={{ background: '#F8F9FA' }}>
+                  <div className="absolute inset-0 p-2.5">
+                    <div className="w-full h-1.5 rounded-full mb-1.5" style={{ background: '#7C3AED', width: '60%' }} />
+                    <div className="flex gap-1.5">
+                      <div className="w-1/2 h-6 rounded" style={{ background: '#FFFFFF', border: '1px solid #E5E7EB' }} />
+                      <div className="w-1/2 h-6 rounded" style={{ background: '#FFFFFF', border: '1px solid #E5E7EB' }} />
+                    </div>
+                    <div className="mt-1.5 w-full h-3 rounded" style={{ background: '#E5E7EB' }}>
+                      <div className="h-full rounded" style={{ background: '#7C3AED', width: '40%', opacity: 0.5 }} />
+                    </div>
+                  </div>
+                  {theme === 'light' && (
+                    <div className="absolute top-1.5 right-1.5 w-5 h-5 bg-primary-500 rounded-full flex items-center justify-center">
+                      <Check size={12} className="text-white" />
+                    </div>
+                  )}
+                </div>
+                <div className="px-3 py-2.5 bg-white dark:bg-gray-900/80">
+                  <p className="text-xs font-bold text-gray-800 dark:text-white">Light Mode</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">Clean & bright</p>
+                </div>
+              </button>
+
+              {/* Gold & Black */}
+              <button
+                onClick={() => changeTheme('dark')}
+                className={`group relative rounded-xl overflow-hidden border-2 transition-all duration-200 ${
+                  theme === 'dark'
+                    ? 'border-amber-500 ring-2 ring-amber-500/30 shadow-lg shadow-amber-500/10'
+                    : 'border-gray-200 dark:border-white/10 hover:border-amber-400'
+                }`}
+              >
+                <div className="w-full h-[80px] relative" style={{ background: '#0A0A0A' }}>
+                  <div className="absolute inset-0 p-2.5">
+                    <div className="w-full h-1.5 rounded-full mb-1.5" style={{ background: '#F59E0B', width: '60%' }} />
+                    <div className="flex gap-1.5">
+                      <div className="w-1/2 h-6 rounded" style={{ background: '#1A1A1A' }} />
+                      <div className="w-1/2 h-6 rounded" style={{ background: '#1A1A1A' }} />
+                    </div>
+                    <div className="mt-1.5 w-full h-3 rounded" style={{ background: '#1A1A1A' }}>
+                      <div className="h-full rounded" style={{ background: '#F59E0B', width: '40%', opacity: 0.5 }} />
+                    </div>
+                  </div>
+                  {theme === 'dark' && (
+                    <div className="absolute top-1.5 right-1.5 w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center">
+                      <Check size={12} className="text-white" />
+                    </div>
+                  )}
+                </div>
+                <div className="px-3 py-2.5 bg-white dark:bg-gray-900/80">
+                  <p className="text-xs font-bold text-gray-800 dark:text-white">Gold & Black</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">Premium dark</p>
+                </div>
+              </button>
+            </div>
+
+            <p className="text-[10px] text-gray-400 dark:text-gray-600 mt-4 text-center">Theme is applied instantly and saved to your account.</p>
           </div>
 
           {/* SECURITY SECTION */}

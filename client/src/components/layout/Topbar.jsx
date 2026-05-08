@@ -1,8 +1,7 @@
 import { useState, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { useTheme } from '../../context/ThemeContext';
-import { ChevronDown, Settings, Sun, Moon, HelpCircle, LogOut, Palette } from 'lucide-react';
+import { ChevronDown, Settings, HelpCircle, LogOut } from 'lucide-react';
 import StockAlertBell from './StockAlertBell';
 
 const titles = {
@@ -18,7 +17,6 @@ const titles = {
 
 export default function Topbar() {
   const { user, logout } = useAuth();
-  const { theme, changeTheme } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -80,25 +78,6 @@ export default function Topbar() {
               <button onClick={() => navTo('/settings')} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                 <Settings size={16} /> Settings
               </button>
-              <div className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300">
-                <div className="flex items-center gap-2 mb-2 font-semibold">
-                  <Palette size={16} /> Appearance
-                </div>
-                <div className="flex flex-col gap-1">
-                  <button onClick={() => changeTheme('light')} className={`flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${theme === 'light' ? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white font-medium' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'}`}>
-                    <div className="flex items-center gap-2"><Sun size={14}/> Light Mode</div>
-                    {theme === 'light' && <div className="w-2 h-2 rounded-full bg-primary-500" />}
-                  </button>
-                  <button onClick={() => changeTheme('dark')} className={`flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${theme === 'dark' ? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white font-medium' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'}`}>
-                    <div className="flex items-center gap-2"><Moon size={14} className="text-[#c9a84c]"/> Gold & Black</div>
-                    {theme === 'dark' && <div className="w-2 h-2 rounded-full bg-[#c9a84c]" />}
-                  </button>
-                  <button onClick={() => changeTheme('royal-purple')} className={`flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${theme === 'royal-purple' ? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white font-medium' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'}`}>
-                    <div className="flex items-center gap-2"><Moon size={14} className="text-[#9B30FF]"/> Royal Purple</div>
-                    {theme === 'royal-purple' && <div className="w-2 h-2 rounded-full bg-[#9B30FF]" />}
-                  </button>
-                </div>
-              </div>
               <button onClick={() => navTo('/help')} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                 <HelpCircle size={16} /> Help & Contact
               </button>
