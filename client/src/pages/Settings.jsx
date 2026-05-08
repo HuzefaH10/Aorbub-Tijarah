@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../hooks/useFirestore';
-import { Save, Bell, Shield, KeyRound, Building2, User, BellRing, BellOff, Eye, EyeOff, Check, Camera } from 'lucide-react';
+import { Save, Bell, Shield, KeyRound, Building2, User, BellRing, BellOff, Eye, EyeOff, Check, Camera, MonitorSmartphone, LogOut } from 'lucide-react';
 import Toast, { useToast } from '../components/ui/Toast';
 import { db, storage } from '../services/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 
 const TABS = [
   { id: 'profile', label: 'My Profile', icon: User },
@@ -18,8 +19,30 @@ const TIMEZONES = Intl.supportedValuesOf ? Intl.supportedValuesOf('timeZone') : 
   'UTC', 'Asia/Dubai', 'Asia/Karachi', 'America/New_York', 'Europe/London'
 ];
 
+// Helper to parse user agent
+const parseUserAgent = (ua) => {
+  let browser = "Unknown Browser";
+  if (ua.includes("Firefox")) browser = "Firefox";
+  else if (ua.includes("SamsungBrowser")) browser = "Samsung Internet";
+  else if (ua.includes("Opera") || ua.includes("OPR")) browser = "Opera";
+  else if (ua.includes("Trident")) browser = "Internet Explorer";
+  else if (ua.includes("Edge")) browser = "Edge";
+  else if (ua.includes("Chrome")) browser = "Chrome";
+  else if (ua.includes("Safari")) browser = "Safari";
+
+  let os = "Unknown OS";
+  if (ua.includes("Win")) os = "Windows";
+  else if (ua.includes("Mac")) os = "MacOS";
+  else if (ua.includes("X11")) os = "UNIX";
+  else if (ua.includes("Linux")) os = "Linux";
+  if (ua.includes("Android")) os = "Android";
+  if (ua.includes("like Mac")) os = "iOS";
+
+  return `${browser} on ${os}`;
+};
+
 export default function Settings() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { toast, showToast, hideToast } = useToast();
   const { settings, updateSettings } = useSettings();
 
@@ -218,13 +241,42 @@ export default function Settings() {
     if (!security.currentPassword) return showToast('Current password is required', 'error');
     if (security.newPassword.length < 6) return showToast('New password must be at least 6 characters', 'error');
     if (security.newPassword !== security.confirmPassword) return showToast('Passwords do not match', 'error');
+    
     setSecuritySaving(true);
     try {
-      await new Promise(r => setTimeout(r, 500));
-      showToast('Password updated successfully');
-      setSecurity({ currentPassword: '', newPassword: '', confirmPassword: '' });
-    } catch { showToast('Failed to update password', 'error'); }
-    finally { setSecuritySaving(false); }
+      if (user && user.email) {
+        const credential = EmailAuthProvider.credential(user.email, security.currentPassword);
+        await reauthenticateWithCredential(user, credential);
+        await updatePassword(user, security.newPassword);
+        showToast('Password updated successfully');
+        setSecurity({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      }
+    } catch (err) {
+      console.error(err);
+      if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        showToast('Incorrect current password', 'error');
+      } else {
+        showToast('Failed to update password', 'error');
+      }
+    } finally { 
+      setSecuritySaving(false); 
+    }
+  };
+
+  const handleSignOutAll = async () => {
+    try {
+      await logout();
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to sign out', 'error');
+    }
+  };
+
+  const getPasswordStrength = (pw) => {
+    if (!pw) return { label: '', color: 'bg-gray-200 dark:bg-gray-700', width: 'w-0' };
+    if (pw.length < 6) return { label: 'Weak', color: 'bg-red-500', width: 'w-1/3' };
+    if (pw.length >= 8 && /[A-Z]/.test(pw) && /[0-9]/.test(pw)) return { label: 'Strong', color: 'bg-green-500', width: 'w-full' };
+    return { label: 'Medium', color: 'bg-amber-500', width: 'w-2/3' };
   };
 
   const toggleNotif = (key) => setNotifications(prev => ({ ...prev, [key]: !prev[key] }));
@@ -528,6 +580,20 @@ export default function Settings() {
                         {showNew ? <EyeOff size={16} /> : <Eye size={16} />}
                       </button>
                     </div>
+                    {/* Password Strength Indicator */}
+                    {security.newPassword && (
+                      <div className="mt-2">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-[10px] uppercase font-bold tracking-wider text-gray-500">Password Strength</span>
+                          <span className={`text-[10px] font-bold uppercase tracking-wider ${getPasswordStrength(security.newPassword).color.replace('bg-', 'text-')}`}>
+                            {getPasswordStrength(security.newPassword).label}
+                          </span>
+                        </div>
+                        <div className="h-1.5 w-full bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
+                          <div className={`h-full ${getPasswordStrength(security.newPassword).color} ${getPasswordStrength(security.newPassword).width} transition-all duration-300`} />
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className={labelCls}>Confirm Password</label>
@@ -552,6 +618,42 @@ export default function Settings() {
                   </button>
                 </div>
               </form>
+            </div>
+
+            {/* Active Sessions */}
+            <div className={cardCls}>
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100 dark:border-white/[0.06]">
+                <div className="p-2 rounded-lg bg-blue-500/10">
+                  <MonitorSmartphone size={20} className="text-blue-500" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-base font-bold text-gray-800 dark:text-white font-heading">Active Sessions</h3>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">Manage devices currently logged into your account</p>
+                </div>
+                <button onClick={handleSignOutAll} className="flex items-center gap-2 bg-red-50 hover:bg-red-100 dark:bg-red-500/10 dark:hover:bg-red-500/20 text-red-600 dark:text-red-400 px-4 py-2 rounded-lg text-xs font-bold transition-colors">
+                  <LogOut size={14} /> Sign Out All Devices
+                </button>
+              </div>
+              <div className="flex items-start justify-between p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-100 dark:border-white/5">
+                <div className="flex gap-4">
+                  <div className="p-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+                    <MonitorSmartphone size={24} className="text-gray-600 dark:text-gray-300" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-sm font-bold text-gray-800 dark:text-white">
+                        {parseUserAgent(navigator.userAgent)}
+                      </p>
+                      <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 text-[10px] font-bold uppercase tracking-wider">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> Current Session
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Signed in: {user?.metadata?.lastSignInTime ? new Date(user.metadata.lastSignInTime).toLocaleString() : 'Unknown'}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
