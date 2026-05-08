@@ -102,6 +102,8 @@ export default function Settings() {
     name: user?.email?.split('@')[0] || 'Admin',
     email: user?.email || '',
     phone: '+971 50 123 4567',
+    phoneSecondary: '',
+    emailBackup: '',
     photoURL: ''
   });
   const [profileSaving, setProfileSaving] = useState(false);
@@ -118,6 +120,8 @@ export default function Settings() {
             ...prev,
             name: data.displayName || prev.name,
             phone: data.phone || prev.phone,
+            phoneSecondary: data.phoneSecondary || '',
+            emailBackup: data.emailBackup || '',
             photoURL: data.photoURL || ''
           }));
           if (data.notificationPreferences) {
@@ -459,11 +463,17 @@ export default function Settings() {
   const handleProfileSave = async (e) => {
     e.preventDefault();
     if (!user) return;
+    // Validate backup email if filled
+    if (profile.emailBackup && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(profile.emailBackup)) {
+      return showToast('Invalid backup email format', 'error');
+    }
     setProfileSaving(true);
     try {
       await setDoc(doc(db, 'users', user.uid), {
         displayName: profile.name,
         phone: profile.phone,
+        phoneSecondary: profile.phoneSecondary || null,
+        emailBackup: profile.emailBackup || null,
         photoURL: profile.photoURL
       }, { merge: true });
       showToast('Profile saved successfully');
@@ -726,14 +736,26 @@ export default function Settings() {
                   <input value={profile.name} onChange={e => setProfile({ ...profile, name: e.target.value })} className={inputCls} placeholder="Your full name" />
                 </div>
                 <div>
-                  <label className={labelCls}>Phone Number</label>
+                  <label className={labelCls}>Primary Phone Number</label>
                   <input value={profile.phone} onChange={e => setProfile({ ...profile, phone: e.target.value })} className={inputCls} placeholder="+971 50 000 0000" />
                 </div>
               </div>
               <div>
-                <label className={labelCls}>Email Address</label>
-                <input value={profile.email} disabled className={`${inputCls} opacity-50 cursor-not-allowed`} />
-                <p className="text-[10px] text-gray-400 dark:text-gray-600 mt-1.5">Email cannot be changed. Contact support if needed.</p>
+                <label className={labelCls}>Secondary Phone Number <span className="text-gray-400 dark:text-gray-600 normal-case tracking-normal font-normal">(Optional)</span></label>
+                <input value={profile.phoneSecondary} onChange={e => setProfile({ ...profile, phoneSecondary: e.target.value })} className={inputCls} placeholder="+971 55 000 0000" />
+                <p className="text-[10px] text-gray-400 dark:text-gray-600 mt-1.5">Used for account recovery and security purposes only</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>Email Address</label>
+                  <input value={profile.email} disabled className={`${inputCls} opacity-50 cursor-not-allowed`} />
+                  <p className="text-[10px] text-gray-400 dark:text-gray-600 mt-1.5">Email cannot be changed. Contact support if needed.</p>
+                </div>
+                <div>
+                  <label className={labelCls}>Backup Email Address <span className="text-gray-400 dark:text-gray-600 normal-case tracking-normal font-normal">(Optional)</span></label>
+                  <input value={profile.emailBackup} onChange={e => setProfile({ ...profile, emailBackup: e.target.value })} className={inputCls} placeholder="backup@email.com" type="email" />
+                  <p className="text-[10px] text-gray-400 dark:text-gray-600 mt-1.5">We'll use this if your primary email is unreachable</p>
+                </div>
               </div>
               <div className="pt-2 flex justify-end">
                 <button type="submit" disabled={profileSaving || uploadingPhoto} className={saveBtnCls}>
