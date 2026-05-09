@@ -97,13 +97,33 @@ export default function Settings() {
   const [inviteRole, setInviteRole] = useState('staff');
   const [inviteSending, setInviteSending] = useState(false);
 
+  // ── Profile helpers ──
+  const parseUserAgent = () => {
+    const ua = navigator.userAgent;
+    let browser = 'Unknown Browser';
+    let os = 'Unknown OS';
+    if (ua.includes('Chrome') && !ua.includes('Edg')) browser = 'Chrome';
+    else if (ua.includes('Edg')) browser = 'Edge';
+    else if (ua.includes('Firefox')) browser = 'Firefox';
+    else if (ua.includes('Safari') && !ua.includes('Chrome')) browser = 'Safari';
+    if (ua.includes('Windows')) os = 'Windows';
+    else if (ua.includes('Mac')) os = 'macOS';
+    else if (ua.includes('Linux')) os = 'Linux';
+    else if (ua.includes('Android')) os = 'Android';
+    else if (ua.includes('iPhone') || ua.includes('iPad')) os = 'iOS';
+    return `${browser} on ${os}`;
+  };
+
   // ── Profile state ──
   const [profile, setProfile] = useState({
     name: user?.email?.split('@')[0] || 'Admin',
+    displayName: '',
     email: user?.email || '',
     phone: '+971 50 123 4567',
     phoneSecondary: '',
     emailBackup: '',
+    language: 'en',
+    bio: '',
     photoURL: ''
   });
   const [profileSaving, setProfileSaving] = useState(false);
@@ -118,10 +138,13 @@ export default function Settings() {
           const data = docSnap.data();
           setProfile(prev => ({
             ...prev,
-            name: data.displayName || prev.name,
+            name: data.fullName || data.displayName || prev.name,
+            displayName: data.displayName || data.fullName || prev.displayName,
             phone: data.phone || prev.phone,
             phoneSecondary: data.phoneSecondary || '',
             emailBackup: data.emailBackup || '',
+            language: data.language || 'en',
+            bio: data.bio || '',
             photoURL: data.photoURL || ''
           }));
           if (data.notificationPreferences) {
@@ -470,10 +493,13 @@ export default function Settings() {
     setProfileSaving(true);
     try {
       await setDoc(doc(db, 'users', user.uid), {
-        displayName: profile.name,
+        fullName: profile.name,
+        displayName: profile.displayName || profile.name,
         phone: profile.phone,
         phoneSecondary: profile.phoneSecondary || null,
         emailBackup: profile.emailBackup || null,
+        language: profile.language || 'en',
+        bio: profile.bio || null,
         photoURL: profile.photoURL
       }, { merge: true });
       showToast('Profile saved successfully');
@@ -730,6 +756,38 @@ export default function Settings() {
                 </div>
               </div>
 
+              {/* Role Badge + Member Since */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>Role</label>
+                  <div className="h-[44px] flex items-center">
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider ${ROLE_CONFIG[role]?.color || 'bg-gray-100 text-gray-500'}`}>
+                      {(() => { const RIcon = ROLE_CONFIG[role]?.icon; return RIcon ? <RIcon size={14} /> : null; })()}
+                      {ROLE_CONFIG[role]?.label || role || 'Owner'}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <label className={labelCls}>Member Since</label>
+                  <p className="h-[44px] flex items-center text-sm text-gray-600 dark:text-gray-400 font-medium">
+                    {user?.metadata?.creationTime
+                      ? new Date(user.metadata.creationTime).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+                      : 'Unknown'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Last Login */}
+              <div>
+                <label className={labelCls}>Last Login</label>
+                <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
+                  {user?.metadata?.lastSignInTime
+                    ? `${new Date(user.metadata.lastSignInTime).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}, ${new Date(user.metadata.lastSignInTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })} — ${parseUserAgent()}`
+                    : 'Unknown'}
+                </p>
+              </div>
+
+              {/* Full Name + Primary Phone */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className={labelCls}>Full Name</label>
@@ -740,11 +798,34 @@ export default function Settings() {
                   <input value={profile.phone} onChange={e => setProfile({ ...profile, phone: e.target.value })} className={inputCls} placeholder="+971 50 000 0000" />
                 </div>
               </div>
+
+              {/* Display Name + Preferred Language */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>Display Name</label>
+                  <input value={profile.displayName} onChange={e => setProfile({ ...profile, displayName: e.target.value })} className={inputCls} placeholder="How you appear in the app" />
+                  <p className="text-[10px] text-gray-400 dark:text-gray-600 mt-1.5">This is what appears across the app</p>
+                </div>
+                <div>
+                  <label className={labelCls}>Preferred Language</label>
+                  <select value={profile.language} onChange={e => setProfile({ ...profile, language: e.target.value })} className={`${inputCls} cursor-pointer`}>
+                    <option value="en">English (Default)</option>
+                    <option value="ar" disabled className="text-gray-400">العربية — Coming Soon</option>
+                    <option value="ur" disabled className="text-gray-400">اردو — Coming Soon</option>
+                    <option value="hi" disabled className="text-gray-400">हिन्दी — Coming Soon</option>
+                    <option value="fr" disabled className="text-gray-400">Français — Coming Soon</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Secondary Phone */}
               <div>
                 <label className={labelCls}>Secondary Phone Number <span className="text-gray-400 dark:text-gray-600 normal-case tracking-normal font-normal">(Optional)</span></label>
                 <input value={profile.phoneSecondary} onChange={e => setProfile({ ...profile, phoneSecondary: e.target.value })} className={inputCls} placeholder="+971 55 000 0000" />
                 <p className="text-[10px] text-gray-400 dark:text-gray-600 mt-1.5">Used for account recovery and security purposes only</p>
               </div>
+
+              {/* Email Addresses */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className={labelCls}>Email Address</label>
@@ -757,6 +838,24 @@ export default function Settings() {
                   <p className="text-[10px] text-gray-400 dark:text-gray-600 mt-1.5">We'll use this if your primary email is unreachable</p>
                 </div>
               </div>
+
+              {/* Bio / Note */}
+              <div>
+                <label className={labelCls}>Bio / Note <span className="text-gray-400 dark:text-gray-600 normal-case tracking-normal font-normal">(Optional)</span></label>
+                <div className="relative">
+                  <textarea
+                    value={profile.bio}
+                    onChange={e => { if (e.target.value.length <= 120) setProfile({ ...profile, bio: e.target.value }); }}
+                    className={`${inputCls} h-[80px] py-3 resize-none`}
+                    placeholder="e.g. Store manager - Dubai branch"
+                    maxLength={120}
+                  />
+                  <span className="absolute bottom-2 right-3 text-[10px] text-gray-400 dark:text-gray-600 font-bold">
+                    {profile.bio.length}/120
+                  </span>
+                </div>
+              </div>
+
               <div className="pt-2 flex justify-end">
                 <button type="submit" disabled={profileSaving || uploadingPhoto} className={saveBtnCls}>
                   {profileSaving ? 'Saving...' : <><Save size={15} /> Save Profile</>}
