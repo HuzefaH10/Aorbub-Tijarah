@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, SummaryCard } from '../components/ui/Card';
 import Toast, { useToast } from '../components/ui/Toast';
 import { useProducts, useBills, useSettings, useEvents } from '../hooks/useFirestore';
-import { ClipboardList, ShoppingCart, DollarSign, Settings2, X, Plus, Trash2, ChevronDown } from 'lucide-react';
+import { ClipboardList, ShoppingCart, DollarSign, Settings2, X, Plus, Trash2, ChevronDown, Pencil } from 'lucide-react';
 
 const DEFAULT_FIELDS = { unitPrice: false, unit: false, tax: false, notes: false };
 
@@ -18,17 +18,17 @@ export default function DataEntry() {
   const todayISO = new Date().toISOString().split('T')[0];
   const todayDisplay = new Date().toLocaleDateString('en-GB');
 
-  // Current item being configured
-  const [f, setF] = useState({ category: '', product: '', qty: '' });
-  // Accumulated bill items
-  const [billItems, setBillItems] = useState([]);
+  // Multi-product accordion slots
+  const makeSlot = () => ({ id: Date.now(), category: '', product: '', unit: 'pcs', qty: '', collapsed: false });
+  const [slots, setSlots] = useState([makeSlot()]);
+  const [activeSlotIdx, setActiveSlotIdx] = useState(0);
+
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [discount, setDiscount] = useState('');
   const [discountType, setDiscountType] = useState('$');
 
-  // Optional field values (per-item)
+  // Optional field values (bill-level)
   const [manualUnitPrice, setManualUnitPrice] = useState('');
-  const [unitField, setUnitField] = useState('pcs');
   const [taxPercent, setTaxPercent] = useState('');
   const [notesField, setNotesField] = useState('');
 
@@ -63,15 +63,28 @@ export default function DataEntry() {
     return cats;
   }, [products]);
 
-  const filteredProducts = useMemo(() => {
-    if (!f.category) return [];
-    return products.filter(p => p.category === f.category);
-  }, [products, f.category]);
+  // Helpers scoped to a slot
+  const getFilteredProducts = (cat) => cat ? products.filter(p => p.category === cat) : [];
+  const getSelectedProduct = (name) => products.find(p => p.name === name);
 
-  const selectedProduct = products.find(p => p.name === f.product);
-  const effectiveUnitPrice = fieldToggles.unitPrice && manualUnitPrice !== ''
-    ? Number(manualUnitPrice) : Number(selectedProduct?.price) || 0;
-  const currentItemTotal = (Number(f.qty) || 0) * effectiveUnitPrice;
+  const updateSlot = (idx, patch) => setSlots(prev => prev.map((s, i) => i === idx ? { ...s, ...patch } : s));
+
+  // Confirmed items = collapsed slots with valid data
+  const confirmedSlots = slots.filter(s => s.collapsed && s.category && s.product && Number(s.qty) > 0);
+  const billItems = confirmedSlots.map(s => {
+    const prod = getSelectedProduct(s.product);
+    const price = Number(prod?.price) || 0;
+    return {
+      id: s.id,
+      productId: prod?.id || '',
+      productName: s.product,
+      category: s.category,
+      quantity: Number(s.qty),
+      unitPrice: price,
+      unit: s.unit,
+      total: Number(s.qty) * price,
+    };
+  });
 
   // Bill-level calculations
   const subtotal = billItems.reduce((s, i) => s + i.total, 0);
@@ -82,35 +95,39 @@ export default function DataEntry() {
     : Number(discount) || 0;
   const netTotal = Math.max(0, subtotalAfterTax - discountAmount);
 
-  const handleCategorySelect = (cat) => {
-    setF(prev => ({ ...prev, category: cat, product: '', qty: '' }));
-    setManualUnitPrice('');
-  };
-  const handleProductSelect = (name) => {
-    setF(prev => ({ ...prev, product: name }));
-    setManualUnitPrice('');
-  };
-
-  const canAddItem = f.category && f.product && f.qty && Number(f.qty) > 0;
-
-  const addItem = () => {
-    if (!canAddItem) return;
-    const item = {
-      id: Date.now(),
-      productId: selectedProduct?.id || '',
-      productName: f.product,
-      category: f.category,
-      quantity: Number(f.qty),
-      unitPrice: effectiveUnitPrice,
-      total: currentItemTotal,
-      ...(fieldToggles.unit && { unit: unitField }),
-    };
-    setBillItems(prev => [...prev, item]);
-    setF({ ...f, product: '', qty: '' });
-    setManualUnitPrice('');
+  // Collapse current slot (confirm it) and open a new one
+  const confirmAndAddSlot = () => {
+    const slot = slots[activeSlotIdx];
+    if (!slot || !slot.category || !slot.product || !Number(slot.qty)) return;
+    updateSlot(activeSlotIdx, { collapsed: true });
+    const newSlot = makeSlot();
+    setSlots(prev => [...prev, newSlot]);
+    setActiveSlotIdx(slots.length);
   };
 
-  const removeItem = (id) => setBillItems(prev => prev.filter(i => i.id !== id));
+  // Expand a collapsed slot for editing
+  const expandSlot = (idx) => {
+    setSlots(prev => prev.map((s, i) => i === idx ? { ...s, collapsed: false } : s));
+    setActiveSlotIdx(idx);
+  };
+
+  // Remove a slot
+  const removeSlot = (idx) => {
+    if (slots.length <= 1) {
+      setSlots([makeSlot()]);
+      setActiveSlotIdx(0);
+      return;
+    }
+    setSlots(prev => prev.filter((_, i) => i !== idx));
+    if (activeSlotIdx >= idx && activeSlotIdx > 0) setActiveSlotIdx(prev => prev - 1);
+  };
+
+  const canConfirmSlot = (slot) => slot && slot.category && slot.product && slot.qty && Number(slot.qty) > 0;
+
+  const removeItem = (id) => {
+    const idx = slots.findIndex(s => s.id === id);
+    if (idx !== -1) removeSlot(idx);
+  };
 
   const buildBillDoc = (extras = {}) => ({
     date: todayISO,
@@ -125,8 +142,8 @@ export default function DataEntry() {
   });
 
   const resetAll = () => {
-    setBillItems([]);
-    setF({ category: '', product: '', qty: '' });
+    setSlots([makeSlot()]);
+    setActiveSlotIdx(0);
     setDiscount('');
     setManualUnitPrice('');
     setTaxPercent('');
@@ -256,35 +273,93 @@ export default function DataEntry() {
                 <input type="text" readOnly value={todayDisplay} className={`${inputCls} bg-gray-50/50 dark:bg-gray-900/50 cursor-not-allowed opacity-60`} />
               </div>
 
-              {/* Category + Product + QT side by side */}
-              <div className="flex gap-3 items-end">
-                <div className="w-1/2">
-                  <label className={labelCls}>Category</label>
-                  <select value={f.category} onChange={e => handleCategorySelect(e.target.value)} className={inputCls}>
-                    <option value="" disabled>Select category...</option>
-                    {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div className="w-[43%] flex gap-2 items-end">
-                  <div className="flex-1">
-                    <label className={labelCls}>Product</label>
-                    <select value={f.product} onChange={e => handleProductSelect(e.target.value)} className={inputCls} disabled={!f.category}>
-                      <option value="" disabled>{f.category ? 'Select product...' : 'Category first'}</option>
-                      {filteredProducts.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
-                    </select>
+              {/* Accordion Product Slots */}
+              {slots.map((slot, idx) => {
+                const filteredProds = getFilteredProducts(slot.category);
+                const selectedProd = getSelectedProduct(slot.product);
+
+                // Collapsed bar
+                if (slot.collapsed) {
+                  return (
+                    <div key={slot.id} className="flex items-center justify-between h-[44px] px-4 glass rounded-xl cursor-pointer group hover:border-primary-500/40 transition-colors"
+                      onClick={() => expandSlot(idx)}>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-sm font-semibold text-gray-800 dark:text-white truncate">{slot.product}</span>
+                        <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">QT: {slot.qty} {slot.unit}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); removeSlot(idx); }}
+                          className="p-1 text-red-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={14} /></button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); expandSlot(idx); }}
+                          className="p-1 text-gray-400 hover:text-primary-500 transition-colors"><Pencil size={14} /></button>
+                        <ChevronDown size={16} className="text-gray-400" />
+                      </div>
+                    </div>
+                  );
+                }
+
+                // Expanded slot (only the active one)
+                return (
+                  <div key={slot.id} className="space-y-3 p-3 glass rounded-xl border-primary-500/20">
+                    {slots.filter(s => !s.collapsed).length > 1 && idx !== activeSlotIdx && (
+                      <div className="text-[10px] text-gray-400 text-center cursor-pointer" onClick={() => setActiveSlotIdx(idx)}>Click to edit this slot</div>
+                    )}
+                    {/* Category + Product side by side */}
+                    <div className="flex gap-3">
+                      <div className="w-1/2">
+                        <label className={labelCls}>Category</label>
+                        <select value={slot.category} onChange={e => { updateSlot(idx, { category: e.target.value, product: '', qty: '' }); setActiveSlotIdx(idx); }} className={inputCls}>
+                          <option value="" disabled>Select category...</option>
+                          {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+                      <div className="w-1/2">
+                        <label className={labelCls}>Product</label>
+                        <select value={slot.product} onChange={e => { updateSlot(idx, { product: e.target.value }); setActiveSlotIdx(idx); }} className={inputCls} disabled={!slot.category}>
+                          <option value="" disabled>{slot.category ? 'Select product...' : 'Category first'}</option>
+                          {filteredProds.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    {/* Unit + QT side by side */}
+                    <div className="flex gap-3">
+                      <div className="w-1/2">
+                        <label className={labelCls}>Unit</label>
+                        <select value={slot.unit} onChange={e => updateSlot(idx, { unit: e.target.value })} className={inputCls}>
+                          <option value="pcs">Pieces (pcs)</option><option value="kg">Kilograms (kg)</option>
+                          <option value="liters">Liters</option><option value="boxes">Boxes</option><option value="meters">Meters</option>
+                          <option value="dozen">Dozen</option><option value="pairs">Pairs</option><option value="sets">Sets</option>
+                        </select>
+                      </div>
+                      <div className="w-1/2">
+                        <label className={labelCls}>QT</label>
+                        <input type="number" min="1" value={slot.qty} onChange={e => { updateSlot(idx, { qty: e.target.value }); setActiveSlotIdx(idx); }}
+                          className={`${inputCls} text-center`} placeholder="0" disabled={!slot.product} />
+                      </div>
+                    </div>
+                    {selectedProd && slot.qty && Number(slot.qty) > 0 && (
+                      <div className="flex items-center justify-between text-xs px-1">
+                        <span className="text-gray-400">@ ${Number(selectedProd.price || 0).toFixed(2)} each</span>
+                        <span className="font-bold text-primary-600 dark:text-primary-400">${(Number(slot.qty) * Number(selectedProd.price || 0)).toFixed(2)}</span>
+                      </div>
+                    )}
                   </div>
-                </div>
-                <div className="w-[7%] min-w-[56px] shrink-0">
-                  <label className="block text-[10px] font-semibold text-gray-400 dark:text-gray-500 mb-1 uppercase tracking-wider text-center">QT</label>
-                  <input type="number" min="1" value={f.qty} onChange={e => setF({ ...f, qty: e.target.value })}
-                    className={`${inputCls} text-center !px-1`} placeholder="0" disabled={!f.product} />
-                </div>
-                <button type="button" onClick={addItem} disabled={!canAddItem}
-                  className="shrink-0 p-2.5 rounded-xl bg-primary-600 text-white hover:bg-primary-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-md shadow-primary-600/20"
-                  title="Add item to bill">
-                  <Plus size={18} />
-                </button>
-              </div>
+                );
+              })}
+
+              {/* + Add Product button */}
+              {(() => {
+                const currentSlot = slots[activeSlotIdx];
+                const hasOpenSlot = slots.some(s => !s.collapsed);
+                if (!hasOpenSlot || !canConfirmSlot(currentSlot)) return null;
+                return (
+                  <button type="button" onClick={confirmAndAddSlot}
+                    className="w-full h-[44px] flex items-center justify-center gap-2 border-2 border-dashed border-primary-400/40 dark:border-primary-500/30 text-primary-600 dark:text-primary-400 rounded-xl text-sm font-bold hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-500/10 transition-all">
+                    <Plus size={16} /> Add Product
+                  </button>
+                );
+              })()}
+
               {categories.length === 0 && <p className="text-xs text-amber-500">No categories found. Add products in Inventory first.</p>}
 
               {/* Optional Fields Grid Layout */}
@@ -438,7 +513,7 @@ export default function DataEntry() {
                   <div key={item.id} className="flex justify-between items-center text-sm group">
                     <div className="flex-1 pr-2">
                       <p className="font-semibold text-gray-800 dark:text-white line-clamp-1">{item.productName}</p>
-                      <p className="text-gray-500 dark:text-gray-400 text-xs">QT: {item.quantity}</p>
+                      <p className="text-gray-500 dark:text-gray-400 text-xs">QT: {item.quantity} {item.unit || 'pcs'}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <p className="font-medium text-gray-700 dark:text-gray-300">Net: ${item.total.toFixed(2)}</p>
