@@ -5,6 +5,7 @@ import { auth, db } from '../services/firebase';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { writeLoginHistory } from '../hooks/useLoginHistory';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -65,8 +66,10 @@ export default function Login() {
 
       // Fetch user profile to apply theme and save name before navigating
       const userDoc = await getDoc(doc(db, 'users', userCred.user.uid));
+      let businessId = null;
       if (userDoc.exists()) {
         const data = userDoc.data();
+        businessId = data.activeBusinessId || data.businessId || null;
         if (data.displayName || data.name) {
           localStorage.setItem('lastUserName', data.displayName || data.name);
         }
@@ -85,11 +88,16 @@ export default function Login() {
         }
       }
 
+      // Write login history (non-blocking)
+      writeLoginHistory({ uid: userCred.user.uid, businessId, status: 'success' }).catch(() => {});
+
       navigate('/');
     } catch (err) {
       const code = err.code;
       if (code === 'auth/invalid-credential' || code === 'auth/wrong-password') {
         setError({ field: 'password', message: 'Wrong password' });
+        // Write failed login log (best-effort, no uid since login failed)
+        writeLoginHistory({ uid: email, businessId: null, status: 'failed' }).catch(() => {});
       } else if (code === 'auth/invalid-email' || code === 'auth/user-not-found') {
         setError({ field: 'email', message: 'Invalid email' });
       } else if (code === 'auth/too-many-requests') {

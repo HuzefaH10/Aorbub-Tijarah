@@ -4,7 +4,9 @@ import { useSettings } from '../hooks/useFirestore';
 import { useRole, useTeam } from '../hooks/useRole';
 import { useAuditLog, writeAuditLog, ACTION_TYPES } from '../hooks/useAuditLog';
 import { useTheme } from '../context/ThemeContext';
-import { Save, Bell, Shield, KeyRound, Building2, User, BellRing, BellOff, Eye, EyeOff, Check, Camera, MonitorSmartphone, LogOut, Users, Send, X, Crown, ShieldCheck, UserCog, Palette, Clock, Copy, Download, Upload, UploadCloud, Database, FileJson, FileSpreadsheet, AlertTriangle, ScrollText, Search, ChevronLeft, ChevronRight, RefreshCw, Receipt } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useLoginHistory } from '../hooks/useLoginHistory';
+import { Save, Bell, Shield, KeyRound, Building2, User, BellRing, BellOff, Eye, EyeOff, Check, Camera, MonitorSmartphone, LogOut, Users, Send, X, Crown, ShieldCheck, UserCog, Palette, Clock, Copy, Download, Upload, UploadCloud, Database, FileJson, FileSpreadsheet, AlertTriangle, ScrollText, Search, ChevronLeft, ChevronRight, RefreshCw, Receipt, Smartphone, Laptop, Tablet, Globe, CheckCircle, XCircle } from 'lucide-react';
 import Toast, { useToast } from '../components/ui/Toast';
 import TabBillHistory from '../components/settings/TabBillHistory';
 import TabDataImport from '../components/settings/TabDataImport';
@@ -94,6 +96,8 @@ export default function Settings() {
   const { members, invites, sendInvite, cancelInvite, removeMember } = useTeam();
   const { theme, changeTheme } = useTheme();
   const auditLog = useAuditLog();
+  const navigate = useNavigate();
+  const { history: loginHistory, loading: loginHistoryLoading } = useLoginHistory(user?.uid);
 
   const [activeTab, setActiveTab] = useState('profile');
 
@@ -617,6 +621,7 @@ export default function Settings() {
   const handleSignOutAll = async () => {
     try {
       await logout();
+      navigate('/login');
     } catch (err) {
       console.error(err);
       showToast('Failed to sign out', 'error');
@@ -1432,7 +1437,7 @@ export default function Settings() {
               </form>
             </div>
 
-            {/* Active Sessions */}
+            {/* Active Sessions + Login Activity */}
             <div className={cardCls}>
               <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100 dark:border-white/[0.06]">
                 <div className="p-2 rounded-lg bg-blue-500/10">
@@ -1446,7 +1451,7 @@ export default function Settings() {
                   <LogOut size={14} /> Sign Out All Devices
                 </button>
               </div>
-              <div className="flex items-start justify-between p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-100 dark:border-white/5">
+              <div className="flex items-start justify-between p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-100 dark:border-white/5 mb-6">
                 <div className="flex gap-4">
                   <div className="p-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
                     <MonitorSmartphone size={24} className="text-gray-600 dark:text-gray-300" />
@@ -1454,7 +1459,7 @@ export default function Settings() {
                   <div>
                     <div className="flex items-center gap-2 mb-1">
                       <p className="text-sm font-bold text-gray-800 dark:text-white">
-                        {parseUserAgent(navigator.userAgent)}
+                        {parseUserAgent()}
                       </p>
                       <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 text-[10px] font-bold uppercase tracking-wider">
                         <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> Current Session
@@ -1465,6 +1470,77 @@ export default function Settings() {
                     </p>
                   </div>
                 </div>
+              </div>
+
+              {/* Login Activity Table */}
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <Globe size={16} className="text-primary-500" />
+                  <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Login Activity</h4>
+                  <span className="text-xs text-gray-400">— last 10 events</span>
+                </div>
+                {loginHistoryLoading ? (
+                  <div className="flex justify-center py-8">
+                    <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : loginHistory.length === 0 ? (
+                  <p className="text-center text-sm text-gray-400 py-8">No login events recorded yet. They will appear after your next login.</p>
+                ) : (
+                  <div className="overflow-x-auto rounded-xl border border-gray-100 dark:border-white/5">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 dark:bg-gray-900/60">
+                        <tr>
+                          {['Date & Time', 'Device', 'Browser', 'OS', 'Location', 'Status'].map(h => (
+                            <th key={h} className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 dark:text-gray-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 dark:divide-white/5">
+                        {loginHistory.map((entry, i) => {
+                          const ts = entry.timestamp?.toDate ? entry.timestamp.toDate() : new Date();
+                          const isFirst = i === 0;
+                          return (
+                            <tr key={entry.id} className="hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors">
+                              <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap text-xs">
+                                {ts.toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 font-medium capitalize">
+                                  {entry.device === 'mobile' ? <Smartphone size={13} /> : entry.device === 'tablet' ? <Tablet size={13} /> : <Laptop size={13} />}
+                                  {entry.device || '—'}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400">{entry.browser || '—'}</td>
+                              <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400">{entry.os || '—'}</td>
+                              <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                                {isFirst ? (
+                                  <span className="flex items-center gap-1.5 text-green-600 dark:text-green-400 font-semibold">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> Current session
+                                  </span>
+                                ) : (
+                                  entry.location?.city && entry.location.city !== 'Unknown'
+                                    ? `${entry.location.city}, ${entry.location.country}`
+                                    : 'Unknown location'
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
+                                {entry.status === 'success' ? (
+                                  <span className="flex items-center gap-1 text-green-600 dark:text-green-400 text-xs font-bold">
+                                    <CheckCircle size={13} /> Success
+                                  </span>
+                                ) : (
+                                  <span className="flex items-center gap-1 text-red-500 text-xs font-bold">
+                                    <XCircle size={13} /> Failed
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
           </div>
