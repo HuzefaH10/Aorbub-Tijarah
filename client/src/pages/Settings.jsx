@@ -4,8 +4,9 @@ import { useSettings } from '../hooks/useFirestore';
 import { useRole, useTeam } from '../hooks/useRole';
 import { useAuditLog, writeAuditLog, ACTION_TYPES } from '../hooks/useAuditLog';
 import { useTheme } from '../context/ThemeContext';
-import { Save, Bell, Shield, KeyRound, Building2, User, BellRing, BellOff, Eye, EyeOff, Check, Camera, MonitorSmartphone, LogOut, Users, Send, X, Crown, ShieldCheck, UserCog, Palette, Clock, Copy, Download, Upload, Database, FileJson, FileSpreadsheet, AlertTriangle, ScrollText, Search, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import { Save, Bell, Shield, KeyRound, Building2, User, BellRing, BellOff, Eye, EyeOff, Check, Camera, MonitorSmartphone, LogOut, Users, Send, X, Crown, ShieldCheck, UserCog, Palette, Clock, Copy, Download, Upload, Database, FileJson, FileSpreadsheet, AlertTriangle, ScrollText, Search, ChevronLeft, ChevronRight, RefreshCw, Receipt } from 'lucide-react';
 import Toast, { useToast } from '../components/ui/Toast';
+import TabBillHistory from '../components/settings/TabBillHistory';
 import { db } from '../services/firebase';
 import { doc, getDoc, setDoc, collection, query, where, getDocs, addDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
@@ -18,6 +19,7 @@ const TABS = [
   { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'security', label: 'Security', icon: Shield },
   { id: 'data', label: 'Data & Privacy', icon: Database },
+  { id: 'bills', label: 'Bill History', icon: Receipt, ownerOnly: true },
   { id: 'audit', label: 'Audit Log', icon: ScrollText, ownerOnly: true },
 ];
 
@@ -1614,6 +1616,11 @@ export default function Settings() {
                 </div>
               </div>
             </div>
+          )}
+
+          {/* BILL HISTORY SECTION — owner/admin only */}
+          {(isOwner || isAdmin) && (
+            <TabBillHistory cardCls={cardCls} labelCls={labelCls} inputCls={inputCls} />
           )}
 
           {/* AUDIT LOG SECTION — owner/admin only */}
