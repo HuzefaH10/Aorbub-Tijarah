@@ -282,8 +282,9 @@ function BulkEditModal({ count, selectedProducts, onClose, onConfirm, firestoreC
   const set = (key, value) => setFields(f => ({ ...f, [key]: { ...f[key], value } }));
 
   const anyApplied = Object.values(fields).some(f => f.apply);
-  const catList = [...new Set(selectedProducts.map(p => p.category).filter(Boolean)),
-    ...(firestoreCategories || []).map(c => c.name).filter(Boolean)
+  const catList = [...new Set(selectedProducts.map(p => (!p.category || p.category.toLowerCase() === 'uncategorized') ? 'Uncategorized' : p.category)),
+    ...(firestoreCategories || []).map(c => c.name.toLowerCase() === 'uncategorized' ? 'Uncategorized' : c.name).filter(Boolean),
+    'Uncategorized'
   ].filter((v, i, a) => a.indexOf(v) === i);
 
   const ApplyToggle = ({ fieldKey, label, children }) => (
@@ -363,7 +364,13 @@ function TabOverview({ computedData, onEdit, onDelete, onLoad, onHistory, onBulk
   const [page, setPage] = useState(1);
   const ITEMS_PER_PAGE = 50;
 
-  const categories = ['All', ...new Set(computedData.map(p => p.category).filter(Boolean))];
+  const categories = useMemo(() => {
+    let cats = [...new Set(computedData.map(p => p.category).filter(Boolean))];
+    if (computedData.some(p => !p.category || p.category.toLowerCase() === 'uncategorized')) cats.push('Uncategorized');
+    cats = [...new Set(cats.map(c => c.toLowerCase() === 'uncategorized' ? 'Uncategorized' : c))];
+    cats.sort((a, b) => a.localeCompare(b));
+    return ['All', ...cats];
+  }, [computedData]);
 
   const filtered = computedData.filter(p => {
     if (search) {
@@ -373,7 +380,13 @@ function TabOverview({ computedData, onEdit, onDelete, onLoad, onHistory, onBulk
       const matchesSku = (p.defaults?.sku || p.sku || '').toLowerCase().includes(s);
       if (!matchesName && !matchesCategory && !matchesSku) return false;
     }
-    if (catFilter !== 'All' && p.category !== catFilter) return false;
+    if (catFilter !== 'All') {
+      if (catFilter === 'Uncategorized') {
+        if (p.category && p.category.toLowerCase() !== 'uncategorized') return false;
+      } else if (p.category !== catFilter) {
+        return false;
+      }
+    }
     if (statusFilter !== 'All') {
       if (statusFilter === 'Healthy' && p.status !== 'healthy') return false;
       if (statusFilter === 'Low Stock' && p.status !== 'low') return false;
@@ -416,7 +429,9 @@ function TabOverview({ computedData, onEdit, onDelete, onLoad, onHistory, onBulk
     setBulkLoading(true);
     try {
       const patch = {};
-      if (fields.category.apply && fields.category.value) patch.category = fields.category.value;
+      if (fields.category.apply) {
+        patch.category = fields.category.value || 'uncategorized';
+      }
       if (fields.unit.apply) patch.unit = fields.unit.value;
       if (fields.threshold.apply) patch.lowStockThreshold = fields.threshold.value;
       await Promise.all([...selected].map(id => onBulkUpdate(id, patch)));
@@ -505,7 +520,7 @@ function TabOverview({ computedData, onEdit, onDelete, onLoad, onHistory, onBulk
                         className="w-4 h-4 accent-primary-600 cursor-pointer rounded" />
                     </td>
                     <td className="py-3 font-bold text-gray-200" onClick={e => e.stopPropagation()}>{p.name}</td>
-                    <td className="py-3 text-gray-500" onClick={e => e.stopPropagation()}>{p.category}</td>
+                    <td className="py-3 text-gray-500" onClick={e => e.stopPropagation()}>{(!p.category || p.category.toLowerCase() === 'uncategorized') ? '—' : p.category}</td>
                     <td className={`py-3 text-right font-bold ${p.status === 'out' ? 'text-red-500' : p.status === 'low' ? 'text-amber-500' : 'text-gray-200'}`} onClick={e => e.stopPropagation()}>
                       {p.currentStock} <span className="text-xs text-gray-600 font-normal">{p.unit}</span>
                     </td>
@@ -698,12 +713,19 @@ function emptySlot() {
 
 function LoadStockModal({ computedData, initialProductId, onClose, onSave, onAddHistory, onUpdateProduct, toast }) {
   const todayISO = new Date().toISOString().split('T')[0];
-  const categories = [...new Set(computedData.map(p => p.category).filter(Boolean))];
+  const categories = useMemo(() => {
+    let cats = [...new Set(computedData.map(p => p.category).filter(Boolean))];
+    if (computedData.some(p => !p.category || p.category.toLowerCase() === 'uncategorized')) cats.push('Uncategorized');
+    cats = [...new Set(cats.map(c => c.toLowerCase() === 'uncategorized' ? 'Uncategorized' : c))];
+    cats.sort((a, b) => a.localeCompare(b));
+    return cats;
+  }, [computedData]);
+  const hasCategories = categories.length > 0 && !(categories.length === 1 && categories[0] === 'Uncategorized');
 
   const makeInitialSlot = () => {
     if (initialProductId) {
       const p = computedData.find(x => x.id === initialProductId);
-      if (p) return { ...emptySlot(), category: p.category || '', product: p.id, unit: p.unit || 'pcs', threshold: String(p.lowStockThreshold || '') };
+      if (p) return { ...emptySlot(), category: (!p.category || p.category.toLowerCase() === 'uncategorized') ? 'Uncategorized' : p.category, product: p.id, unit: p.unit || 'pcs', threshold: String(p.lowStockThreshold || '') };
     }
     return emptySlot();
   };
@@ -715,7 +737,11 @@ function LoadStockModal({ computedData, initialProductId, onClose, onSave, onAdd
   const updateSlot = (idx, patch) => setSlots(prev => prev.map((s, i) => i === idx ? { ...s, ...patch } : s));
   const toggleCollapse = (idx) => updateSlot(idx, { collapsed: !slots[idx].collapsed });
 
-  const getFilteredProducts = (cat) => computedData.filter(p => !cat || p.category === cat);
+  const getFilteredProducts = (cat) => {
+    if (!hasCategories) return computedData;
+    if (cat === 'Uncategorized') return computedData.filter(p => !p.category || p.category.toLowerCase() === 'uncategorized');
+    return computedData.filter(p => !cat || p.category === cat);
+  };
 
   const slotValid = (s) => s.product && s.qty && Number(s.qty) > 0 && s.threshold !== '' && (s.unit !== 'Other' || s.customUnit.trim());
 
@@ -830,20 +856,22 @@ function LoadStockModal({ computedData, initialProductId, onClose, onSave, onAdd
                     <div className="pt-3" />
                     {/* Row 1: Category + Product */}
                     <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className={labelCls}>Category *</label>
-                        <select value={slot.category} onChange={e => updateSlot(idx, { category: e.target.value, product: '' })} className={inputCls}>
-                          <option value="">Select category...</option>
-                          {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                      </div>
-                      <div>
+                      {hasCategories && (
+                        <div>
+                          <label className={labelCls}>Category *</label>
+                          <select value={slot.category} onChange={e => updateSlot(idx, { category: e.target.value, product: '' })} className={inputCls}>
+                            <option value="">Select category...</option>
+                            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </div>
+                      )}
+                      <div className={hasCategories ? "" : "col-span-2"}>
                         <label className={labelCls}>Product *</label>
                         <select value={slot.product} onChange={e => {
                           const p = computedData.find(x => x.id === e.target.value);
                           updateSlot(idx, { product: e.target.value, unit: p?.unit || 'pcs', threshold: String(p?.lowStockThreshold || '') });
-                        }} className={inputCls} disabled={!slot.category}>
-                          <option value="">{slot.category ? 'Select product...' : 'Category first'}</option>
+                        }} className={inputCls} disabled={hasCategories && !slot.category}>
+                          <option value="">{hasCategories && !slot.category ? 'Category first' : 'Select product...'}</option>
                           {getFilteredProducts(slot.category).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                         </select>
                       </div>
@@ -1019,7 +1047,8 @@ function ProductModal({ editId, initialData, onClose, onSave, firestoreCategorie
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!f.name.trim()) return toast('Product name is required', 'error');
-    if (!f.category) return toast('Category is required', 'error');
+    const isCategoryRequired = editId && initialData?.category && initialData.category.toLowerCase() !== 'uncategorized';
+    if (isCategoryRequired && !f.category.trim()) return toast('Category is required since it was already assigned', 'error');
     if (f.unit === 'Other' && !f.customUnit.trim()) return toast('Custom unit is required', 'error');
 
     setSaving(true);
@@ -1032,10 +1061,16 @@ function ProductModal({ editId, initialData, onClose, onSave, firestoreCategorie
       if (openingStock === 0) status = 'out';
       else if (openingStock <= threshold) status = 'low';
 
+      const finalCategory = f.category.trim() || 'uncategorized';
+
+      if (finalCategory === 'uncategorized' && !firestoreCategories.find(c => c.name.toLowerCase() === 'uncategorized')) {
+        try { await addCategory('uncategorized'); } catch (e) { console.error('Auto-create uncategorized failed', e); }
+      }
+
       if (editId) {
         await onSave(editId, {
           name: f.name.trim(),
-          category: f.category,
+          category: finalCategory,
           defaults: { unit: unitLabel, size: f.size.trim(), sku: f.sku.trim(), threshold },
           unit: unitLabel,
           lowStockThreshold: threshold,
@@ -1044,7 +1079,7 @@ function ProductModal({ editId, initialData, onClose, onSave, firestoreCategorie
       } else {
         await onSave({
           name: f.name.trim(),
-          category: f.category,
+          category: finalCategory,
           defaults: { unit: unitLabel, size: f.size.trim(), sku: f.sku.trim(), threshold },
           unit: unitLabel,
           lowStockThreshold: threshold,
@@ -1084,7 +1119,7 @@ function ProductModal({ editId, initialData, onClose, onSave, firestoreCategorie
             <div className="grid grid-cols-2 gap-3">
               {/* Category custom dropdown */}
               <div>
-                <label className={labelCls}>Category *</label>
+                <label className={labelCls}>CATEGORY {editId && initialData?.category && initialData.category.toLowerCase() !== 'uncategorized' ? '*' : <span className="text-gray-400 normal-case tracking-normal font-normal">(Optional)</span>}</label>
                 <div className="relative" ref={catDropRef}>
                   <button type="button" onClick={() => { setCatDropOpen(p => !p); setCatSearch(''); }}
                     className={`${inputCls} text-left flex items-center justify-between ${!f.category ? 'text-gray-500' : ''}`}>

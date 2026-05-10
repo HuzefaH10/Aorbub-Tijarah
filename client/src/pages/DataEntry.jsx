@@ -81,19 +81,29 @@ export default function DataEntry() {
   };
 
   const categories = useMemo(() => {
-    const cats = [...new Set(products.map(p => p.category).filter(Boolean))];
+    let cats = [...new Set(products.map(p => p.category).filter(Boolean))];
+    if (products.some(p => !p.category || p.category.toLowerCase() === 'uncategorized')) {
+      cats.push('Uncategorized');
+    }
+    cats = [...new Set(cats.map(c => c.toLowerCase() === 'uncategorized' ? 'Uncategorized' : c))];
     cats.sort((a, b) => a.localeCompare(b));
     return cats;
   }, [products]);
 
+  const hasCategories = categories.length > 0 && !(categories.length === 1 && categories[0] === 'Uncategorized');
+
   // Helpers scoped to a slot
-  const getFilteredProducts = (cat) => cat ? products.filter(p => p.category === cat) : [];
+  const getFilteredProducts = (cat) => {
+    if (!hasCategories) return products;
+    if (cat === 'Uncategorized') return products.filter(p => !p.category || p.category.toLowerCase() === 'uncategorized');
+    return cat ? products.filter(p => p.category === cat) : [];
+  };
   const getSelectedProduct = (name) => products.find(p => p.name === name);
 
   const updateSlot = (idx, patch) => setSlots(prev => prev.map((s, i) => i === idx ? { ...s, ...patch } : s));
 
   // Confirmed items = collapsed slots with valid data
-  const confirmedSlots = slots.filter(s => s.collapsed && s.category && s.product && Number(s.qty) > 0);
+  const confirmedSlots = slots.filter(s => s.collapsed && (!hasCategories || s.category) && s.product && Number(s.qty) > 0);
   const billItems = confirmedSlots.map(s => {
     const prod = getSelectedProduct(s.product);
     const price = fieldToggles.unitPrice && s.manualUnitPrice !== '' 
@@ -123,7 +133,7 @@ export default function DataEntry() {
   // Collapse current slot (confirm it) and open a new one
   const confirmAndAddSlot = () => {
     const slot = slots[activeSlotIdx];
-    if (!slot || !slot.category || !slot.product || !Number(slot.qty)) return;
+    if (!slot || (hasCategories && !slot.category) || !slot.product || !Number(slot.qty)) return;
     updateSlot(activeSlotIdx, { collapsed: true });
     const newSlot = makeSlot();
     setSlots(prev => [...prev, newSlot]);
@@ -147,7 +157,7 @@ export default function DataEntry() {
     if (activeSlotIdx >= idx && activeSlotIdx > 0) setActiveSlotIdx(prev => prev - 1);
   };
 
-  const canConfirmSlot = (slot) => slot && slot.category && slot.product && slot.qty && Number(slot.qty) > 0;
+  const canConfirmSlot = (slot) => slot && (!hasCategories || slot.category) && slot.product && slot.qty && Number(slot.qty) > 0;
 
   const removeItem = (id) => {
     const idx = slots.findIndex(s => s.id === id);
@@ -375,17 +385,19 @@ export default function DataEntry() {
                     )}
                     {/* Category + Product side by side */}
                     <div className="flex gap-3">
-                      <div className="w-1/2">
-                        <label className={labelCls}>Category</label>
-                        <select value={slot.category} onChange={e => { updateSlot(idx, { category: e.target.value, product: '', qty: '' }); setActiveSlotIdx(idx); }} className={inputCls}>
-                          <option value="" disabled>Select category...</option>
-                          {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                      </div>
-                      <div className="w-1/2">
+                      {hasCategories && (
+                        <div className="w-1/2">
+                          <label className={labelCls}>Category</label>
+                          <select value={slot.category} onChange={e => { updateSlot(idx, { category: e.target.value, product: '', qty: '' }); setActiveSlotIdx(idx); }} className={inputCls}>
+                            <option value="" disabled>Select category...</option>
+                            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </div>
+                      )}
+                      <div className={hasCategories ? "w-1/2" : "w-full"}>
                         <label className={labelCls}>Product</label>
-                        <select value={slot.product} onChange={e => { updateSlot(idx, { product: e.target.value }); setActiveSlotIdx(idx); }} className={inputCls} disabled={!slot.category}>
-                          <option value="" disabled>{slot.category ? 'Select product...' : 'Category first'}</option>
+                        <select value={slot.product} onChange={e => { updateSlot(idx, { product: e.target.value }); setActiveSlotIdx(idx); }} className={inputCls} disabled={hasCategories && !slot.category}>
+                          <option value="" disabled>{hasCategories && !slot.category ? 'Category first' : 'Select product...'}</option>
                           {filteredProds.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
                         </select>
                       </div>
@@ -439,7 +451,7 @@ export default function DataEntry() {
                 );
               })()}
 
-              {categories.length === 0 && <p className="text-xs text-amber-500">No categories found. Add products in Inventory first.</p>}
+              {products.length === 0 && <p className="text-xs text-amber-500">No products found. Add products in Inventory first.</p>}
 
               {/* Optional Fields Grid Layout (Bill Level) */}
               {(() => {
