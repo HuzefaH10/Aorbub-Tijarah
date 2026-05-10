@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import Toast, { useToast } from '../components/ui/Toast';
 import Pagination from '../components/ui/Pagination';
-import BillDetailModal from '../components/dashboard/BillDetailModal'; // I will just copy the modal logic here since TabBillHistory has it inline and it's not exported. Wait, I'll put it inline to ensure it works.
+
 
 export default function Credits() {
   const { bills } = useBills();
