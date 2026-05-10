@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useBills, useProducts } from '../hooks/useFirestore';
+import { useExpenses } from '../hooks/useExpenses';
 import { Calendar, Download, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { usePageGuard } from '../hooks/usePageGuard';
@@ -24,6 +25,7 @@ const defaultWidgets = [
   { id: 'w_rev_qty', type: 'scatter', name: 'Revenue vs Quantity', dataset: 'revenueVsQuantity', isChart: true, enabled: false, icon: 'activity' },
   { id: 'w_heatmap', type: 'heatmap', name: 'Weekly Heatmap', dataset: 'weeklyHeatmap', isChart: true, enabled: false, icon: 'calendar' },
   { id: 'w_profit_trend', type: 'line', name: 'Profit Margin Trend', dataset: 'profitMarginTrend', isChart: true, enabled: false, icon: 'trending-up' },
+  { id: 'w_rev_vs_exp', type: 'bar', name: 'Revenue vs Expenses', dataset: 'revenueVsExpenses', isChart: true, enabled: true, icon: 'bar-chart' },
   { id: 'w_top_table', type: 'top-products', name: 'Top Products Table', dataset: 'topProductsTable', isChart: false, enabled: true, icon: 'table' }
 ];
 
@@ -31,7 +33,7 @@ const defaultWidgets = [
 const VALID_DATASETS = new Set([
   'revenueByDate', 'salesByProduct', 'categorySplit', 'topProductsTable',
   'dailyOrderVolume', 'revenueVsCostVsProfit', 'topProductPerformance',
-  'revenueVsQuantity', 'weeklyHeatmap', 'profitMarginTrend'
+  'revenueVsQuantity', 'weeklyHeatmap', 'profitMarginTrend', 'revenueVsExpenses'
 ]);
 const SCHEMA_VERSION = 'v5';
 
@@ -117,7 +119,9 @@ const rangeLabel = (filter) => {
 
 export default function SalesAnalytics() {
   usePageGuard('sales_analytics');
-  const { bills, loading } = useBills();
+  const { bills, loading: billsLoading } = useBills();
+  const { expenses, loading: expensesLoading } = useExpenses();
+  const loading = billsLoading || expensesLoading;
   const navigate = useNavigate();
   const { toast, showToast, hideToast } = useToast();
   
@@ -286,6 +290,30 @@ export default function SalesAnalytics() {
 
     const totalRev = Object.values(prodRevMap).reduce((a,b) => a+b, 0);
 
+    // Revenue vs Expenses Logic
+    const filteredExp = expenses.filter(e => {
+      // e.date is a Date object, convert to YYYY-MM-DD
+      const d = new Date(e.date.getTime() - (e.date.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+      if (dateFilter.from && d < dateFilter.from) return false;
+      if (dateFilter.to && d > dateFilter.to) return false;
+      return true;
+    });
+
+    const expMap = {};
+    filteredExp.forEach(e => {
+      const d = new Date(e.date.getTime() - (e.date.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+      expMap[d] = (expMap[d] || 0) + (e.amount || 0);
+    });
+
+    // Merge labels
+    const revExpLabels = [...new Set([...Object.keys(rbdMap), ...Object.keys(expMap)])].sort();
+    const revValues = revExpLabels.map(l => rbdMap[l] || 0);
+    const expValues = revExpLabels.map(l => expMap[l] || 0);
+
+    const revTotal = revValues.reduce((a, b) => a + b, 0);
+    const totalExp = expValues.reduce((a, b) => a + b, 0);
+    const netProfit = revTotal - totalExp;
+
     return {
       revenueByDate: { labels: rbdSorted.map(x => x[0]), values: rbdSorted.map(x => x[1]) },
       salesByProduct: { labels: rbpSorted.map(x => x[0]), values: rbpSorted.map(x => x[1]) },
@@ -296,12 +324,13 @@ export default function SalesAnalytics() {
       revenueVsQuantity: { series: scatterSeries },
       weeklyHeatmap: { series: heatmapSeries },
       profitMarginTrend: { labels: profitTrendLabels, profit: profitTrendValues, margin: marginValues },
+      revenueVsExpenses: { labels: revExpLabels, revenue: revValues, expenses: expValues, totalRev: revTotal, totalExp, netProfit },
       topProductsList
     };
-  }, [bills, dateFilter]);
+  }, [bills, expenses, dateFilter]);
 
   // ── Comparison data (same computation but against compareFilter) ─────────
-  const computeBillsData = (filter, allBills) => {
+  const computeBillsData = (filter, allBills, allExpenses) => {
     const filtered = allBills.filter(b => {
       const d = b.date || '';
       if (filter.from && d < filter.from) return false;
@@ -340,6 +369,26 @@ export default function SalesAnalytics() {
     const topProdsByRev = Object.entries(prodRevMap).sort((a,b) => b[1] - a[1]).slice(0, 10);
     const totalRev = Object.values(prodRevMap).reduce((a,b) => a+b, 0);
 
+    const filteredExp = (allExpenses || []).filter(e => {
+      const d = new Date(e.date.getTime() - (e.date.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+      if (filter.from && d < filter.from) return false;
+      if (filter.to && d > filter.to) return false;
+      return true;
+    });
+
+    const expMap = {};
+    filteredExp.forEach(e => {
+      const d = new Date(e.date.getTime() - (e.date.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+      expMap[d] = (expMap[d] || 0) + (e.amount || 0);
+    });
+
+    const revExpLabels = [...new Set([...Object.keys(rbdMap), ...Object.keys(expMap)])].sort();
+    const revValues = revExpLabels.map(l => rbdMap[l] || 0);
+    const expValues = revExpLabels.map(l => expMap[l] || 0);
+    const revTotal = revValues.reduce((a, b) => a + b, 0);
+    const totalExp = expValues.reduce((a, b) => a + b, 0);
+    const netProfit = revTotal - totalExp;
+
     return {
       revenueByDate:   { labels: rbdSorted.map(x => x[0]), values: rbdSorted.map(x => x[1]) },
       salesByProduct: { labels: rbpSorted.map(x => x[0]), values: rbpSorted.map(x => x[1]) },
@@ -355,14 +404,15 @@ export default function SalesAnalytics() {
       revenueVsQuantity: { series: Object.keys(prodQtyMap).map(p => ({ name: p, data: [[prodQtyMap[p], prodRevMap[p]]] })).slice(0, 20) },
       weeklyHeatmap: { series: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => ({ name: day, data: [...Array(12)].map((_, i) => ({ x: `${i*2}:00`, y: Math.floor(Math.random() * 20) })) })) },
       profitMarginTrend: { labels: profitTrendLabels, profit: profitTrendValues, margin: profitTrendLabels.map(d => 30) },
+      revenueVsExpenses: { labels: revExpLabels, revenue: revValues, expenses: expValues, totalRev: revTotal, totalExp, netProfit },
       topProductsList: Object.keys(prodQtyMap).map(p => ({ product: p, category: prodCatMap[p], qty: prodQtyMap[p], revenue: prodRevMap[p], lastSold: prodLastSold[p] })).sort((a, b) => b.qty - a.qty).slice(0, 50)
     };
   };
 
   const compareData = useMemo(() => {
     if (!compareActive) return null;
-    return computeBillsData(compareFilter, bills);
-  }, [bills, compareFilter, compareActive]);
+    return computeBillsData(compareFilter, bills, expenses);
+  }, [bills, expenses, compareFilter, compareActive]);
 
   // Handlers
   const handleToggleWidget = (id) => {
@@ -481,7 +531,7 @@ export default function SalesAnalytics() {
             {activeWidgets.map(w => (
               <div 
                 key={w.id} 
-                className={`glass overflow-hidden flex flex-col p-6 rounded-2xl border border-white/10 ${w.type === 'top-products' ? 'col-span-2' : ''}`}
+                className={`glass overflow-hidden flex flex-col p-6 rounded-2xl border border-white/10 ${w.type === 'top-products' || w.id === 'w_rev_vs_exp' ? 'col-span-2' : ''}`}
                 style={{ minHeight: '320px', width: '100%' }}
               >
                 <div className="flex items-center justify-between mb-4 shrink-0">

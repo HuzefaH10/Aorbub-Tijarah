@@ -94,11 +94,33 @@ export default function ChartWidget({ widget, data, compareData, primaryLabel, c
     const isEmpty = !values || values.length === 0;
     if (isEmpty) return <div className="w-full h-full flex items-center justify-center text-gray-600 text-sm italic">No data for this period</div>;
     return (
-      <div className="w-full h-full px-2 pb-2 pt-1">
+    <div className="w-full h-full relative group flex flex-col">
+      {widget.isCSV && (
+        <div className="absolute top-2 right-2 flex items-center gap-2 z-10">
+          <button onClick={() => setShowRaw(!showRaw)} className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider bg-gray-800 text-gray-300 rounded hover:bg-gray-700 transition-colors border border-white/10">
+            {showRaw ? 'Show Chart' : 'View Raw Data'}
+          </button>
+        </div>
+      )}
+      
+      <div className="flex-1 min-h-0 relative">
         <SizedApexChart options={options} series={series} type={type} />
       </div>
-    );
-  }
+
+      {dataset === 'revenueVsExpenses' && data.revenueVsExpenses && (
+        <div className="flex items-center justify-between mt-2 pt-3 border-t border-white/5 shrink-0 px-2">
+          <div className="flex gap-4 text-sm font-bold">
+            <span className="text-gray-400">Revenue: <span className="text-purple-400 font-mono">${data.revenueVsExpenses.totalRev.toFixed(2)}</span></span>
+            <span className="text-gray-400">Expenses: <span className="text-red-400 font-mono">${data.revenueVsExpenses.totalExp.toFixed(2)}</span></span>
+          </div>
+          <div className="text-sm font-bold">
+            Net Profit: <span className={`font-mono ${data.revenueVsExpenses.netProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>${data.revenueVsExpenses.netProfit.toFixed(2)}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
   // ── End CSV branch ──────────────────────────────────────────────────────
 
   if (dataset === 'revenueByDate') {
@@ -203,17 +225,26 @@ export default function ChartWidget({ widget, data, compareData, primaryLabel, c
   }
   else if (dataset === 'profitMarginTrend') {
     type = 'line';
-    options.xaxis.categories = data.profitTrend?.labels || [];
-    options.stroke = { width: [3, 3], dashArray: [0, 5], curve: 'smooth' };
-    options.colors = ['#4caf7d', '#c9a84c'];
-    options.yaxis = [
-      { title: { text: 'Profit', style: { color: '#4caf7d' } }, labels: { style: { colors: '#4caf7d' } } },
-      { opposite: true, title: { text: 'Margin %', style: { color: '#c9a84c' } }, labels: { style: { colors: '#c9a84c' } } }
-    ];
+    options.xaxis.categories = data.profitMarginTrend?.labels || [];
+    options.stroke = { curve: 'smooth', width: 2 };
     options.dataLabels = { enabled: false };
     series = [
-      { name: 'Profit',   type: 'line', data: data.profitTrend?.profit  || [] },
-      { name: 'Margin %', type: 'line', data: data.profitTrend?.margin  || [] }
+      { name: 'Daily Profit', type: 'line', data: data.profitMarginTrend?.profit || [] },
+      { name: 'Margin (%)', type: 'line', data: data.profitMarginTrend?.margin || [] }
+    ];
+  }
+  else if (dataset === 'revenueVsExpenses') {
+    type = 'bar';
+    const primaryLabels = data.revenueVsExpenses?.labels || [];
+    options.xaxis.categories = primaryLabels;
+    options.plotOptions = { bar: { borderRadius: 4, columnWidth: '50%' } };
+    options.dataLabels = { enabled: false };
+    options.colors = ['#8b5cf6', '#e05c5c']; // Purple for Revenue, Red for Expenses
+    options.legend = { ...options.legend, show: true };
+    options.stroke = { show: true, width: 2, colors: ['transparent'] };
+    series = [
+      { name: 'Revenue', data: data.revenueVsExpenses?.revenue || [] },
+      { name: 'Expenses', data: data.revenueVsExpenses?.expenses || [] }
     ];
   }
   else {
