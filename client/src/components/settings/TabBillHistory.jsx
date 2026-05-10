@@ -7,14 +7,15 @@ import { writeAuditLog } from '../../hooks/useAuditLog';
 import { todayISO as getTodayISO } from '../../utils/dateUtils';
 import { db } from '../../services/firebase';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { Search, ChevronLeft, ChevronRight, Eye, Calendar, DollarSign, X, Receipt, CheckCircle } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, Eye, Calendar, DollarSign, X, Receipt, CheckCircle, FileText } from 'lucide-react';
 import Toast, { useToast } from '../ui/Toast';
 import Pagination from '../ui/Pagination';
+import InvoiceModal from '../invoice/InvoiceModal';
 
 export default function TabBillHistory({ cardCls, labelCls, inputCls }) {
   const { bills } = useBills();
   const { events } = useEvents();
-  const { activeBusinessId, timezone } = useBusiness();
+  const { activeBusinessId, timezone, businessData, currency } = useBusiness();
   const { user } = useAuth();
   const { role } = useRole();
   const { toast, showToast, hideToast } = useToast();
@@ -29,6 +30,7 @@ export default function TabBillHistory({ cardCls, labelCls, inputCls }) {
 
   const [selectedBill, setSelectedBill] = useState(null);
   const [confirmPay, setConfirmPay] = useState(null);
+  const [showInvoice, setShowInvoice] = useState(false);
 
   const todayISO = getTodayISO(timezone);
 
@@ -241,9 +243,14 @@ export default function TabBillHistory({ cardCls, labelCls, inputCls }) {
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-white/10">
               <h2 className="text-lg font-bold text-gray-800 dark:text-white font-heading">Bill Details</h2>
-              <button onClick={() => setSelectedBill(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
-                <X size={20} />
-              </button>
+              <div className="flex items-center gap-3">
+                <button onClick={() => setShowInvoice(true)} className="flex items-center gap-2 px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-xs font-bold transition-colors">
+                  <FileText size={14} /> Generate Invoice
+                </button>
+                <button onClick={() => setSelectedBill(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
             </div>
             
             <div className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-6">
@@ -371,6 +378,17 @@ export default function TabBillHistory({ cardCls, labelCls, inputCls }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* INVOICE MODAL */}
+      {showInvoice && selectedBill && (
+        <InvoiceModal
+          bill={selectedBill}
+          businessData={businessData}
+          currency={currency}
+          timezone={timezone}
+          onClose={() => setShowInvoice(false)}
+        />
       )}
     </div>
   );

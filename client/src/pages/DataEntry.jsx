@@ -9,7 +9,8 @@ import { useRole } from '../hooks/useRole';
 import { usePageGuard } from '../hooks/usePageGuard';
 import { writeAuditLog } from '../hooks/useAuditLog';
 import { todayISO as getTodayISO, todayDisplay as getTodayDisplay } from '../utils/dateUtils';
-import { ClipboardList, ShoppingCart, DollarSign, Settings2, X, Plus, Trash2, ChevronDown, Pencil } from 'lucide-react';
+import { ClipboardList, ShoppingCart, DollarSign, Settings2, X, Plus, Trash2, ChevronDown, Pencil, FileText } from 'lucide-react';
+import InvoiceModal from '../components/invoice/InvoiceModal';
 
 const DEFAULT_FIELDS = { unitPrice: false, tax: false, notes: false };
 
@@ -26,6 +27,9 @@ export default function DataEntry() {
   const { timezone, billDefaults, activeBusinessId, notificationPrefs } = useBusiness();
   const { role } = useRole();
   const navigate = useNavigate();
+
+  // Invoice state
+  const [invoiceState, setInvoiceState] = useState({ bill: null, showPrompt: false, showModal: false });
 
   const todayISO = getTodayISO(timezone);
   const todayDisplay = getTodayDisplay(timezone);
@@ -178,9 +182,11 @@ export default function DataEntry() {
       return;
     }
     try {
-      await addBill(buildBillDoc({ status: 'paid' }));
+      const savedBill = buildBillDoc({ status: 'paid' });
+      await addBill(savedBill);
       writeAuditLog(user, role, 'Bill created', `${billItems.length} item(s), total $${netTotal.toFixed(2)}, ${paymentMethod}`, null, activeBusinessId);
-      showToast('Bill created successfully!');
+      showToast('Bill saved!');
+      setInvoiceState({ bill: savedBill, showPrompt: true, showModal: false });
       resetAll();
     } catch { showToast('Error processing bill', 'error'); }
   };
@@ -188,14 +194,15 @@ export default function DataEntry() {
   const submitCredit = async () => {
     if (!creditModal.customerName.trim()) { showToast('Customer name is required', 'error'); return; }
     try {
-      const billRef = await addBill(buildBillDoc({
+      const creditBill = buildBillDoc({
         status: 'unpaid',
         credit: {
           customerName: creditModal.customerName.trim(),
           creditAmount: Number(creditModal.creditAmount) || netTotal,
           dueDate: creditModal.dueDate || null,
         },
-      }));
+      });
+      const billRef = await addBill(creditBill);
       // Auto-create credit_due event if a due date was set
       if (creditModal.dueDate) {
         try {
@@ -209,11 +216,12 @@ export default function DataEntry() {
             linkedProductId: null,
             note: `Amount: $${(Number(creditModal.creditAmount) || netTotal).toFixed(2)}`,
           });
-        } catch { /* silent — event creation failure shouldn't block bill */ }
+        } catch { /* silent */ }
       }
       showToast('Credit bill recorded!');
       writeAuditLog(user, role, 'Bill created', `Credit bill — ${creditModal.customerName}, $${netTotal.toFixed(2)}`, creditModal.customerName, activeBusinessId);
       setCreditModal({ open: false, customerName: '', creditAmount: '', dueDate: '' });
+      setInvoiceState({ bill: creditBill, showPrompt: true, showModal: false });
       resetAll();
     } catch { showToast('Error processing credit bill', 'error'); }
   };
@@ -239,6 +247,46 @@ export default function DataEntry() {
   return (
     <div className="w-full space-y-6 px-6 pb-6 animate-fadeIn">
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
+
+      {/* Invoice Prompt Banner */}
+      {invoiceState.showPrompt && invoiceState.bill && (
+        <div className="flex items-center justify-between gap-4 px-5 py-3 bg-green-500/10 border border-green-500/30 rounded-xl animate-fadeIn">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center shrink-0">
+              <FileText size={16} className="text-green-400" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-green-400">Bill saved successfully!</p>
+              <p className="text-xs text-gray-400">Would you like to generate an invoice?</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setInvoiceState(prev => ({ ...prev, showModal: true, showPrompt: false }))}
+              className="flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold transition-colors"
+            >
+              <FileText size={13} /> View Invoice
+            </button>
+            <button
+              onClick={() => setInvoiceState({ bill: null, showPrompt: false, showModal: false })}
+              className="px-3 py-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg text-xs font-bold transition-colors"
+            >
+              Skip
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Invoice Modal */}
+      {invoiceState.showModal && invoiceState.bill && (
+        <InvoiceModal
+          bill={invoiceState.bill}
+          businessData={businessData}
+          currency={currency}
+          timezone={timezone}
+          onClose={() => setInvoiceState({ bill: null, showPrompt: false, showModal: false })}
+        />
+      )}
 
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-gray-100 dark:border-gray-800/60 pb-3 mb-1">
