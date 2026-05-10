@@ -7,6 +7,116 @@ export const FIELD_KEYWORDS = {
   threshold: ['threshold', 'minimum', 'min stock', 'reorder point', 'reorder level', 'alert level', 'low stock']
 };
 
+export const SALES_FIELD_KEYWORDS = {
+  date: ['date', 'day', 'time', 'transaction date', 'sale date', 'order date', 'invoice date', 'sold on', 'bill date'],
+  productName: ['item', 'items', 'product', 'products', 'name', 'description', 'menu item', 'dish', 'article', 'product name', 'item name'],
+  category: ['category', 'categories', 'type', 'types', 'group', 'groups', 'section', 'department'],
+  quantity: ['qty', 'quantity', 'count', 'units sold', 'pcs sold', 'nos', 'sold qty'],
+  unitPrice: ['price', 'rate', 'unit price', 'cost', 'amount per unit', 'selling price', 'rate per unit', 'mrp'],
+  totalAmount: ['total', 'amount', 'revenue', 'sale amount', 'net', 'gross', 'subtotal', 'net total', 'grand total'],
+  paymentMethod: ['payment', 'method', 'mode', 'paid by', 'payment type', 'payment method', 'pay mode'],
+  customerName: ['customer', 'client', 'name', 'buyer', 'guest', 'customer name', 'client name'],
+  discount: ['discount', 'offer', 'reduction', 'rebate', 'disc'],
+};
+
+const PAYMENT_MAP = {
+  cash: 'cash', cod: 'cash', 'paid cash': 'cash', 'cash payment': 'cash',
+  card: 'cash', 'credit card': 'cash', 'debit card': 'cash', visa: 'cash', mastercard: 'cash',
+  online: 'cash', transfer: 'cash', bank: 'cash', 'bank transfer': 'cash', upi: 'cash', 'net banking': 'cash',
+  credit: 'credit', unpaid: 'credit', due: 'credit', pending: 'credit', tab: 'credit', 'on credit': 'credit',
+};
+
+/**
+ * Normalizes a raw payment method string.
+ * @param {string} raw
+ * @returns {'cash'|'credit'}
+ */
+export function normalizePaymentMethod(raw) {
+  if (!raw) return 'cash';
+  const clean = raw.toString().toLowerCase().trim();
+  return PAYMENT_MAP[clean] || 'cash';
+}
+
+/**
+ * Cleans a numeric string: removes currency symbols, commas, spaces.
+ * @param {*} val
+ * @returns {number}
+ */
+export function cleanNumeric(val) {
+  if (val === null || val === undefined || val === '') return 0;
+  if (typeof val === 'number') return val;
+  const cleaned = val.toString().replace(/[^0-9.\-]/g, '');
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? 0 : num;
+}
+
+const DATE_PATTERNS = [
+  /^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/, // YYYY-MM-DD
+  /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/, // DD/MM/YYYY or MM/DD/YYYY
+  /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2})$/,  // DD/MM/YY
+];
+
+/**
+ * Parses a flexible date string into a Date object.
+ * @param {*} val
+ * @param {'DMY'|'MDY'} preference
+ * @returns {Date|null}
+ */
+export function parseFlexibleDate(val, preference = 'DMY') {
+  if (!val) return null;
+  const str = val.toString().trim();
+  if (!str) return null;
+
+  // Try native parse first for formats like "January 1, 2024"
+  const native = new Date(str);
+  if (!isNaN(native.getTime()) && str.match(/[a-zA-Z]/)) return native;
+
+  // Excel serial number
+  if (/^\d{5}$/.test(str)) {
+    const excelEpoch = new Date(1899, 11, 30);
+    const d = new Date(excelEpoch.getTime() + parseInt(str) * 86400000);
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  // YYYY-MM-DD
+  const isoMatch = str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if (isoMatch) return new Date(+isoMatch[1], +isoMatch[2] - 1, +isoMatch[3]);
+
+  // DD/MM/YYYY or MM/DD/YYYY
+  const slashMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+  if (slashMatch) {
+    let [, a, b, y] = slashMatch;
+    if (y.length === 2) y = '20' + y;
+    if (preference === 'DMY') return new Date(+y, +b - 1, +a);
+    return new Date(+y, +a - 1, +b);
+  }
+
+  // Fallback
+  const fallback = new Date(str);
+  return isNaN(fallback.getTime()) ? null : fallback;
+}
+
+/**
+ * Checks if a value looks like a date.
+ */
+export function looksLikeDate(val) {
+  if (!val) return false;
+  const s = val.toString().trim();
+  if (/^\d{5}$/.test(s)) return true; // Excel serial
+  if (/\d{1,4}[\/\-]\d{1,2}[\/\-]\d{1,4}/.test(s)) return true;
+  if (/^[A-Z][a-z]+ \d/.test(s)) return true; // Month DD...
+  return false;
+}
+
+/**
+ * Checks if a value looks like a payment method.
+ */
+export function looksLikePayment(val) {
+  if (!val) return false;
+  const s = val.toString().toLowerCase().trim();
+  return Object.keys(PAYMENT_MAP).includes(s);
+}
+
 export const STANDARD_UNITS = {
   pcs: ['pcs', 'piece', 'pieces', 'unit', 'units', 'nos', 'no'],
   kg: ['kg', 'kgs', 'kilogram', 'kilograms'],
@@ -232,4 +342,79 @@ export function validateImportData(rawRows, columnMap) {
     errors,
     warnings
   };
+}
+
+/**
+ * Detects column mappings for sales/bill imports.
+ * @param {string[]} headers
+ * @param {object[]} sampleRows
+ * @returns {object[]}
+ */
+export function detectSalesColumns(headers, sampleRows) {
+  const mappings = [];
+  const assignedFields = new Set();
+
+  headers.forEach(header => {
+    const cleanHeader = header.toString().toLowerCase().trim();
+    let mappedTo = 'skip';
+    let confidence = 'unknown';
+
+    const samples = sampleRows
+      .map(row => row[header])
+      .filter(val => val !== null && val !== undefined && val !== '')
+      .slice(0, 5);
+
+    // 1. Header keyword matching against sales fields
+    let headerMatch = null;
+    let headerConf = 'none';
+
+    for (const [field, keywords] of Object.entries(SALES_FIELD_KEYWORDS)) {
+      if (keywords.includes(cleanHeader)) {
+        headerMatch = field;
+        headerConf = 'high';
+        break;
+      }
+      if (keywords.some(k => cleanHeader.includes(k))) {
+        if (!headerMatch || headerConf === 'none') {
+          headerMatch = field;
+          headerConf = 'medium';
+        }
+      }
+    }
+
+    if (headerMatch && !assignedFields.has(headerMatch)) {
+      mappedTo = headerMatch;
+      confidence = headerConf;
+      assignedFields.add(headerMatch);
+    } else if (samples.length > 0) {
+      // 2. Sample data heuristics
+      const allDates = samples.every(s => looksLikeDate(s));
+      const allPayments = samples.every(s => looksLikePayment(s));
+      const allNumbers = samples.every(s => !isNaN(cleanNumeric(s)) && cleanNumeric(s) !== 0);
+
+      if (allDates && !assignedFields.has('date')) {
+        mappedTo = 'date'; confidence = 'low'; assignedFields.add('date');
+      } else if (allPayments && !assignedFields.has('paymentMethod')) {
+        mappedTo = 'paymentMethod'; confidence = 'low'; assignedFields.add('paymentMethod');
+      } else if (allNumbers) {
+        if (!assignedFields.has('totalAmount') && (cleanHeader.includes('total') || cleanHeader.includes('amount') || cleanHeader.includes('revenue'))) {
+          mappedTo = 'totalAmount'; confidence = 'medium'; assignedFields.add('totalAmount');
+        } else if (!assignedFields.has('unitPrice') && (cleanHeader.includes('price') || cleanHeader.includes('rate'))) {
+          mappedTo = 'unitPrice'; confidence = 'medium'; assignedFields.add('unitPrice');
+        } else if (!assignedFields.has('quantity')) {
+          mappedTo = 'quantity'; confidence = 'low'; assignedFields.add('quantity');
+        }
+      }
+    }
+
+    mappings.push({
+      originalColumn: header,
+      mappedTo,
+      confidence,
+      sampleValues: samples.map(s => s.toString()),
+      autoMapped: mappedTo !== 'skip'
+    });
+  });
+
+  return mappings;
 }

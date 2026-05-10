@@ -13,6 +13,7 @@ import { useBusiness } from '../../context/BusinessContext';
 import { writeAuditLog } from '../../hooks/useAuditLog';
 import { useRole } from '../../hooks/useRole';
 import { detectColumns, normalizeUnit, groupByNameSimilarity, validateImportData } from '../../utils/importDetector';
+import SalesHistoryImport from './SalesHistoryImport';
 
 const STEPS = {
   UPLOAD: 1,
@@ -40,6 +41,7 @@ export default function TabDataImport() {
   const { role } = useRole();
   const { toast } = useToast();
   
+  const [importTab, setImportTab] = useState('products'); // 'products' | 'sales'
   const [step, setStep] = useState(STEPS.UPLOAD);
   const [file, setFile] = useState(null);
   const [rawRows, setRawRows] = useState([]);
@@ -431,10 +433,22 @@ export default function TabDataImport() {
   return (
     <div className="w-full max-w-4xl mx-auto py-6 animate-fadeIn">
       {/* HEADER */}
-      <div className="mb-8">
+      <div className="mb-6">
         <h2 className="text-xl font-bold text-white font-heading">Data Import</h2>
-        <p className="text-sm text-gray-400 mt-1">Bulk import your products and categories from an Excel or CSV file.</p>
+        <p className="text-sm text-gray-400 mt-1">Import products, inventory, or historical sales data.</p>
       </div>
+
+      {/* TAB SWITCHER */}
+      <div className="flex gap-1 p-1 bg-gray-900 border border-white/5 rounded-xl mb-8 max-w-md">
+        {[['products', 'Product & Inventory'], ['sales', 'Sales History']].map(([key, label]) => (
+          <button key={key} onClick={() => setImportTab(key)}
+            className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-bold transition-all ${importTab === key ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {importTab === 'sales' ? <SalesHistoryImport /> : (<>
 
       {/* STEP 1: UPLOAD */}
       {step === STEPS.UPLOAD && (
@@ -778,6 +792,7 @@ export default function TabDataImport() {
           </div>
         </div>
       )}
+      </>)}
     </div>
   );
 }
