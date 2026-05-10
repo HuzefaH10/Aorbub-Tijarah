@@ -1,20 +1,21 @@
 import { useState, useEffect, useCallback } from 'react';
 import { db } from '../services/firebase';
-import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, getDocs, orderBy } from 'firebase/firestore';
+import {
+  collection, query, where, onSnapshot, addDoc, updateDoc,
+  deleteDoc, doc, serverTimestamp, getDocs, orderBy, setDoc
+} from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
+import { useBusiness } from '../context/BusinessContext';
 
 export function useEntries() {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const { activeBusinessId } = useBusiness();
 
   useEffect(() => {
-    if (!user) {
-      setEntries([]);
-      setLoading(false);
-      return;
-    }
-    const q = query(collection(db, 'entries'), where('userId', '==', user.uid));
+    if (!user || !activeBusinessId) { setEntries([]); setLoading(false); return; }
+    const q = query(collection(db, 'entries'), where('userId', '==', activeBusinessId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       data.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
@@ -22,12 +23,12 @@ export function useEntries() {
       setLoading(false);
     });
     return unsubscribe;
-  }, [user]);
+  }, [user, activeBusinessId]);
 
   const addEntry = useCallback(async (data) => {
     if (!user) return;
-    await addDoc(collection(db, 'entries'), { ...data, userId: user.uid, createdAt: serverTimestamp() });
-  }, [user]);
+    await addDoc(collection(db, 'entries'), { ...data, userId: activeBusinessId, createdAt: serverTimestamp() });
+  }, [user, activeBusinessId]);
 
   const updateEntry = useCallback(async (id, data) => {
     if (!user) return;
@@ -46,21 +47,22 @@ export function useProducts() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const { activeBusinessId } = useBusiness();
 
   useEffect(() => {
-    if (!user) return;
-    const q = query(collection(db, 'products'), where('businessId', '==', user.uid));
+    if (!user || !activeBusinessId) return;
+    const q = query(collection(db, 'products'), where('businessId', '==', activeBusinessId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
     });
     return unsubscribe;
-  }, [user]);
+  }, [user, activeBusinessId]);
 
   const addProduct = useCallback(async (data) => {
     if (!user) return;
-    await addDoc(collection(db, 'products'), { ...data, businessId: user.uid, userId: user.uid, createdAt: serverTimestamp() });
-  }, [user]);
+    await addDoc(collection(db, 'products'), { ...data, businessId: activeBusinessId, userId: user.uid, createdAt: serverTimestamp() });
+  }, [user, activeBusinessId]);
 
   const updateProduct = useCallback(async (id, data) => {
     if (!user) return;
@@ -79,10 +81,11 @@ export function useEvents() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const { activeBusinessId } = useBusiness();
 
   useEffect(() => {
-    if (!user) return;
-    const q = query(collection(db, 'events'), where('businessId', '==', user.uid));
+    if (!user || !activeBusinessId) return;
+    const q = query(collection(db, 'events'), where('businessId', '==', activeBusinessId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       data.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
@@ -90,12 +93,12 @@ export function useEvents() {
       setLoading(false);
     });
     return unsubscribe;
-  }, [user]);
+  }, [user, activeBusinessId]);
 
   const addEvent = useCallback(async (_, data) => {
     if (!user) return;
-    await addDoc(collection(db, 'events'), { ...data, businessId: user.uid, userId: user.uid, createdAt: serverTimestamp() });
-  }, [user]);
+    await addDoc(collection(db, 'events'), { ...data, businessId: activeBusinessId, userId: user.uid, createdAt: serverTimestamp() });
+  }, [user, activeBusinessId]);
 
   const deleteEvent = useCallback(async (id) => {
     if (!user) return;
@@ -114,21 +117,22 @@ export function useStockLogs() {
   const [stockLogs, setStockLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const { activeBusinessId } = useBusiness();
 
   useEffect(() => {
-    if (!user) return;
-    const q = query(collection(db, 'stockLogs'), where('userId', '==', user.uid));
+    if (!user || !activeBusinessId) return;
+    const q = query(collection(db, 'stockLogs'), where('userId', '==', activeBusinessId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setStockLogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a, b) => b.date.localeCompare(a.date)));
       setLoading(false);
     });
     return unsubscribe;
-  }, [user]);
+  }, [user, activeBusinessId]);
 
   const addStockLog = useCallback(async (data) => {
     if (!user) return;
-    await addDoc(collection(db, 'stockLogs'), { ...data, userId: user.uid, createdAt: serverTimestamp() });
-  }, [user]);
+    await addDoc(collection(db, 'stockLogs'), { ...data, userId: activeBusinessId, createdAt: serverTimestamp() });
+  }, [user, activeBusinessId]);
 
   const deleteStockLog = useCallback(async (id) => {
     if (!user) return;
@@ -147,21 +151,22 @@ export function useEventTemplates() {
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const { activeBusinessId } = useBusiness();
 
   useEffect(() => {
-    if (!user) return;
-    const q = query(collection(db, 'templates'), where('businessId', '==', user.uid));
+    if (!user || !activeBusinessId) return;
+    const q = query(collection(db, 'templates'), where('businessId', '==', activeBusinessId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setTemplates(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a, b) => a.name.localeCompare(b.name)));
       setLoading(false);
     });
     return unsubscribe;
-  }, [user]);
+  }, [user, activeBusinessId]);
 
   const addTemplate = useCallback(async (data) => {
     if (!user) return;
-    await addDoc(collection(db, 'templates'), { ...data, businessId: user.uid, createdAt: serverTimestamp() });
-  }, [user]);
+    await addDoc(collection(db, 'templates'), { ...data, businessId: activeBusinessId, createdAt: serverTimestamp() });
+  }, [user, activeBusinessId]);
 
   const deleteTemplate = useCallback(async (id) => {
     if (!user) return;
@@ -175,21 +180,22 @@ export function useMilestones() {
   const [milestones, setMilestones] = useState([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const { activeBusinessId } = useBusiness();
 
   useEffect(() => {
-    if (!user) return;
-    const q = query(collection(db, 'milestones'), where('userId', '==', user.uid));
+    if (!user || !activeBusinessId) return;
+    const q = query(collection(db, 'milestones'), where('userId', '==', activeBusinessId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setMilestones(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a, b) => a.date.localeCompare(b.date)));
       setLoading(false);
     });
     return unsubscribe;
-  }, [user]);
+  }, [user, activeBusinessId]);
 
   const addMilestone = useCallback(async (data) => {
     if (!user) return;
-    await addDoc(collection(db, 'milestones'), { ...data, userId: user.uid, createdAt: serverTimestamp() });
-  }, [user]);
+    await addDoc(collection(db, 'milestones'), { ...data, userId: activeBusinessId, createdAt: serverTimestamp() });
+  }, [user, activeBusinessId]);
 
   const deleteMilestone = useCallback(async (id) => {
     if (!user) return;
@@ -205,25 +211,26 @@ export function useMilestones() {
 }
 
 export function useSettings() {
-  const [settings, setSettings] = useState({ businessName: 'Supreme Sanitory' });
+  const [settings, setSettings] = useState({ businessName: 'My Business' });
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const { activeBusinessId } = useBusiness();
 
   useEffect(() => {
-    if (!user) return;
-    const unsubscribe = onSnapshot(doc(db, 'settings', `profile_${user.uid}`), (docSnap) => {
+    if (!user || !activeBusinessId) return;
+    const unsubscribe = onSnapshot(doc(db, 'settings', `profile_${activeBusinessId}`), (docSnap) => {
       if (docSnap.exists()) {
-        setSettings({ businessName: 'Supreme Sanitory', ...docSnap.data() });
+        setSettings({ businessName: 'My Business', ...docSnap.data() });
       }
       setLoading(false);
     });
     return unsubscribe;
-  }, [user]);
+  }, [user, activeBusinessId]);
 
   const updateSettings = useCallback(async (data) => {
     if (!user) return;
-    await setDoc(doc(db, 'settings', `profile_${user.uid}`), data, { merge: true });
-  }, [user]);
+    await setDoc(doc(db, 'settings', `profile_${activeBusinessId}`), data, { merge: true });
+  }, [user, activeBusinessId]);
 
   return { settings, loading, updateSettings };
 }
@@ -232,10 +239,11 @@ export function useBills() {
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const { activeBusinessId } = useBusiness();
 
   useEffect(() => {
-    if (!user) return;
-    const q = query(collection(db, 'bills'), where('businessId', '==', user.uid));
+    if (!user || !activeBusinessId) return;
+    const q = query(collection(db, 'bills'), where('businessId', '==', activeBusinessId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       data.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
@@ -243,13 +251,13 @@ export function useBills() {
       setLoading(false);
     });
     return unsubscribe;
-  }, [user]);
+  }, [user, activeBusinessId]);
 
   const addBill = useCallback(async (data) => {
     if (!user) return;
-    const ref = await addDoc(collection(db, 'bills'), { ...data, businessId: user.uid, createdAt: serverTimestamp() });
+    const ref = await addDoc(collection(db, 'bills'), { ...data, businessId: activeBusinessId, createdAt: serverTimestamp() });
     return ref;
-  }, [user]);
+  }, [user, activeBusinessId]);
 
   return { bills, loading, addBill };
 }
@@ -258,10 +266,11 @@ export function useCategories() {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const { activeBusinessId } = useBusiness();
 
   useEffect(() => {
-    if (!user) return;
-    const q = query(collection(db, 'categories'), where('businessId', '==', user.uid));
+    if (!user || !activeBusinessId) return;
+    const q = query(collection(db, 'categories'), where('businessId', '==', activeBusinessId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs
         .map(d => ({ id: d.id, ...d.data() }))
@@ -270,15 +279,15 @@ export function useCategories() {
       setLoading(false);
     });
     return unsubscribe;
-  }, [user]);
+  }, [user, activeBusinessId]);
 
   const addCategory = useCallback(async (name) => {
     if (!user || !name.trim()) return;
-    const existing = await getDocs(query(collection(db, 'categories'), where('businessId', '==', user.uid), where('name', '==', name.trim())));
+    const existing = await getDocs(query(collection(db, 'categories'), where('businessId', '==', activeBusinessId), where('name', '==', name.trim())));
     if (!existing.empty) return existing.docs[0].data().name;
-    await addDoc(collection(db, 'categories'), { name: name.trim(), businessId: user.uid, createdAt: serverTimestamp() });
+    await addDoc(collection(db, 'categories'), { name: name.trim(), businessId: activeBusinessId, createdAt: serverTimestamp() });
     return name.trim();
-  }, [user]);
+  }, [user, activeBusinessId]);
 
   return { categories, loading, addCategory };
 }
@@ -287,12 +296,13 @@ export function useStockHistory(productId) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const { activeBusinessId } = useBusiness();
 
   useEffect(() => {
-    if (!user || !productId) { setHistory([]); setLoading(false); return; }
+    if (!user || !productId || !activeBusinessId) { setHistory([]); setLoading(false); return; }
     const q = query(
       collection(db, 'stockHistory'),
-      where('businessId', '==', user.uid),
+      where('businessId', '==', activeBusinessId),
       where('productId', '==', productId),
       orderBy('loadedAt', 'desc')
     );
@@ -301,22 +311,23 @@ export function useStockHistory(productId) {
       setLoading(false);
     }, () => { setLoading(false); });
     return unsubscribe;
-  }, [user, productId]);
+  }, [user, productId, activeBusinessId]);
 
   return { history, loading };
 }
 
 export function useAddStockHistory() {
   const { user } = useAuth();
+  const { activeBusinessId } = useBusiness();
 
   const addStockHistory = useCallback(async (data) => {
     if (!user) return;
     await addDoc(collection(db, 'stockHistory'), {
       ...data,
-      businessId: user.uid,
+      businessId: activeBusinessId,
       loadedAt: serverTimestamp(),
     });
-  }, [user]);
+  }, [user, activeBusinessId]);
 
   return addStockHistory;
 }

@@ -1,14 +1,16 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useRole } from '../../hooks/useRole';
+import { useBusiness } from '../../context/BusinessContext';
 import { db } from '../../services/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import {
   ChevronDown, Settings, HelpCircle, LogOut, Keyboard, Sparkles, X,
-  Crown, ShieldCheck, UserCog
+  Crown, ShieldCheck, UserCog, Building2, Plus, CheckCircle2
 } from 'lucide-react';
 import StockAlertBell from './StockAlertBell';
+import Toast, { useToast } from '../ui/Toast';
 
 const titles = {
   '/': 'Dashboard',
@@ -101,6 +103,7 @@ const LATEST_CHANGELOG_DATE = new Date('2026-05-09T00:00:00').getTime();
 export default function Topbar() {
   const { user, logout } = useAuth();
   const { role } = useRole();
+  const { activeBusinessId, activeBusiness, businesses, switchBusiness, createBusiness } = useBusiness();
   const location = useLocation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -108,6 +111,11 @@ export default function Topbar() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [changelogOpen, setChangelogOpen] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
+  const [bizSwitcherOpen, setBizSwitcherOpen] = useState(false);
+  const [newBizModal, setNewBizModal] = useState(false);
+  const [newBiz, setNewBiz] = useState({ name: '', address: '', currency: 'USD' });
+  const [creatingBiz, setCreatingBiz] = useState(false);
+  const { toast, showToast, hideToast } = useToast();
   const timerRef = useRef();
 
   // Profile data
@@ -173,6 +181,30 @@ export default function Topbar() {
 
   const enter = () => { clearTimeout(timerRef.current); setOpen(true); };
   const leave = () => { timerRef.current = setTimeout(() => setOpen(false), 200); };
+
+  const handleSwitchBusiness = async (biz) => {
+    if (biz.id === activeBusinessId) { setBizSwitcherOpen(false); return; }
+    try {
+      await switchBusiness(biz.id, biz.name);
+      showToast(`Switched to ${biz.name}`);
+      setBizSwitcherOpen(false);
+      setOpen(false);
+    } catch { showToast('Failed to switch business', 'error'); }
+  };
+
+  const handleCreateBusiness = async () => {
+    if (!newBiz.name.trim()) return;
+    setCreatingBiz(true);
+    try {
+      await createBusiness({ name: newBiz.name.trim(), address: newBiz.address.trim(), currency: newBiz.currency });
+      showToast(`Created & switched to ${newBiz.name.trim()}`);
+      setNewBizModal(false);
+      setNewBiz({ name: '', address: '', currency: 'USD' });
+      setBizSwitcherOpen(false);
+      setOpen(false);
+    } catch { showToast('Failed to create business', 'error'); }
+    finally { setCreatingBiz(false); }
+  };
 
   const today = new Date().toLocaleDateString('en-GB', {
     year: 'numeric', month: 'long', day: 'numeric'
@@ -346,6 +378,61 @@ export default function Topbar() {
                   </div>
                 </div>
 
+                {/* Switch Business section */}
+                <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[10px] font-bold text-gray-400 dark:text-gray-600 uppercase tracking-wider">Current Business</span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setBizSwitcherOpen(p => !p); }}
+                      className="text-[10px] font-bold text-primary-600 dark:text-primary-400 hover:underline"
+                    >
+                      {bizSwitcherOpen ? 'Close' : 'Switch'}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Building2 size={14} className="text-primary-500 shrink-0" />
+                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-200 truncate">
+                      {activeBusiness?.name || 'My Business'}
+                    </span>
+                  </div>
+
+                  {bizSwitcherOpen && (
+                    <div className="mt-3 space-y-1 max-h-[160px] overflow-y-auto">
+                      {businesses.map(biz => (
+                        <button
+                          key={biz.id}
+                          onClick={(e) => { e.stopPropagation(); handleSwitchBusiness(biz); }}
+                          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left transition-colors ${
+                            biz.id === activeBusinessId
+                              ? 'bg-primary-50 dark:bg-primary-500/10 border border-primary-200 dark:border-primary-500/30'
+                              : 'hover:bg-gray-50 dark:hover:bg-gray-800'
+                          }`}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-gray-800 dark:text-white truncate">{biz.name}</p>
+                            <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider ${
+                              ROLE_CONFIG[biz.role]?.color || 'bg-gray-100 text-gray-500'
+                            }`}>
+                              {biz.role || 'owner'}
+                            </span>
+                          </div>
+                          {biz.id === activeBusinessId && (
+                            <CheckCircle2 size={14} className="text-primary-500 shrink-0" />
+                          )}
+                        </button>
+                      ))}
+
+                      {/* Add New Business */}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setNewBizModal(true); setOpen(false); setBizSwitcherOpen(false); }}
+                        className="w-full flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs font-bold text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-500/10 border border-dashed border-primary-300 dark:border-primary-500/30 transition-colors mt-1"
+                      >
+                        <Plus size={12} /> Add New Business
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 {/* Menu items */}
                 <div className="py-1.5">
                   <button onClick={() => navTo('/settings')} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
@@ -468,6 +555,80 @@ export default function Topbar() {
           animation: slideInRight 0.25s ease-out;
         }
       `}</style>
+
+      {/* ── Toast ── */}
+      {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
+
+      {/* ── Create New Business Modal ── */}
+      {newBizModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[200] animate-fadeIn p-4" onClick={() => setNewBizModal(false)}>
+          <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-white/10 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-white/[0.06]">
+              <div className="flex items-center gap-2.5">
+                <Building2 size={20} className="text-primary-500" />
+                <h3 className="text-base font-bold text-gray-800 dark:text-white">Create New Business</h3>
+              </div>
+              <button onClick={() => setNewBizModal(false)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-400 dark:text-gray-500 mb-1 uppercase tracking-wider">Business Name *</label>
+                <input
+                  autoFocus
+                  value={newBiz.name}
+                  onChange={e => setNewBiz(p => ({ ...p, name: e.target.value }))}
+                  className="w-full glass text-gray-800 dark:text-white px-3.5 py-2.5 text-sm outline-none focus:border-primary-500 transition-all rounded-xl"
+                  placeholder="e.g. Supreme Sanitory - Branch 2"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-400 dark:text-gray-500 mb-1 uppercase tracking-wider">Business Address</label>
+                <input
+                  value={newBiz.address}
+                  onChange={e => setNewBiz(p => ({ ...p, address: e.target.value }))}
+                  className="w-full glass text-gray-800 dark:text-white px-3.5 py-2.5 text-sm outline-none focus:border-primary-500 transition-all rounded-xl"
+                  placeholder="Optional"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-400 dark:text-gray-500 mb-1 uppercase tracking-wider">Default Currency</label>
+                <select
+                  value={newBiz.currency}
+                  onChange={e => setNewBiz(p => ({ ...p, currency: e.target.value }))}
+                  className="w-full glass text-gray-800 dark:text-white px-3.5 py-2.5 text-sm outline-none focus:border-primary-500 transition-all rounded-xl cursor-pointer"
+                >
+                  <option value="USD">USD — US Dollar</option>
+                  <option value="AED">AED — UAE Dirham</option>
+                  <option value="PKR">PKR — Pakistani Rupee</option>
+                  <option value="INR">INR — Indian Rupee</option>
+                  <option value="SAR">SAR — Saudi Riyal</option>
+                  <option value="GBP">GBP — British Pound</option>
+                  <option value="EUR">EUR — Euro</option>
+                </select>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setNewBizModal(false)}
+                  className="flex-1 py-2.5 border border-gray-200 dark:border-white/10 rounded-xl text-sm font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateBusiness}
+                  disabled={!newBiz.name.trim() || creatingBiz}
+                  className="flex-1 py-2.5 bg-primary-600 rounded-xl text-sm font-bold text-white hover:bg-primary-700 transition-colors shadow-lg shadow-primary-600/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {creatingBiz ? 'Creating...' : 'Create & Switch'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

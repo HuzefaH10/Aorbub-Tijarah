@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { BusinessProvider } from './context/BusinessContext';
 import { ThemeProvider } from './context/ThemeContext';
 import Layout from './components/layout/Layout';
 import Login from './pages/Login';
@@ -28,21 +29,23 @@ export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-              <Route index element={<HomePage />} />
-              <Route path="analytics" element={<SalesAnalytics />} />
-              <Route path="profit" element={<ProfitOptimization />} />
-              <Route path="inventory" element={<Inventory />} />
-              <Route path="calendar" element={<CalendarPage />} />
-              <Route path="settings" element={<Settings />} />
-              <Route path="help" element={<HelpContact />} />
-              <Route path="data-entry" element={<DataEntry />} />
-            </Route>
-          </Routes>
-        </BrowserRouter>
+        <BusinessProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+                <Route index element={<HomePage />} />
+                <Route path="analytics" element={<SalesAnalytics />} />
+                <Route path="profit" element={<ProfitOptimization />} />
+                <Route path="inventory" element={<Inventory />} />
+                <Route path="calendar" element={<CalendarPage />} />
+                <Route path="settings" element={<Settings />} />
+                <Route path="help" element={<HelpContact />} />
+                <Route path="data-entry" element={<DataEntry />} />
+              </Route>
+            </Routes>
+          </BrowserRouter>
+        </BusinessProvider>
       </AuthProvider>
     </ThemeProvider>
   );
