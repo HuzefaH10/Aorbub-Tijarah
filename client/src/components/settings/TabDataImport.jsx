@@ -12,6 +12,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useBusiness } from '../../context/BusinessContext';
 import { writeAuditLog } from '../../hooks/useAuditLog';
 import { useRole } from '../../hooks/useRole';
+import { detectColumns, normalizeUnit, groupByNameSimilarity, validateImportData } from '../../utils/importDetector';
 
 const STEPS = {
   UPLOAD: 1,
@@ -23,15 +24,6 @@ const STEPS = {
   SUCCESS: 7
 };
 
-const FIELD_KEYWORDS = {
-  productName: ['item', 'items', 'product', 'products', 'name', 'description', 'commodity', 'commodities', 'goods', 'article', 'sku description', 'product name', 'item name'],
-  category: ['category', 'categories', 'type', 'types', 'group', 'groups', 'section', 'department', 'class', 'classification'],
-  unit: ['unit', 'units', 'uom', 'measure', 'measurement', 'pack', 'packaging', 'size type'],
-  price: ['price', 'rate', 'cost', 'amount', 'value', 'mrp', 'selling price', 'unit price', 'rate per unit'],
-  quantity: ['quantity', 'qty', 'stock', 'stock qty', 'current stock', 'opening stock', 'on hand', 'available'],
-  threshold: ['threshold', 'minimum', 'min stock', 'reorder point', 'reorder level', 'alert level', 'low stock']
-};
-
 const FIELD_LABELS = {
   productName: 'Product Name',
   category: 'Category',
@@ -40,19 +32,6 @@ const FIELD_LABELS = {
   quantity: 'Quantity',
   threshold: 'Low Stock Threshold',
   skip: 'Skip this column'
-};
-
-const STANDARD_UNITS = {
-  pcs: ['pcs', 'piece', 'pieces', 'unit', 'units', 'nos', 'no'],
-  kg: ['kg', 'kgs', 'kilogram', 'kilograms'],
-  g: ['g', 'gm', 'gram', 'grams'],
-  litre: ['l', 'ltr', 'litre', 'liter', 'litres', 'liters'],
-  ml: ['ml', 'millilitre', 'milliliter'],
-  box: ['box', 'boxes', 'bx'],
-  dozen: ['doz', 'dozen', 'dozens'],
-  pack: ['pkt', 'pack', 'packet', 'packets'],
-  bag: ['bag', 'bags'],
-  carton: ['ctn', 'carton', 'cartons']
 };
 
 export default function TabDataImport() {
@@ -132,31 +111,10 @@ export default function TabDataImport() {
     const map = {};
     const conf = {};
     
-    cols.forEach(col => {
-      const cleanCol = col.toString().toLowerCase().trim();
-      let matchedField = 'skip';
-      let matchConfidence = 'none';
-
-      for (const [field, keywords] of Object.entries(FIELD_KEYWORDS)) {
-        if (keywords.includes(cleanCol)) {
-          matchedField = field;
-          matchConfidence = 'high';
-          break;
-        }
-        if (keywords.some(k => cleanCol.includes(k))) {
-          matchedField = field;
-          matchConfidence = 'medium';
-        }
-      }
-      
-      // Prevent mapping same field twice automatically
-      if (matchedField !== 'skip' && Object.values(map).includes(matchedField)) {
-        matchedField = 'skip';
-        matchConfidence = 'none';
-      }
-      
-      map[col] = matchedField;
-      conf[col] = matchConfidence;
+    const mappings = detectColumns(cols, rawRows.slice(0, 5));
+    mappings.forEach(m => {
+      map[m.originalColumn] = m.mappedTo;
+      conf[m.originalColumn] = m.confidence;
     });
     
     setColumnMap(map);
@@ -235,6 +193,33 @@ export default function TabDataImport() {
     });
   };
 
+  const handleAutoGroup = () => {
+    const unassignedProducts = missingCategories
+      .filter(m => !categoryAssignments[m.index])
+      .map(m => m.name);
+      
+    if (unassignedProducts.length === 0) return;
+    
+    const groups = groupByNameSimilarity(unassignedProducts);
+    
+    if (groups.length === 0) {
+      toast('Could not find obvious similarities to auto-group.', 'info');
+      return;
+    }
+    
+    setCategoryAssignments(prev => {
+      const next = { ...prev };
+      groups.forEach(g => {
+        g.products.forEach(pName => {
+          const match = missingCategories.find(m => m.name === pName);
+          if (match) next[match.index] = g.suggestedCategory;
+        });
+      });
+      return next;
+    });
+    toast(`Auto-grouped items into ${groups.length} categories!`, 'success');
+  };
+
   const proceedFromCategories = () => {
     const unassignedCount = missingCategories.filter(m => !categoryAssignments[m.index]).length;
     if (unassignedCount > 0) {
@@ -255,11 +240,9 @@ export default function TabDataImport() {
       const rawU = row[unitCol];
       if (rawU && rawU.toString().trim()) {
         const u = rawU.toString().toLowerCase().trim();
-        let found = false;
-        for (const [std, aliases] of Object.entries(STANDARD_UNITS)) {
-          if (aliases.includes(u)) { found = true; break; }
+        if (normalizeUnit(u) === null) {
+          unknowns.add(rawU.toString().trim());
         }
-        if (!found) unknowns.add(rawU.toString().trim());
       }
     });
     return Array.from(unknowns);
@@ -298,10 +281,17 @@ export default function TabDataImport() {
 
     const skipped = columns.filter(c => columnMap[c] === 'skip');
 
+    const validation = validateImportData(rawRows, columnMap);
+    if (!validation.valid) {
+      validation.errors.forEach(e => toast(e, 'error'));
+      return;
+    }
+
     setImportSummary({
       toAdd,
       categories: Array.from(catsToCreate),
-      withPrice, noPrice, noThresh, skipped
+      withPrice, noPrice, noThresh, skipped,
+      warnings: validation.warnings
     });
     setStep(STEPS.CONFIRM);
   };
@@ -358,12 +348,7 @@ export default function TabDataImport() {
         let unit = 'pcs';
         if (unitCol && row[unitCol]) {
           const rawU = row[unitCol].toString().trim();
-          unit = unitAssignments[rawU] || rawU; 
-          // attempt auto-normalize just in case
-          const lowerU = rawU.toLowerCase();
-          for (const [std, aliases] of Object.entries(STANDARD_UNITS)) {
-            if (aliases.includes(lowerU)) { unit = std; break; }
-          }
+          unit = unitAssignments[rawU] || normalizeUnit(rawU) || rawU; 
         }
 
         const price = priceCol ? parseFloat(row[priceCol]) : 0;
@@ -612,9 +597,15 @@ export default function TabDataImport() {
                       <button 
                         onClick={() => handleBulkAssignCat(newCatInput)}
                         disabled={bulkCatSelect.size === 0 || !newCatInput.trim()}
-                        className="w-full py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-sm font-bold transition-colors disabled:opacity-50"
+                        className="w-full py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-sm font-bold transition-colors disabled:opacity-50 mb-4"
                       >
                         Assign to Category
+                      </button>
+                      <button 
+                        onClick={handleAutoGroup}
+                        className="w-full py-2 border border-primary-500/30 hover:bg-primary-500/10 text-primary-400 rounded-lg text-sm font-bold transition-colors"
+                      >
+                        Auto-group by similarity
                       </button>
                     </div>
                   </div>
@@ -662,7 +653,7 @@ export default function TabDataImport() {
                           className="bg-gray-900 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white outline-none focus:border-primary-500 w-40"
                         >
                           <option value="" disabled>Select...</option>
-                          {Object.keys(STANDARD_UNITS).map(std => <option key={std} value={std}>{std}</option>)}
+                          {['pcs', 'kg', 'g', 'litre', 'ml', 'box', 'dozen', 'pack', 'bag', 'carton'].map(std => <option key={std} value={std}>{std}</option>)}
                           <option value={u}>Keep as Custom "{u}"</option>
                         </select>
                       </div>
@@ -714,6 +705,20 @@ export default function TabDataImport() {
                 <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Skipped Cols</p>
               </div>
             </div>
+
+            {importSummary.warnings?.length > 0 && (
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex flex-col gap-2 mb-6">
+                <div className="flex gap-3">
+                  <AlertTriangle className="text-amber-500 shrink-0" />
+                  <h4 className="text-sm font-bold text-amber-500">Import Warnings</h4>
+                </div>
+                <ul className="list-disc pl-10 text-xs text-amber-500/80 space-y-1">
+                  {importSummary.warnings.map((w, idx) => (
+                    <li key={idx}>{w}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {mode === 'replace' && (
               <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex gap-3 mb-6">
