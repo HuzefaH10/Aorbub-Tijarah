@@ -5,16 +5,23 @@ import {
 } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import { useRole } from './useRole';
+import { useBusiness } from '../context/BusinessContext';
+
 
 /**
  * writeAuditLog — Standalone function to log an action from anywhere.
- * Import this directly in components that need to log actions.
+ * @param {object} user - Firebase Auth user
+ * @param {string} role - userRole
+ * @param {string} action - action label
+ * @param {string} details - description
+ * @param {string|null} affectedEntity
+ * @param {string|null} businessId - activeBusinessId from context (falls back to user.uid)
  */
-export async function writeAuditLog(user, role, action, details, affectedEntity = null) {
+export async function writeAuditLog(user, role, action, details, affectedEntity = null, businessId = null) {
   if (!user) return;
   try {
     await addDoc(collection(db, 'auditLog'), {
-      businessId: user.uid,
+      businessId: businessId || user.uid,
       uid: user.uid,
       userName: user.email?.split('@')[0] || 'Unknown',
       userEmail: user.email || '',
@@ -29,6 +36,7 @@ export async function writeAuditLog(user, role, action, details, affectedEntity 
   }
 }
 
+
 /**
  * useAuditLog — Hook for reading and filtering the audit log.
  * Uses a single `where` clause with client-side sorting/filtering/pagination
@@ -37,6 +45,8 @@ export async function writeAuditLog(user, role, action, details, affectedEntity 
 export function useAuditLog() {
   const { user } = useAuth();
   const { role } = useRole();
+  const { activeBusinessId } = useBusiness();
+
 
   const [allLogs, setAllLogs] = useState([]);    // full fetched set
   const [logs, setLogs] = useState([]);           // current page slice
@@ -59,7 +69,7 @@ export function useAuditLog() {
     try {
       const q = query(
         collection(db, 'auditLog'),
-        where('businessId', '==', user.uid)
+        where('businessId', '==', activeBusinessId || user.uid)
       );
       const snap = await getDocs(q);
       const results = snap.docs.map(d => {

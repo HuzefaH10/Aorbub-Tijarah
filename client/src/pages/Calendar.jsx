@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useEvents, useMilestones, useProducts, useBills, useStockLogs, useEventTemplates } from '../hooks/useFirestore';
+import { usePageGuard } from '../hooks/usePageGuard';
+
 import { 
   Calendar as CalendarIcon, Clock, CheckCircle2, AlertTriangle, 
   ChevronLeft, ChevronRight, Plus, Search, X, Edit2, Trash2,
@@ -23,6 +25,7 @@ const getType = t => EVENT_TYPES.find(x => x.id === t) || EVENT_TYPES[0];
 const MILESTONE_ICONS = ['🏆', '🚀', '💰', '📦', '🎯', '🔑', '🌟', '📈', '🤝', '🎉', '🏪', '✅'];
 
 export default function CalendarPage() {
+  usePageGuard('calendar');
   const { events, addEvent, updateEvent, deleteEvent } = useEvents();
   const { milestones, addMilestone, deleteMilestone } = useMilestones();
   const { products } = useProducts();

@@ -9,8 +9,16 @@ import {
 import Toast, { useToast } from '../components/ui/Toast';
 import ExportModal from '../components/inventory/ExportModal';
 import ProductHistoryDrawer from '../components/inventory/ProductHistoryDrawer';
+import { useAuth } from '../context/AuthContext';
+import { useBusiness } from '../context/BusinessContext';
+import { useRole } from '../hooks/useRole';
+import { usePageGuard } from '../hooks/usePageGuard';
+import { writeAuditLog } from '../hooks/useAuditLog';
+
 
 export default function Inventory() {
+  usePageGuard('inventory_view');
+
   const { products, addProduct, updateProduct, deleteProduct } = useProducts();
   const { entries } = useEntries();
   const { stockLogs, addStockLog, deleteStockLog, updateStockLog } = useStockLogs();
@@ -18,6 +26,39 @@ export default function Inventory() {
   const { events, addEvent, updateEvent } = useEvents();
   const { toast, showToast, hideToast } = useToast();
   const addStockHistory = useAddStockHistory();
+  const { user } = useAuth();
+  const { activeBusinessId } = useBusiness();
+  const { role, hasPermission } = useRole();
+
+  const handleAddProduct = async (data) => {
+    const newId = await addProduct(data);
+    writeAuditLog(user, role, 'Product added', `Added ${data.name}`, data.name, activeBusinessId);
+    return newId;
+  };
+
+  const handleUpdateProduct = async (id, data) => {
+    await updateProduct(id, data);
+    writeAuditLog(user, role, 'Product updated', `Updated ${data.name || 'product'}`, data.name || id, activeBusinessId);
+  };
+
+  const handleDeleteProduct = async (id) => {
+    const p = products.find(x => x.id === id);
+    await deleteProduct(id);
+    writeAuditLog(user, role, 'Product deleted', `Deleted ${p?.name || 'product'}`, p?.name || id, activeBusinessId);
+  };
+
+  const handleAddStockLog = async (data) => {
+    const id = await addStockLog(data);
+    writeAuditLog(user, role, 'Stock loaded', `Loaded ${data.quantityLoaded} ${data.unit || ''} of ${data.productName}`, data.productName, activeBusinessId);
+    return id;
+  };
+
+  const handleDeleteStockLog = async (id) => {
+    const log = stockLogs.find(x => x.id === id);
+    await deleteStockLog(id);
+    writeAuditLog(user, role, 'Stock log deleted', `Deleted log for ${log?.productName || 'product'}`, log?.productName, activeBusinessId);
+  };
+
 
   const [activeTab, setActiveTab] = useState('overview');
   
@@ -160,7 +201,7 @@ export default function Inventory() {
         </div>
         
         <div className="p-5">
-          {activeTab === 'overview' && <TabOverview computedData={computedData.data} onEdit={(p) => setProductModal({ open: true, editId: p.id, data: p })} onDelete={(p) => setDeleteModal({ open: true, type: 'product', id: p.id, name: p.name })} onLoad={(p) => setQuickLoadModal({ open: true, product: p })} onHistory={(p) => setHistoryDrawer({ open: true, product: p })} onBulkDelete={deleteProduct} onBulkUpdate={updateProduct} firestoreCategories={firestoreCategories} toast={showToast} />}
+          {activeTab === 'overview' && <TabOverview computedData={computedData.data} onEdit={(p) => setProductModal({ open: true, editId: p.id, data: p })} onDelete={(p) => setDeleteModal({ open: true, type: 'product', id: p.id, name: p.name })} onLoad={(p) => setQuickLoadModal({ open: true, product: p })} onHistory={(p) => setHistoryDrawer({ open: true, product: p })} onBulkDelete={handleDeleteProduct} onBulkUpdate={handleUpdateProduct} firestoreCategories={firestoreCategories} toast={showToast} />}
           {activeTab === 'history' && <TabHistory logs={stockLogs} onDelete={(l) => setDeleteModal({ open: true, type: 'log', id: l.id, name: 'this log entry' })} />}
           {activeTab === 'analytics' && <TabAnalytics computedData={computedData.data} logs={stockLogs} />}
         </div>
@@ -177,10 +218,10 @@ export default function Inventory() {
       </div>
 
       {/* MODALS */}
-      {loadStockModal.open && <LoadStockModal computedData={computedData.data} initialProductId={loadStockModal.productId} onClose={() => setLoadStockModal({ open: false, productId: null })} onSave={addStockLog} onAddHistory={addStockHistory} onUpdateProduct={updateProduct} events={events} onUpdateEvent={updateEvent} onAddEvent={addEvent} toast={showToast} />}
-      {quickLoadModal.open && <QuickLoadModal product={quickLoadModal.product} onClose={() => setQuickLoadModal({ open: false, product: null })} onSave={addStockLog} onUpdateProduct={updateProduct} events={events} onUpdateEvent={updateEvent} onAddEvent={addEvent} toast={showToast} />}
-      {productModal.open && <ProductModal editId={productModal.editId} initialData={productModal.data} onClose={() => setProductModal({ open: false, editId: null, data: null })} onSave={productModal.editId ? updateProduct : addProduct} firestoreCategories={firestoreCategories} addCategory={addCategory} toast={showToast} />}
-      {deleteModal.open && <DeleteModal target={deleteModal} onClose={() => setDeleteModal({ open: false, type: null, id: null, name: '' })} onConfirm={deleteModal.type === 'product' ? deleteProduct : deleteStockLog} toast={showToast} />}
+      {loadStockModal.open && <LoadStockModal computedData={computedData.data} initialProductId={loadStockModal.productId} onClose={() => setLoadStockModal({ open: false, productId: null })} onSave={handleAddStockLog} onAddHistory={addStockHistory} onUpdateProduct={handleUpdateProduct} events={events} onUpdateEvent={updateEvent} onAddEvent={addEvent} toast={showToast} />}
+      {quickLoadModal.open && <QuickLoadModal product={quickLoadModal.product} onClose={() => setQuickLoadModal({ open: false, product: null })} onSave={handleAddStockLog} onUpdateProduct={handleUpdateProduct} events={events} onUpdateEvent={updateEvent} onAddEvent={addEvent} toast={showToast} />}
+      {productModal.open && <ProductModal editId={productModal.editId} initialData={productModal.data} onClose={() => setProductModal({ open: false, editId: null, data: null })} onSave={productModal.editId ? handleUpdateProduct : handleAddProduct} firestoreCategories={firestoreCategories} addCategory={addCategory} toast={showToast} />}
+      {deleteModal.open && <DeleteModal target={deleteModal} onClose={() => setDeleteModal({ open: false, type: null, id: null, name: '' })} onConfirm={deleteModal.type === 'product' ? handleDeleteProduct : handleDeleteStockLog} toast={showToast} />}
       {exportModalOpen && <ExportModal onClose={() => setExportModalOpen(false)} computedData={computedData.data} stockLogs={stockLogs} toast={showToast} />}
       {historyDrawer.open && historyDrawer.product && <ProductHistoryDrawer product={historyDrawer.product} onClose={() => setHistoryDrawer({ open: false, product: null })} />}
 

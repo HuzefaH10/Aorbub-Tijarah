@@ -9,54 +9,55 @@ import { useAuth } from '../context/AuthContext';
  */
 const PERMISSIONS = {
   owner: {
-    'stock_entry':        true,
-    'billing':            true,
-    'inventory_view':     true,
-    'inventory_edit':     true,
-    'load_stock':         true,
-    'sales_analytics':    true,
-    'calendar':           true,
-    'settings_profile':   true,
-    'settings_business':  true,
-    'settings_team':      true,
-    'settings_security':  true,
+    'stock_entry':         true,
+    'billing':             true,
+    'inventory_view':      true,
+    'inventory_edit':      true,
+    'load_stock':          true,
+    'sales_analytics':     true,
+    'calendar':            true,
+    'settings_profile':    true,
+    'settings_business':   true,
+    'settings_team':       true,
+    'settings_security':   true,
     'profit_optimization': true,
+    'audit_log':           true,
   },
   admin: {
-    'stock_entry':        true,
-    'billing':            true,
-    'inventory_view':     true,
-    'inventory_edit':     true,
-    'load_stock':         true,
-    'sales_analytics':    true,
-    'calendar':           true,
-    'settings_profile':   true,
-    'settings_business':  false,
-    'settings_team':      false,
-    'settings_security':  true,
+    'stock_entry':         true,
+    'billing':             true,
+    'inventory_view':      true,
+    'inventory_edit':      true,
+    'load_stock':          true,
+    'sales_analytics':     true,
+    'calendar':            true,
+    'settings_profile':    true,
+    'settings_business':   false,
+    'settings_team':       false,
+    'settings_security':   true,
     'profit_optimization': true,
+    'audit_log':           true,
   },
   staff: {
-    'stock_entry':        true,
-    'billing':            true,
-    'inventory_view':     true,
-    'inventory_edit':     false,
-    'load_stock':         true,
-    'sales_analytics':    false,
-    'calendar':           true,
-    'settings_profile':   true,
-    'settings_business':  false,
-    'settings_team':      false,
-    'settings_security':  false,
+    'stock_entry':         true,
+    'billing':             true,
+    'inventory_view':      true,
+    'inventory_edit':      false,
+    'load_stock':          true,
+    'sales_analytics':     false,
+    'calendar':            true,
+    'settings_profile':    true,
+    'settings_business':   false,
+    'settings_team':       false,
+    'settings_security':   false,
     'profit_optimization': false,
+    'audit_log':           false,
   },
 };
 
 /**
  * useRole — Returns the current user's role and permission helpers.
- * 
- * When a user signs up or hasn't been assigned a role yet, they default to 'owner'
- * (since the first user is always the business owner).
+ * When a user signs up or hasn't been assigned a role yet, they default to 'owner'.
  */
 export function useRole() {
   const { user } = useAuth();
@@ -72,7 +73,6 @@ export function useRole() {
         if (userDoc.exists() && userDoc.data().role) {
           setRole(userDoc.data().role);
         } else {
-          // First-time user — default to owner
           setRole('owner');
         }
       } catch (err) {

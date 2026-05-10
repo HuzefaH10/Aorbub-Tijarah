@@ -3,20 +3,32 @@ import { useNavigate } from 'react-router-dom';
 import { Card, SummaryCard } from '../components/ui/Card';
 import Toast, { useToast } from '../components/ui/Toast';
 import { useProducts, useBills, useSettings, useEvents } from '../hooks/useFirestore';
+import { useAuth } from '../context/AuthContext';
+import { useBusiness } from '../context/BusinessContext';
+import { useRole } from '../hooks/useRole';
+import { usePageGuard } from '../hooks/usePageGuard';
+import { writeAuditLog } from '../hooks/useAuditLog';
+import { todayISO as getTodayISO, todayDisplay as getTodayDisplay } from '../utils/dateUtils';
 import { ClipboardList, ShoppingCart, DollarSign, Settings2, X, Plus, Trash2, ChevronDown, Pencil } from 'lucide-react';
 
 const DEFAULT_FIELDS = { unitPrice: false, tax: false, notes: false };
 
 export default function DataEntry() {
+  // Guard: only stock_entry role can access
+  usePageGuard('stock_entry');
+
   const { products } = useProducts();
   const { bills, addBill } = useBills();
   const { settings, updateSettings } = useSettings();
   const { addEvent } = useEvents();
   const { toast, showToast, hideToast } = useToast();
+  const { user } = useAuth();
+  const { timezone, billDefaults, activeBusinessId, notificationPrefs } = useBusiness();
+  const { role } = useRole();
   const navigate = useNavigate();
 
-  const todayISO = new Date().toISOString().split('T')[0];
-  const todayDisplay = new Date().toLocaleDateString('en-GB');
+  const todayISO = getTodayISO(timezone);
+  const todayDisplay = getTodayDisplay(timezone);
 
   // Multi-product accordion slots
   const makeSlot = () => ({ id: Date.now(), category: '', product: '', unit: 'pcs', qty: '', manualUnitPrice: '', collapsed: false });
@@ -41,6 +53,14 @@ export default function DataEntry() {
   useEffect(() => {
     if (settings?.billingFields) setFieldToggles(prev => ({ ...prev, ...settings.billingFields }));
   }, [settings]);
+
+  // Pre-fill bill defaults from BusinessContext
+  useEffect(() => {
+    if (!billDefaults) return;
+    if (billDefaults.defaultPaymentMethod) setPaymentMethod(billDefaults.defaultPaymentMethod);
+    if (billDefaults.defaultDiscount !== undefined && billDefaults.defaultDiscount !== '') setDiscount(String(billDefaults.defaultDiscount));
+    if (billDefaults.defaultDiscountType) setDiscountType(billDefaults.defaultDiscountType);
+  }, [billDefaults]);
 
   useEffect(() => {
     const handler = (e) => {
@@ -159,6 +179,7 @@ export default function DataEntry() {
     }
     try {
       await addBill(buildBillDoc({ status: 'paid' }));
+      writeAuditLog(user, role, 'Bill created', `${billItems.length} item(s), total $${netTotal.toFixed(2)}, ${paymentMethod}`, null, activeBusinessId);
       showToast('Bill created successfully!');
       resetAll();
     } catch { showToast('Error processing bill', 'error'); }
@@ -191,6 +212,7 @@ export default function DataEntry() {
         } catch { /* silent — event creation failure shouldn't block bill */ }
       }
       showToast('Credit bill recorded!');
+      writeAuditLog(user, role, 'Bill created', `Credit bill — ${creditModal.customerName}, $${netTotal.toFixed(2)}`, creditModal.customerName, activeBusinessId);
       setCreditModal({ open: false, customerName: '', creditAmount: '', dueDate: '' });
       resetAll();
     } catch { showToast('Error processing credit bill', 'error'); }

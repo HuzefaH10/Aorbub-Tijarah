@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { db } from '../services/firebase';
 import {
-  doc, getDoc, setDoc, addDoc, collection, onSnapshot, updateDoc, arrayUnion, serverTimestamp
+  doc, setDoc, addDoc, collection, onSnapshot, updateDoc, arrayUnion, serverTimestamp
 } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
 
@@ -14,108 +14,169 @@ export function useBusiness() {
 export function BusinessProvider({ children }) {
   const { user } = useAuth();
 
+  // ── User document state ──
+  const [userProfile, setUserProfile] = useState(null);      // full users/{uid} doc
   const [activeBusinessId, setActiveBusinessId] = useState(null);
-  const [businesses, setBusinesses] = useState([]);   // [{ id, name, role, currency, address }]
+  const [businesses, setBusinesses] = useState([]);
+
+  // ── Active business document state ──
+  const [businessData, setBusinessData] = useState(null);    // full businesses/{id} doc
+
   const [loading, setLoading] = useState(true);
 
-  // Listen to user doc for businesses + activeBusinessId
+  // ── Listen to users/{uid} — reactive ──
   useEffect(() => {
     if (!user) {
+      setUserProfile(null);
       setActiveBusinessId(null);
       setBusinesses([]);
+      setBusinessData(null);
       setLoading(false);
       return;
     }
 
-    const unsubscribe = onSnapshot(doc(db, 'users', user.uid), async (snap) => {
+    const userRef = doc(db, 'users', user.uid);
+    const unsub = onSnapshot(userRef, async (snap) => {
       if (!snap.exists()) {
-        // First ever login — bootstrap business from user.uid
+        // Bootstrap first-time user
         const defaultId = user.uid;
-        await setDoc(doc(db, 'users', user.uid), {
+        await setDoc(userRef, {
           businesses: [defaultId],
           activeBusinessId: defaultId,
+          role: 'owner',
         }, { merge: true });
-        setActiveBusinessId(defaultId);
-        setBusinesses([{ id: defaultId, name: 'My Business', role: 'owner', currency: 'USD', address: '' }]);
-        setLoading(false);
-        return;
+        return; // will re-fire
       }
 
       const data = snap.data();
-      const bizIds = data.businesses || [user.uid];
-      const activeBizId = data.activeBusinessId || user.uid;
+      setUserProfile({ id: user.uid, ...data });
 
+      const bizIds = data.businesses?.length ? data.businesses : [user.uid];
+      const activeBizId = data.activeBusinessId || user.uid;
       setActiveBusinessId(activeBizId);
 
-      // Fetch all business docs
-      const bizDocs = await Promise.all(
-        bizIds.map(async (id) => {
-          try {
-            const bizSnap = await getDoc(doc(db, 'businesses', id));
-            return {
-              id,
-              name: bizSnap.exists() ? (bizSnap.data().businessName || bizSnap.data().name || 'Unnamed Business') : 'My Business',
-              currency: bizSnap.exists() ? (bizSnap.data().currency || 'USD') : 'USD',
-              address: bizSnap.exists() ? (bizSnap.data().address || '') : '',
-              role: data.role || 'owner',
-            };
-          } catch {
-            return { id, name: 'My Business', currency: 'USD', address: '', role: 'owner' };
-          }
-        })
-      );
+      // Build minimal businesses list for switcher (names only — full data via separate listener)
+      setBusinesses(bizIds.map(id => ({
+        id,
+        name: id === activeBizId ? (data.businessName || 'My Business') : id,
+        role: data.role || 'owner',
+        currency: data.currency || 'USD',
+      })));
+    }, (err) => { console.error('BusinessContext user listener:', err); });
 
-      setBusinesses(bizDocs);
+    return unsub;
+  }, [user]);
+
+  // ── Listen to businesses/{activeBusinessId} — reactive, re-attaches on switch ──
+  useEffect(() => {
+    if (!activeBusinessId) return;
+
+    const bizRef = doc(db, 'businesses', activeBusinessId);
+    const unsub = onSnapshot(bizRef, (snap) => {
+      if (snap.exists()) {
+        setBusinessData({ id: activeBusinessId, ...snap.data() });
+        // Back-fill business name into businesses list
+        setBusinesses(prev => prev.map(b =>
+          b.id === activeBusinessId
+            ? { ...b, name: snap.data().businessName || snap.data().name || 'My Business', currency: snap.data().currency || 'USD' }
+            : b
+        ));
+      } else {
+        // Business doc doesn't exist yet (e.g. user's own UID-based biz) — use user profile data
+        setBusinessData(null);
+      }
+      setLoading(false);
+    }, (err) => {
+      console.error('BusinessContext biz listener:', err);
       setLoading(false);
     });
 
-    return unsubscribe;
-  }, [user]);
+    return unsub;
+  }, [activeBusinessId]);
 
-  // Switch active business — updates Firestore + context reactively
-  const switchBusiness = useCallback(async (businessId, businessName) => {
+  // ── Derived values ──
+  const activeBusiness = businesses.find(b => b.id === activeBusinessId) || businesses[0];
+
+  // user profile fields
+  const userRole       = userProfile?.role || 'owner';
+  const displayName    = userProfile?.displayName || userProfile?.fullName || user?.email?.split('@')[0] || '';
+  const theme          = userProfile?.theme || 'royal-purple';
+  const notificationPrefs = userProfile?.notificationPreferences || {
+    lowStock: true, creditDue: true, newBill: true, expiryWarning: true,
+  };
+
+  // business doc fields
+  const timezone       = businessData?.timezone || 'Asia/Karachi';
+  const currency       = businessData?.currency || activeBusiness?.currency || 'USD';
+  const billDefaults   = businessData?.billDefaults || {
+    defaultPaymentMethod: 'cash',
+    defaultDiscount: '',
+    defaultDiscountType: '$',
+    showDiscountByDefault: false,
+  };
+  const businessHours  = businessData?.businessHours || null;
+
+  // ── Switch active business ──
+  const switchBusiness = useCallback(async (businessId) => {
     if (!user || businessId === activeBusinessId) return;
     try {
       await updateDoc(doc(db, 'users', user.uid), { activeBusinessId: businessId });
-      setActiveBusinessId(businessId);
-      return businessName;
+      // activeBusinessId updates via onSnapshot above automatically
     } catch (err) {
       console.error('Failed to switch business:', err);
       throw err;
     }
   }, [user, activeBusinessId]);
 
-  // Create a new business and auto-switch to it
-  const createBusiness = useCallback(async ({ name, address, currency }) => {
+  // ── Force re-fetch ── (no-op with onSnapshot, kept for API compat)
+  const refreshBusiness = useCallback(() => {}, []);
+
+  // ── Create a new business ──
+  const createBusiness = useCallback(async ({ name, address, currency: cur }) => {
     if (!user) return;
     const bizRef = await addDoc(collection(db, 'businesses'), {
       businessName: name,
       address: address || '',
-      currency: currency || 'USD',
+      currency: cur || 'USD',
       ownerId: user.uid,
       createdAt: serverTimestamp(),
     });
     const newBizId = bizRef.id;
-
-    // Add to user's businesses list + set as active
     await updateDoc(doc(db, 'users', user.uid), {
       businesses: arrayUnion(newBizId),
       activeBusinessId: newBizId,
       role: 'owner',
     });
-
-    setActiveBusinessId(newBizId);
     return newBizId;
   }, [user]);
 
-  const activeBusiness = businesses.find(b => b.id === activeBusinessId) || businesses[0];
-
   const value = {
-    activeBusinessId: activeBusinessId || user?.uid,
+    // IDs & objects
+    businessId: activeBusinessId || user?.uid || null,
+    activeBusinessId: activeBusinessId || user?.uid || null,
     activeBusiness,
     businesses,
+    businessData,
+
+    // User profile fields
+    userProfile,
+    userRole,
+    displayName,
+    theme,
+    notificationPrefs,
+
+    // Business fields
+    timezone,
+    currency,
+    billDefaults,
+    businessHours,
+
+    // Loading
     loading,
+
+    // Actions
     switchBusiness,
+    refreshBusiness,
     createBusiness,
   };
 

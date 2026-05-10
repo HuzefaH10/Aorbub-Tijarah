@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useBills, useProducts } from '../hooks/useFirestore';
 import { Calendar, Download, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { usePageGuard } from '../hooks/usePageGuard';
 
 import ChartWidget from '../components/dashboard/ChartWidget';
 import TableWidget from '../components/dashboard/TableWidget';
@@ -115,6 +116,7 @@ const rangeLabel = (filter) => {
 };
 
 export default function SalesAnalytics() {
+  usePageGuard('sales_analytics');
   const { bills, loading } = useBills();
   const navigate = useNavigate();
   const { toast, showToast, hideToast } = useToast();

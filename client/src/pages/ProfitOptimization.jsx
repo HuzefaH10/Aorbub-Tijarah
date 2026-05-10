@@ -4,6 +4,7 @@ import ReactApexChart from 'react-apexcharts';
 import { Download, TrendingUp, TrendingDown, DollarSign, Percent, AlertCircle, Lightbulb, Activity, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Toast, { useToast } from '../components/ui/Toast';
+import { usePageGuard } from '../hooks/usePageGuard';
 
 // --- DATA HELPERS ---
 const groupBy = (array, key) => {
@@ -151,6 +152,7 @@ function generateSuggestions(entries, byProduct) {
 
 // --- MAIN COMPONENT ---
 export default function ProfitOptimization() {
+  usePageGuard('profit_optimization');
   const { entries } = useEntries();
   const navigate = useNavigate();
   const { toast, showToast, hideToast } = useToast();
