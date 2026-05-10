@@ -3,7 +3,7 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { 
   UploadCloud, FileSpreadsheet, RefreshCw, Merge, AlertTriangle, 
-  CheckCircle, ArrowRight, ChevronDown, Check, Info, X
+  CheckCircle, ArrowRight, ChevronDown, Check, Info, X, Search, Trash2
 } from 'lucide-react';
 import Toast, { useToast } from '../ui/Toast';
 import { db } from '../../services/firebase';
@@ -20,10 +20,13 @@ const STEPS = {
   MAPPING: 2,
   CATEGORIES: 3,
   UNITS: 4,
-  CONFIRM: 5,
-  IMPORTING: 6,
-  SUCCESS: 7
+  REVIEW: 5,
+  CONFIRM: 6,
+  IMPORTING: 7,
+  SUCCESS: 8
 };
+
+const UNIT_OPTIONS = ['pcs','kg','g','litre','ml','box','dozen','pack','bag','carton','Other'];
 
 const FIELD_LABELS = {
   productName: 'Product Name',
@@ -61,6 +64,13 @@ export default function TabDataImport() {
   // Unit state
   const [unitAssignments, setUnitAssignments] = useState({}); // { rawUnit: normalizedUnit }
   
+  // Review state
+  const [reviewProducts, setReviewProducts] = useState([]);
+  const [reviewSearch, setReviewSearch] = useState('');
+  const [reviewSelected, setReviewSelected] = useState(new Set());
+  const [bulkThreshold, setBulkThreshold] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+
   // Import state
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [importSummary, setImportSummary] = useState(null);
@@ -256,160 +266,96 @@ export default function TabDataImport() {
       toast(`Please map all unrecognized units`, 'error');
       return;
     }
-    
-    // Build summary
     const nameCol = Object.keys(columnMap).find(k => columnMap[k] === 'productName');
     const catCol = Object.keys(columnMap).find(k => columnMap[k] === 'category');
+    const unitCol = Object.keys(columnMap).find(k => columnMap[k] === 'unit');
     const priceCol = Object.keys(columnMap).find(k => columnMap[k] === 'price');
     const qtyCol = Object.keys(columnMap).find(k => columnMap[k] === 'quantity');
     const threshCol = Object.keys(columnMap).find(k => columnMap[k] === 'threshold');
-    
-    let toAdd = 0, withPrice = 0, noPrice = 0, noThresh = 0;
-    const catsToCreate = new Set();
-    
+
+    const products = [];
     rawRows.forEach((row, i) => {
-      if (!row[nameCol] || !row[nameCol].toString().trim()) return;
-      toAdd++;
-      
-      const price = priceCol ? parseFloat(row[priceCol]) : NaN;
-      if (!isNaN(price) && price > 0) withPrice++; else noPrice++;
-      
-      const thresh = threshCol ? parseInt(row[threshCol]) : NaN;
-      if (isNaN(thresh)) noThresh++;
-      
-      let cat = catCol && row[catCol] ? row[catCol].toString().trim() : categoryAssignments[i];
-      if (cat) catsToCreate.add(cat);
+      const name = nameCol ? row[nameCol]?.toString().trim() : '';
+      if (!name) return;
+      let cat = catCol && row[catCol] ? row[catCol].toString().trim() : categoryAssignments[i] || 'Uncategorized';
+      let unit = 'pcs';
+      if (unitCol && row[unitCol]) {
+        const rawU = row[unitCol].toString().trim();
+        unit = unitAssignments[rawU] || normalizeUnit(rawU) || rawU;
+      }
+      const price = priceCol ? parseFloat(row[priceCol]) : 0;
+      const qty = qtyCol ? parseFloat(row[qtyCol]) : 0;
+      const thresh = threshCol ? parseInt(row[threshCol]) : 5;
+      products.push({ _id: i, name, category: cat, unit, price: isNaN(price) ? 0 : price, qty: isNaN(qty) ? 0 : qty, threshold: isNaN(thresh) ? 5 : thresh });
     });
+    setReviewProducts(products);
+    setReviewSearch('');
+    setReviewSelected(new Set());
+    setStep(STEPS.REVIEW);
+  };
 
+  const proceedFromReview = () => {
+    if (reviewProducts.length === 0) { toast('No products to import', 'error'); return; }
+    const cats = new Set(reviewProducts.map(p => p.category).filter(Boolean));
+    const noPrice = reviewProducts.filter(p => !p.price || p.price <= 0).length;
     const skipped = columns.filter(c => columnMap[c] === 'skip');
-
     const validation = validateImportData(rawRows, columnMap);
-    if (!validation.valid) {
-      validation.errors.forEach(e => toast(e, 'error'));
-      return;
-    }
-
     setImportSummary({
-      toAdd,
-      categories: Array.from(catsToCreate),
-      withPrice, noPrice, noThresh, skipped,
-      warnings: validation.warnings
+      toAdd: reviewProducts.length, categories: Array.from(cats),
+      withPrice: reviewProducts.length - noPrice, noPrice, noThresh: 0, skipped,
+      warnings: validation.warnings || []
     });
     setStep(STEPS.CONFIRM);
   };
 
-  // --- Step 5: Execute Import ---
+  // --- Execute Import (uses reviewProducts) ---
   const executeImport = async () => {
     setStep(STEPS.IMPORTING);
     try {
-      const nameCol = Object.keys(columnMap).find(k => columnMap[k] === 'productName');
-      const catCol = Object.keys(columnMap).find(k => columnMap[k] === 'category');
-      const unitCol = Object.keys(columnMap).find(k => columnMap[k] === 'unit');
-      const priceCol = Object.keys(columnMap).find(k => columnMap[k] === 'price');
-      const qtyCol = Object.keys(columnMap).find(k => columnMap[k] === 'quantity');
-      const threshCol = Object.keys(columnMap).find(k => columnMap[k] === 'threshold');
-
-      // Fetch existing if merge
       let existingProducts = [];
       if (mode === 'merge') {
         const qs = await getDocs(query(collection(db, 'products'), where('businessId', '==', activeBusinessId)));
         existingProducts = qs.docs.map(d => d.data().name.toLowerCase());
       } else if (mode === 'replace') {
-        // Delete all products and categories
         const pq = await getDocs(query(collection(db, 'products'), where('businessId', '==', activeBusinessId)));
         const cq = await getDocs(query(collection(db, 'categories'), where('businessId', '==', activeBusinessId)));
-        
-        // chunk deletes into 500 batches
-        let delBatch = writeBatch(db);
-        let dCount = 0;
-        for (const doc of [...pq.docs, ...cq.docs]) {
-          delBatch.delete(doc.ref);
-          dCount++;
-          if (dCount === 500) {
-            await delBatch.commit();
-            delBatch = writeBatch(db);
-            dCount = 0;
-          }
+        let delBatch = writeBatch(db); let dCount = 0;
+        for (const d of [...pq.docs, ...cq.docs]) {
+          delBatch.delete(d.ref); dCount++;
+          if (dCount === 500) { await delBatch.commit(); delBatch = writeBatch(db); dCount = 0; }
         }
         if (dCount > 0) await delBatch.commit();
       }
 
-      // Build valid docs
-      const newProducts = [];
+      const newProducts = reviewProducts
+        .filter(p => !(mode === 'merge' && existingProducts.includes(p.name.toLowerCase())))
+        .map(p => ({
+          businessId: activeBusinessId, name: p.name, category: p.category || 'Uncategorized',
+          defaults: { unit: p.unit, price: p.price, threshold: p.threshold },
+          unit: p.unit, lowStockThreshold: p.threshold,
+          currentStock: p.qty, status: p.qty <= 0 ? 'out' : p.qty <= p.threshold ? 'low' : 'healthy',
+          importedAt: serverTimestamp(), source: 'csv_import'
+        }));
       const newCategories = new Set(importSummary.categories);
-
-      rawRows.forEach((row, i) => {
-        const name = row[nameCol]?.toString().trim();
-        if (!name) return;
-        
-        if (mode === 'merge' && existingProducts.includes(name.toLowerCase())) return; // skip duplicate
-
-        let cat = catCol && row[catCol] ? row[catCol].toString().trim() : categoryAssignments[i];
-        if (!cat) cat = 'Uncategorized';
-        
-        let unit = 'pcs';
-        if (unitCol && row[unitCol]) {
-          const rawU = row[unitCol].toString().trim();
-          unit = unitAssignments[rawU] || normalizeUnit(rawU) || rawU; 
-        }
-
-        const price = priceCol ? parseFloat(row[priceCol]) : 0;
-        const qty = qtyCol ? parseFloat(row[qtyCol]) : 0;
-        const thresh = threshCol ? parseInt(row[threshCol]) : 5;
-
-        newProducts.push({
-          businessId: activeBusinessId,
-          name,
-          category: cat,
-          defaults: {
-            unit,
-            price: isNaN(price) ? 0 : price,
-            threshold: isNaN(thresh) ? 5 : thresh,
-          },
-          currentStock: isNaN(qty) ? 0 : qty,
-          status: (isNaN(qty) ? 0 : qty) <= 0 ? 'out' : (isNaN(qty) ? 0 : qty) <= (isNaN(thresh) ? 5 : thresh) ? 'low' : 'healthy',
-          importedAt: serverTimestamp(),
-          source: 'csv_import'
-        });
-      });
-
       setProgress({ current: 0, total: newProducts.length + newCategories.size });
 
-      // Write batches
-      let writeBatchObj = writeBatch(db);
-      let wCount = 0;
-      let totalProcessed = 0;
-
-      // Categories
+      let wb = writeBatch(db); let wc = 0, tp = 0;
       for (const catName of newCategories) {
         const cRef = doc(collection(db, 'categories'));
-        writeBatchObj.set(cRef, {
-          categoryId: cRef.id,
-          businessId: activeBusinessId,
-          name: catName,
-          createdAt: serverTimestamp(),
-          source: 'csv_import'
-        });
-        wCount++; totalProcessed++;
-        if (wCount === 500) { await writeBatchObj.commit(); writeBatchObj = writeBatch(db); wCount = 0; }
+        wb.set(cRef, { categoryId: cRef.id, businessId: activeBusinessId, name: catName, createdAt: serverTimestamp(), source: 'csv_import' });
+        wc++; tp++;
+        if (wc === 500) { await wb.commit(); wb = writeBatch(db); wc = 0; }
       }
-
-      // Products
       for (const p of newProducts) {
         const pRef = doc(collection(db, 'products'));
-        writeBatchObj.set(pRef, { productId: pRef.id, ...p });
-        wCount++; totalProcessed++;
-        if (totalProcessed % 25 === 0) setProgress({ current: totalProcessed, total: newProducts.length + newCategories.size });
-        if (wCount === 500) { await writeBatchObj.commit(); writeBatchObj = writeBatch(db); wCount = 0; }
+        wb.set(pRef, { productId: pRef.id, ...p });
+        wc++; tp++;
+        if (tp % 25 === 0) setProgress({ current: tp, total: newProducts.length + newCategories.size });
+        if (wc === 500) { await wb.commit(); wb = writeBatch(db); wc = 0; }
       }
-
-      if (wCount > 0) {
-        await writeBatchObj.commit();
-        setProgress({ current: newProducts.length + newCategories.size, total: newProducts.length + newCategories.size });
-      }
+      if (wc > 0) { await wb.commit(); setProgress({ current: newProducts.length + newCategories.size, total: newProducts.length + newCategories.size }); }
 
       await writeAuditLog(user, role, `Bulk Import (${mode})`, `Imported ${newProducts.length} products and ${newCategories.size} categories.`, 'System', activeBusinessId);
-      
       setStep(STEPS.SUCCESS);
     } catch (err) {
       console.error(err);
@@ -419,15 +365,9 @@ export default function TabDataImport() {
   };
 
   const resetAll = () => {
-    setStep(STEPS.UPLOAD);
-    setFile(null);
-    setRawRows([]);
-    setColumns([]);
-    setColumnMap({});
-    setConfidence({});
-    setCategoryAssignments({});
-    setUnitAssignments({});
-    setImportSummary(null);
+    setStep(STEPS.UPLOAD); setFile(null); setRawRows([]); setColumns([]);
+    setColumnMap({}); setConfidence({}); setCategoryAssignments({}); setUnitAssignments({});
+    setImportSummary(null); setReviewProducts([]); setReviewSearch(''); setReviewSelected(new Set());
   };
 
   return (
@@ -687,7 +627,123 @@ export default function TabDataImport() {
         </div>
       )}
 
-      {/* STEP 5: CONFIRM */}
+      {/* STEP 5: REVIEW & EDIT */}
+      {step === STEPS.REVIEW && (() => {
+        const allCats = [...new Set(reviewProducts.map(p => p.category).filter(Boolean))];
+        const noPriceCount = reviewProducts.filter(p => !p.price || p.price <= 0).length;
+        const noCatCount = reviewProducts.filter(p => !p.category || p.category === 'Uncategorized').length;
+        const filtered = reviewSearch
+          ? reviewProducts.filter(p => p.name.toLowerCase().includes(reviewSearch.toLowerCase()))
+          : reviewProducts;
+        const updateP = (id, patch) => setReviewProducts(prev => prev.map(p => p._id === id ? { ...p, ...patch } : p));
+        const removeP = (id) => { setReviewProducts(prev => prev.filter(p => p._id !== id)); setDeleteConfirm(null); };
+        const toggleSel = (id) => setReviewSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+        const selAll = () => { if (reviewSelected.size === filtered.length) setReviewSelected(new Set()); else setReviewSelected(new Set(filtered.map(p => p._id))); };
+
+        return (
+          <div className="space-y-5 animate-fadeIn">
+            <div>
+              <h3 className="text-xl font-bold text-white font-heading mb-1">Review Your Products</h3>
+              <p className="text-sm text-gray-400">Edit any details before importing. All changes here are final.</p>
+            </div>
+
+            {/* Bulk actions */}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <input type="text" value={reviewSearch} onChange={e => setReviewSearch(e.target.value)} placeholder="Search products..." className="bg-gray-950 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-primary-500 w-56" />
+                <Search size={16} className="text-gray-500 -ml-8" />
+              </div>
+              <div className="flex items-center gap-2 ml-auto">
+                <input type="number" min="0" value={bulkThreshold} onChange={e => setBulkThreshold(e.target.value)} placeholder="Threshold" className="bg-gray-950 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none w-24" />
+                <button onClick={() => { if (!bulkThreshold) return; setReviewProducts(prev => prev.map(p => ({ ...p, threshold: Number(bulkThreshold) }))); toast(`Set threshold to ${bulkThreshold} for all`); }} className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-lg transition-colors">Apply to All</button>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="bg-gray-900 border border-white/5 rounded-2xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-gray-950 border-b border-white/5 text-gray-400 text-[10px] uppercase tracking-wider">
+                    <tr>
+                      <th className="px-3 py-3 w-10"><input type="checkbox" checked={reviewSelected.size > 0 && reviewSelected.size === filtered.length} onChange={selAll} className="w-3.5 h-3.5 accent-primary-600 rounded" /></th>
+                      <th className="px-3 py-3 w-8">#</th>
+                      <th className="px-3 py-3">Product Name</th>
+                      <th className="px-3 py-3">Category</th>
+                      <th className="px-3 py-3 w-24">Unit</th>
+                      <th className="px-3 py-3 w-24">Price</th>
+                      <th className="px-3 py-3 w-20">Threshold</th>
+                      <th className="px-3 py-3 w-20">Stock</th>
+                      <th className="px-3 py-3 w-12"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {filtered.map((p, idx) => {
+                      const noPrice = !p.price || p.price <= 0;
+                      const noCat = !p.category || p.category === 'Uncategorized';
+                      return (
+                        <tr key={p._id} className={`hover:bg-white/[0.02] ${noPrice ? 'border-l-2 border-l-amber-500' : noCat ? 'border-l-2 border-l-blue-500' : ''}`}>
+                          <td className="px-3 py-2"><input type="checkbox" checked={reviewSelected.has(p._id)} onChange={() => toggleSel(p._id)} className="w-3.5 h-3.5 accent-primary-600 rounded" /></td>
+                          <td className="px-3 py-2 text-gray-500 text-xs">{idx + 1}</td>
+                          <td className="px-3 py-2">
+                            <input value={p.name} onChange={e => updateP(p._id, { name: e.target.value })} className="bg-transparent text-white text-sm font-medium outline-none w-full hover:bg-white/5 focus:bg-gray-950 rounded px-1 py-0.5 transition-colors" />
+                          </td>
+                          <td className="px-3 py-2">
+                            <select value={p.category} onChange={e => updateP(p._id, { category: e.target.value })} className="bg-gray-950 border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none w-full">
+                              {allCats.map(c => <option key={c} value={c}>{c}</option>)}
+                              <option value="Uncategorized">Uncategorized</option>
+                            </select>
+                          </td>
+                          <td className="px-3 py-2">
+                            <select value={p.unit} onChange={e => updateP(p._id, { unit: e.target.value })} className="bg-gray-950 border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none w-full">
+                              {UNIT_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
+                            </select>
+                          </td>
+                          <td className="px-3 py-2">
+                            <input type="number" min="0" step="0.01" value={p.price} onChange={e => updateP(p._id, { price: parseFloat(e.target.value) || 0 })} className={`bg-gray-950 border border-white/10 rounded-lg px-2 py-1 text-xs outline-none w-full ${noPrice ? 'text-amber-400 border-amber-500/30' : 'text-white'}`} />
+                          </td>
+                          <td className="px-3 py-2">
+                            <input type="number" min="0" value={p.threshold} onChange={e => updateP(p._id, { threshold: parseInt(e.target.value) || 0 })} className="bg-gray-950 border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none w-full" />
+                          </td>
+                          <td className="px-3 py-2">
+                            <input type="number" min="0" value={p.qty} onChange={e => updateP(p._id, { qty: parseFloat(e.target.value) || 0 })} className="bg-gray-950 border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none w-full" />
+                          </td>
+                          <td className="px-3 py-2">
+                            {deleteConfirm === p._id ? (
+                              <div className="flex gap-1">
+                                <button onClick={() => removeP(p._id)} className="text-[10px] text-red-400 font-bold hover:text-red-300">Yes</button>
+                                <button onClick={() => setDeleteConfirm(null)} className="text-[10px] text-gray-500 font-bold hover:text-white">No</button>
+                              </div>
+                            ) : (
+                              <button onClick={() => setDeleteConfirm(p._id)} className="p-1 text-gray-500 hover:text-red-400 transition-colors"><Trash2 size={14} /></button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Summary bar */}
+            <div className="flex flex-wrap items-center gap-4 p-4 bg-gray-900 border border-white/5 rounded-xl text-xs">
+              <span className="font-bold text-green-400">{reviewProducts.length} products ready</span>
+              {noPriceCount > 0 && <span className="font-bold text-amber-400 flex items-center gap-1"><AlertTriangle size={12} /> {noPriceCount} need price</span>}
+              {noCatCount > 0 && <span className="font-bold text-blue-400">{noCatCount} uncategorized</span>}
+              {noPriceCount > 0 && <span className="text-amber-500/70 ml-auto">{noPriceCount} products have no price — they will import with $0.00</span>}
+            </div>
+
+            <div className="flex justify-between">
+              <button onClick={() => setStep(STEPS.UNITS)} className="px-6 py-2.5 rounded-xl text-sm font-bold text-gray-400 hover:text-white transition-colors">← Back</button>
+              <button onClick={proceedFromReview} className="px-6 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-bold hover:bg-primary-700 transition-colors shadow-lg shadow-primary-600/20 flex items-center gap-2">
+                Confirm & Import <ArrowRight size={16} />
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* STEP 6: CONFIRM */}
       {step === STEPS.CONFIRM && importSummary && (
         <div className="space-y-6 animate-fadeIn">
           <div className="bg-gray-900 border border-white/5 rounded-2xl p-8">
@@ -746,7 +802,7 @@ export default function TabDataImport() {
           </div>
 
           <div className="flex justify-end gap-3">
-            <button onClick={() => setStep(STEPS.UNITS)} className="px-6 py-3 rounded-xl text-sm font-bold text-gray-400 hover:text-white transition-colors">Back to Editing</button>
+            <button onClick={() => setStep(STEPS.REVIEW)} className="px-6 py-3 rounded-xl text-sm font-bold text-gray-400 hover:text-white transition-colors">Back to Editing</button>
             <button onClick={executeImport} className="px-8 py-3 bg-primary-600 text-white rounded-xl text-sm font-bold hover:bg-primary-700 transition-colors shadow-xl shadow-primary-600/20">
               Confirm & Start Import
             </button>
