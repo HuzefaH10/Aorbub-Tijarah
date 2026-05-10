@@ -5,7 +5,7 @@ import Toast, { useToast } from '../components/ui/Toast';
 import { useProducts, useBills, useSettings, useEvents } from '../hooks/useFirestore';
 import { ClipboardList, ShoppingCart, DollarSign, Settings2, X, Plus, Trash2, ChevronDown, Pencil } from 'lucide-react';
 
-const DEFAULT_FIELDS = { unitPrice: false, unit: false, tax: false, notes: false };
+const DEFAULT_FIELDS = { unitPrice: false, tax: false, notes: false };
 
 export default function DataEntry() {
   const { products } = useProducts();
@@ -19,7 +19,7 @@ export default function DataEntry() {
   const todayDisplay = new Date().toLocaleDateString('en-GB');
 
   // Multi-product accordion slots
-  const makeSlot = () => ({ id: Date.now(), category: '', product: '', unit: 'pcs', qty: '', collapsed: false });
+  const makeSlot = () => ({ id: Date.now(), category: '', product: '', unit: 'pcs', qty: '', manualUnitPrice: '', collapsed: false });
   const [slots, setSlots] = useState([makeSlot()]);
   const [activeSlotIdx, setActiveSlotIdx] = useState(0);
 
@@ -28,7 +28,6 @@ export default function DataEntry() {
   const [discountType, setDiscountType] = useState('$');
 
   // Optional field values (bill-level)
-  const [manualUnitPrice, setManualUnitPrice] = useState('');
   const [taxPercent, setTaxPercent] = useState('');
   const [notesField, setNotesField] = useState('');
 
@@ -73,7 +72,9 @@ export default function DataEntry() {
   const confirmedSlots = slots.filter(s => s.collapsed && s.category && s.product && Number(s.qty) > 0);
   const billItems = confirmedSlots.map(s => {
     const prod = getSelectedProduct(s.product);
-    const price = Number(prod?.price) || 0;
+    const price = fieldToggles.unitPrice && s.manualUnitPrice !== '' 
+      ? Number(s.manualUnitPrice) 
+      : (Number(prod?.price) || 0);
     return {
       id: s.id,
       productId: prod?.id || '',
@@ -145,7 +146,6 @@ export default function DataEntry() {
     setSlots([makeSlot()]);
     setActiveSlotIdx(0);
     setDiscount('');
-    setManualUnitPrice('');
     setTaxPercent('');
     setNotesField('');
   };
@@ -210,7 +210,6 @@ export default function DataEntry() {
   const labelCls = "block text-[11px] font-semibold text-gray-400 dark:text-gray-500 mb-1 uppercase tracking-wider";
   const fieldOptions = [
     { key: 'unitPrice', label: 'Unit Price' },
-    { key: 'unit', label: 'Unit (kg, pcs, box)' },
     { key: 'tax', label: 'Tax (%)' },
     { key: 'notes', label: 'Notes' },
   ];
@@ -337,10 +336,20 @@ export default function DataEntry() {
                           className={`${inputCls} text-center`} placeholder="0" disabled={!slot.product} />
                       </div>
                     </div>
+                    
+                    {/* Unit Price Override (if toggled) */}
+                    {fieldToggles.unitPrice && (
+                      <div>
+                        <label className={labelCls}>Unit Price ($)</label>
+                        <input type="number" min="0" step="0.01" value={slot.manualUnitPrice} onChange={e => updateSlot(idx, { manualUnitPrice: e.target.value })}
+                          className={inputCls} placeholder={selectedProd?.price ? `Default: ${selectedProd.price}` : '0.00'} />
+                      </div>
+                    )}
+
                     {selectedProd && slot.qty && Number(slot.qty) > 0 && (
                       <div className="flex items-center justify-between text-xs px-1">
-                        <span className="text-gray-400">@ ${Number(selectedProd.price || 0).toFixed(2)} each</span>
-                        <span className="font-bold text-primary-600 dark:text-primary-400">${(Number(slot.qty) * Number(selectedProd.price || 0)).toFixed(2)}</span>
+                        <span className="text-gray-400">@ ${Number(fieldToggles.unitPrice && slot.manualUnitPrice !== '' ? slot.manualUnitPrice : (selectedProd.price || 0)).toFixed(2)} each</span>
+                        <span className="font-bold text-primary-600 dark:text-primary-400">${(Number(slot.qty) * Number(fieldToggles.unitPrice && slot.manualUnitPrice !== '' ? slot.manualUnitPrice : (selectedProd.price || 0))).toFixed(2)}</span>
                       </div>
                     )}
                   </div>
@@ -362,41 +371,18 @@ export default function DataEntry() {
 
               {categories.length === 0 && <p className="text-xs text-amber-500">No categories found. Add products in Inventory first.</p>}
 
-              {/* Optional Fields Grid Layout */}
+              {/* Optional Fields Grid Layout (Bill Level) */}
               {(() => {
                 const activeGridFields = [];
-                if (fieldToggles.unitPrice) activeGridFields.push('unitPrice');
-                if (fieldToggles.unit) activeGridFields.push('unit');
                 if (fieldToggles.tax) activeGridFields.push('tax');
 
                 if (activeGridFields.length === 0) return null;
 
                 return (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3">
-                    {activeGridFields.map((key, index) => {
-                      const isFullWidth = activeGridFields.length === 1 || (activeGridFields.length === 3 && index === 2);
-                      const colCls = isFullWidth ? 'col-span-1 md:col-span-2' : 'col-span-1';
+                    {activeGridFields.map((key) => {
+                      const colCls = activeGridFields.length === 1 ? 'col-span-1 md:col-span-2' : 'col-span-1';
 
-                      if (key === 'unitPrice') {
-                        return (
-                          <div key="unitPrice" className={colCls}>
-                            <label className={labelCls}>Unit Price ($)</label>
-                            <input type="number" min="0" step="0.01" value={manualUnitPrice} onChange={e => setManualUnitPrice(e.target.value)}
-                              className={inputCls} placeholder={selectedProduct?.price ? `Default: ${selectedProduct.price}` : '0.00'} />
-                          </div>
-                        );
-                      }
-                      if (key === 'unit') {
-                        return (
-                          <div key="unit" className={colCls}>
-                            <label className={labelCls}>Unit</label>
-                            <select value={unitField} onChange={e => setUnitField(e.target.value)} className={inputCls}>
-                              <option value="pcs">Pieces (pcs)</option><option value="kg">Kilograms (kg)</option>
-                              <option value="liters">Liters</option><option value="boxes">Boxes</option><option value="meters">Meters</option>
-                            </select>
-                          </div>
-                        );
-                      }
                       if (key === 'tax') {
                         return (
                           <div key="tax" className={colCls}>
