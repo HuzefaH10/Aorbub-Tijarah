@@ -16,6 +16,7 @@ const Settings = lazy(() => import('./pages/Settings'));
 const HelpContact = lazy(() => import('./pages/HelpContact'));
 const DataEntry = lazy(() => import('./pages/DataEntry'));
 const Credits = lazy(() => import('./pages/Credits'));
+const Expenses = lazy(() => import('./pages/Expenses'));
 
 /* Protected route wrapper */
 function ProtectedRoute({ children }) {
@@ -44,6 +45,7 @@ export default function App() {
                 <Route path="inventory" element={<Suspense fallback={<PageLoader />}><Inventory /></Suspense>} />
                 <Route path="calendar" element={<Suspense fallback={<PageLoader />}><CalendarPage /></Suspense>} />
                 <Route path="credits" element={<Suspense fallback={<PageLoader />}><Credits /></Suspense>} />
+                <Route path="expenses" element={<Suspense fallback={<PageLoader />}><Expenses /></Suspense>} />
                 <Route path="settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
                 <Route path="help" element={<Suspense fallback={<PageLoader />}><HelpContact /></Suspense>} />
                 <Route path="data-entry" element={<Suspense fallback={<PageLoader />}><DataEntry /></Suspense>} />
