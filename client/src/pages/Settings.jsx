@@ -7,6 +7,7 @@ import { useTheme } from '../context/ThemeContext';
 import { Save, Bell, Shield, KeyRound, Building2, User, BellRing, BellOff, Eye, EyeOff, Check, Camera, MonitorSmartphone, LogOut, Users, Send, X, Crown, ShieldCheck, UserCog, Palette, Clock, Copy, Download, Upload, Database, FileJson, FileSpreadsheet, AlertTriangle, ScrollText, Search, ChevronLeft, ChevronRight, RefreshCw, Receipt } from 'lucide-react';
 import Toast, { useToast } from '../components/ui/Toast';
 import TabBillHistory from '../components/settings/TabBillHistory';
+import Pagination from '../components/ui/Pagination';
 import { db } from '../services/firebase';
 import { doc, getDoc, setDoc, collection, query, where, getDocs, addDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
@@ -1712,17 +1713,14 @@ export default function Settings() {
               </div>
 
               {/* Pagination */}
-              <div className="flex items-center justify-between mt-4">
-                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Page {auditLog.page + 1} · {auditLog.logs.length} entries</p>
-                <div className="flex items-center gap-2">
-                  <button onClick={auditLog.prevPage} disabled={auditLog.page === 0} className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-gray-500 hover:text-primary-500 bg-gray-50 dark:bg-gray-800 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
-                    <ChevronLeft size={14} /> Prev
-                  </button>
-                  <button onClick={auditLog.nextPage} disabled={auditLog.logs.length < auditLog.PAGE_SIZE} className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-gray-500 hover:text-primary-500 bg-gray-50 dark:bg-gray-800 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
-                    Next <ChevronRight size={14} />
-                  </button>
-                </div>
-              </div>
+              <Pagination 
+                currentPage={auditLog.page}
+                totalPages={auditLog.totalPages}
+                totalCount={auditLog.totalCount}
+                pageSize={auditLog.PAGE_SIZE}
+                onNext={auditLog.nextPage}
+                onPrevious={auditLog.prevPage}
+              />
             </div>
           )}
 

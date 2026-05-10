@@ -12,6 +12,7 @@ import {
   NotebookTabs, AlertTriangle, Clock, DollarSign, X
 } from 'lucide-react';
 import Toast, { useToast } from '../components/ui/Toast';
+import Pagination from '../components/ui/Pagination';
 import BillDetailModal from '../components/dashboard/BillDetailModal'; // I will just copy the modal logic here since TabBillHistory has it inline and it's not exported. Wait, I'll put it inline to ensure it works.
 
 export default function Credits() {
@@ -275,25 +276,14 @@ export default function Credits() {
       </div>
 
       {/* PAGINATION */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-4">
-          <button 
-            onClick={() => setPage(p => Math.max(1, p - 1))} 
-            disabled={page === 1}
-            className="px-4 py-2 flex items-center gap-1 text-sm font-bold text-gray-300 hover:bg-white/10 rounded-xl disabled:opacity-50 transition-colors"
-          >
-            <ChevronLeft size={16} /> Previous
-          </button>
-          <span className="text-sm font-bold text-gray-500">Page {page} of {totalPages}</span>
-          <button 
-            onClick={() => setPage(p => Math.min(totalPages, p + 1))} 
-            disabled={page === totalPages}
-            className="px-4 py-2 flex items-center gap-1 text-sm font-bold text-gray-300 hover:bg-white/10 rounded-xl disabled:opacity-50 transition-colors"
-          >
-            Next <ChevronRight size={16} />
-          </button>
-        </div>
-      )}
+      <Pagination 
+        currentPage={page}
+        totalPages={totalPages}
+        totalCount={filteredCredits.length}
+        pageSize={ITEMS_PER_PAGE}
+        onNext={() => setPage(p => Math.min(totalPages, p + 1))}
+        onPrevious={() => setPage(p => Math.max(1, p - 1))}
+      />
 
       {/* BILL DETAIL MODAL (Inline copy for independence) */}
       {selectedBill && (

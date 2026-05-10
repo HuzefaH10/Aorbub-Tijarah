@@ -9,6 +9,7 @@ import { db } from '../../services/firebase';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { Search, ChevronLeft, ChevronRight, Eye, Calendar, DollarSign, X, Receipt, CheckCircle } from 'lucide-react';
 import Toast, { useToast } from '../ui/Toast';
+import Pagination from '../ui/Pagination';
 
 export default function TabBillHistory({ cardCls, labelCls, inputCls }) {
   const { bills } = useBills();
@@ -225,25 +226,14 @@ export default function TabBillHistory({ cardCls, labelCls, inputCls }) {
       </div>
 
       {/* PAGINATION */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-4">
-          <button 
-            onClick={() => setPage(p => Math.max(1, p - 1))} 
-            disabled={page === 1}
-            className="px-3 py-1.5 flex items-center gap-1 text-sm font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg disabled:opacity-50 transition-colors"
-          >
-            <ChevronLeft size={16} /> Previous
-          </button>
-          <span className="text-sm font-bold text-gray-500">Page {page} of {totalPages}</span>
-          <button 
-            onClick={() => setPage(p => Math.min(totalPages, p + 1))} 
-            disabled={page === totalPages}
-            className="px-3 py-1.5 flex items-center gap-1 text-sm font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg disabled:opacity-50 transition-colors"
-          >
-            Next <ChevronRight size={16} />
-          </button>
-        </div>
-      )}
+      <Pagination 
+        currentPage={page}
+        totalPages={totalPages}
+        totalCount={filteredBills.length}
+        pageSize={ITEMS_PER_PAGE}
+        onNext={() => setPage(p => Math.min(totalPages, p + 1))}
+        onPrevious={() => setPage(p => Math.max(1, p - 1))}
+      />
 
       {/* BILL DETAIL MODAL */}
       {selectedBill && (

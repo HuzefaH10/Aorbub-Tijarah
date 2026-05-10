@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, Package, TrendingUp, Clock, User, Inbox } from 'lucide-react';
 import { useStockHistory } from '../../hooks/useFirestore';
+import Pagination from '../ui/Pagination';
 
 const PAGE_SIZE = 20;
 
@@ -8,7 +9,7 @@ export default function ProductHistoryDrawer({ product, onClose }) {
   const { history, loading } = useStockHistory(product.id);
   const [page, setPage] = React.useState(1);
 
-  const visible = history.slice(0, page * PAGE_SIZE);
+  const visible = history.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const hasMore = history.length > visible.length;
 
   const formatTs = (ts) => {
@@ -120,15 +121,17 @@ export default function ProductHistoryDrawer({ product, onClose }) {
                 </div>
               ))}
 
-              {/* Load more */}
-              {hasMore && (
-                <button
-                  onClick={() => setPage(p => p + 1)}
-                  className="w-full py-2.5 border border-dashed border-white/10 rounded-xl text-xs font-bold text-gray-500 hover:border-primary-500/40 hover:text-primary-400 transition-colors"
-                >
-                  Load more ({history.length - visible.length} remaining)
-                </button>
-              )}
+              {/* Pagination */}
+              <div className="pt-2">
+                <Pagination 
+                  currentPage={page}
+                  totalPages={Math.max(1, Math.ceil(history.length / PAGE_SIZE))}
+                  totalCount={history.length}
+                  pageSize={PAGE_SIZE}
+                  onNext={() => setPage(p => p + 1)}
+                  onPrevious={() => setPage(p => p - 1)}
+                />
+              </div>
             </div>
           )}
         </div>

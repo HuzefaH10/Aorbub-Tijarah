@@ -48,175 +48,181 @@ export function useAuditLog() {
   const { activeBusinessId } = useBusiness();
 
 
-  const [allLogs, setAllLogs] = useState([]);    // full fetched set
-  const [logs, setLogs] = useState([]);           // current page slice
+  const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(0);
+  const [page, setPage] = useState(1);
   const [filters, setFilters] = useState({
     dateFrom: '',
     dateTo: '',
     user: '',
     action: '',
-    search: '',
   });
+
+  const [totalCount, setTotalCount] = useState(0);
+  const [docStack, setDocStack] = useState([]);
+  const [firstVisible, setFirstVisible] = useState(null);
+  const [lastVisible, setLastVisible] = useState(null);
 
   const PAGE_SIZE = 25;
 
-  // Fetch ALL logs for this business (simple single-field query — no index needed)
-  const fetchAllLogs = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
-    try {
-      const q = query(
-        collection(db, 'auditLog'),
-        where('businessId', '==', activeBusinessId || user.uid)
-      );
-      const snap = await getDocs(q);
-      const results = snap.docs.map(d => {
-        const data = d.data();
-        return {
-          id: d.id,
-          ...data,
-          timestamp: data.timestamp?.toDate?.() || new Date(),
-        };
-      });
-
-      // Sort newest first (client-side)
-      results.sort((a, b) => b.timestamp - a.timestamp);
-      setAllLogs(results);
-    } catch (err) {
-      console.error('Failed to fetch audit logs:', err);
-    } finally {
-      setLoading(false);
+  const buildBaseQuery = useCallback(() => {
+    if (!user) return null;
+    let constraints = [where('businessId', '==', activeBusinessId || user.uid)];
+    
+    if (filters.action) {
+      constraints.push(where('action', '==', filters.action));
     }
-  }, [user]);
-
-  // Initial load
-  useEffect(() => {
-    if (user) fetchAllLogs();
-  }, [user, fetchAllLogs]);
-
-  // Apply filters + pagination whenever allLogs, filters, or page change
-  useEffect(() => {
-    let filtered = [...allLogs];
-
-    // Date filters
+    if (filters.user) {
+      // NOTE: Firestore requires separate queries or 'in' for multiple fields, 
+      // but assuming user filter is an exact match on userEmail for simplicity
+      constraints.push(where('userEmail', '==', filters.user));
+    }
     if (filters.dateFrom) {
       const from = new Date(filters.dateFrom);
       from.setHours(0, 0, 0, 0);
-      filtered = filtered.filter(r => r.timestamp >= from);
+      constraints.push(where('timestamp', '>=', from));
     }
     if (filters.dateTo) {
       const to = new Date(filters.dateTo);
       to.setHours(23, 59, 59, 999);
-      filtered = filtered.filter(r => r.timestamp <= to);
+      // If we already have a >= constraint on timestamp, we can add <=
+      constraints.push(where('timestamp', '<=', to));
     }
 
-    // User filter
-    if (filters.user) {
-      filtered = filtered.filter(r => r.userEmail === filters.user || r.userName === filters.user);
-    }
+    return constraints;
+  }, [user, activeBusinessId, filters]);
 
-    // Action filter
-    if (filters.action) {
-      filtered = filtered.filter(r => r.action === filters.action);
-    }
+  const fetchPage = useCallback(async (actionType = 'init') => {
+    const baseConstraints = buildBaseQuery();
+    if (!baseConstraints) return;
 
-    // Search filter
-    if (filters.search) {
-      const s = filters.search.toLowerCase();
-      filtered = filtered.filter(r =>
-        (r.details || '').toLowerCase().includes(s) ||
-        (r.action || '').toLowerCase().includes(s) ||
-        (r.affectedEntity || '').toLowerCase().includes(s)
-      );
-    }
+    setLoading(true);
+    try {
+      if (actionType === 'init') {
+        const countQ = query(collection(db, 'auditLog'), ...baseConstraints);
+        const countSnap = await getCountFromServer(countQ).catch(() => ({ data: () => ({ count: 0 }) }));
+        setTotalCount(countSnap.data().count);
+      }
 
-    // Paginate
-    const start = page * PAGE_SIZE;
-    setLogs(filtered.slice(start, start + PAGE_SIZE));
-  }, [allLogs, filters, page]);
+      let q;
+      const baseQ = [collection(db, 'auditLog'), ...baseConstraints, orderBy('timestamp', 'desc'), limit(PAGE_SIZE)];
+
+      if (actionType === 'next' && lastVisible) {
+        q = query(...baseQ, startAfter(lastVisible));
+      } else if (actionType === 'prev' && docStack.length > 1) {
+        const newStack = [...docStack];
+        newStack.pop();
+        const prevPageStart = newStack.pop();
+        q = query(...baseQ, startAfter(prevPageStart));
+      } else {
+        q = query(...baseQ);
+        if (actionType === 'init') setDocStack([]);
+      }
+
+      const snap = await getDocs(q);
+      
+      if (!snap.empty) {
+        const firstDoc = snap.docs[0];
+        const lastDoc = snap.docs[snap.docs.length - 1];
+        
+        if (actionType === 'next') setDocStack(prev => [...prev, firstVisible]);
+        else if (actionType === 'prev') {
+          const newStack = [...docStack];
+          newStack.pop();
+          setDocStack(newStack);
+        } else if (actionType === 'init') {
+          setDocStack([]);
+        }
+
+        setFirstVisible(firstDoc);
+        setLastVisible(lastDoc);
+
+        setLogs(snap.docs.map(d => ({
+          id: d.id,
+          ...d.data(),
+          timestamp: d.data().timestamp?.toDate?.() || new Date(),
+        })));
+      } else if (actionType === 'init') {
+        setLogs([]);
+        setFirstVisible(null);
+        setLastVisible(null);
+      }
+    } catch (err) {
+      console.error('Failed to fetch paginated audit logs:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [buildBaseQuery, lastVisible, firstVisible, docStack]);
+
+  useEffect(() => {
+    fetchPage('init');
+    setPage(1);
+  }, [buildBaseQuery]);
 
   const applyFilters = (newFilters) => {
     setFilters(newFilters);
-    setPage(0);
+    setPage(1);
   };
 
-  const nextPage = () => setPage(p => p + 1);
-  const prevPage = () => setPage(p => Math.max(0, p - 1));
-  const refreshLogs = () => fetchAllLogs();
-
-  // Get total filtered count for pagination
-  const getFilteredCount = useCallback(() => {
-    let filtered = [...allLogs];
-    if (filters.dateFrom) {
-      const from = new Date(filters.dateFrom); from.setHours(0, 0, 0, 0);
-      filtered = filtered.filter(r => r.timestamp >= from);
+  const nextPage = () => {
+    setPage(p => p + 1);
+    fetchPage('next');
+  };
+  const prevPage = () => {
+    if (page > 1) {
+      setPage(p => p - 1);
+      fetchPage('prev');
     }
-    if (filters.dateTo) {
-      const to = new Date(filters.dateTo); to.setHours(23, 59, 59, 999);
-      filtered = filtered.filter(r => r.timestamp <= to);
-    }
-    if (filters.user) filtered = filtered.filter(r => r.userEmail === filters.user || r.userName === filters.user);
-    if (filters.action) filtered = filtered.filter(r => r.action === filters.action);
-    if (filters.search) {
-      const s = filters.search.toLowerCase();
-      filtered = filtered.filter(r => (r.details || '').toLowerCase().includes(s) || (r.action || '').toLowerCase().includes(s));
-    }
-    return filtered.length;
-  }, [allLogs, filters]);
-
+  };
+  const refreshLogs = () => fetchPage('init');
   // Export filtered logs as CSV
-  const exportCSV = useCallback(() => {
-    let filtered = [...allLogs];
-    if (filters.dateFrom) {
-      const from = new Date(filters.dateFrom); from.setHours(0, 0, 0, 0);
-      filtered = filtered.filter(r => r.timestamp >= from);
-    }
-    if (filters.dateTo) {
-      const to = new Date(filters.dateTo); to.setHours(23, 59, 59, 999);
-      filtered = filtered.filter(r => r.timestamp <= to);
-    }
-    if (filters.user) filtered = filtered.filter(r => r.userEmail === filters.user || r.userName === filters.user);
-    if (filters.action) filtered = filtered.filter(r => r.action === filters.action);
-    if (filters.search) {
-      const s = filters.search.toLowerCase();
-      filtered = filtered.filter(r => (r.details || '').toLowerCase().includes(s) || (r.action || '').toLowerCase().includes(s));
-    }
-
-    if (!filtered.length) return;
-
-    const rows = filtered.map(r => ({
-      Time: r.timestamp?.toISOString?.() || '',
-      User: r.userName || '',
-      Email: r.userEmail || '',
-      Role: r.userRole || '',
-      Action: r.action || '',
-      Details: r.details || '',
-      Entity: r.affectedEntity || '',
+  const exportCSV = useCallback(async () => {
+    const baseConstraints = buildBaseQuery();
+    if (!baseConstraints) return;
+    const q = query(collection(db, 'auditLog'), ...baseConstraints, orderBy('timestamp', 'desc'));
+    const snap = await getDocs(q);
+    const results = snap.docs.map(d => ({
+      id: d.id,
+      ...d.data(),
+      timestamp: d.data().timestamp?.toDate?.() || new Date(),
     }));
 
-    const keys = Object.keys(rows[0]);
-    const csv = [
-      keys.join(','),
-      ...rows.map(r => keys.map(k => `"${String(r[k]).replace(/"/g, '""')}"`).join(','))
-    ].join('\n');
+    if (!results.length) return;
+
+    const rows = results.map(r => ({
+      Time: r.timestamp?.toISOString?.() || '',
+      User: r.userName || '',
+      Role: r.userRole || '',
+      Action: r.action || '',
+      Entity: r.affectedEntity || '',
+      Details: r.details || ''
+    }));
+
+    const header = Object.keys(rows[0]).join(',');
+    const csv = [header, ...rows.map(r => Object.values(r).map(v => `"${v}"`).join(','))].join('\n');
 
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `audit-log-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `audit_log_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [allLogs, filters]);
+  }, [buildBaseQuery]);
 
   return {
-    logs, loading, page, PAGE_SIZE,
-    totalFiltered: getFilteredCount(),
-    filters, applyFilters,
-    nextPage, prevPage, refreshLogs,
-    exportCSV,
+    logs,
+    loading,
+    page,
+    totalPages: Math.max(1, Math.ceil(totalCount / PAGE_SIZE)),
+    totalCount,
+    filters,
+    applyFilters,
+    nextPage,
+    prevPage,
+    refreshLogs,
+    PAGE_SIZE,
+    exportCSV
   };
 }
 

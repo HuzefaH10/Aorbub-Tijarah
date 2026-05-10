@@ -1,3 +1,4 @@
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { BusinessProvider } from './context/BusinessContext';
@@ -5,14 +6,16 @@ import { ThemeProvider } from './context/ThemeContext';
 import Layout from './components/layout/Layout';
 import Login from './pages/Login';
 import HomePage from './pages/HomePage';
-import SalesAnalytics from './pages/SalesAnalytics';
-import ProfitOptimization from './pages/ProfitOptimization';
-import Inventory from './pages/Inventory';
-import CalendarPage from './pages/Calendar';
-import Settings from './pages/Settings';
-import HelpContact from './pages/HelpContact';
-import DataEntry from './pages/DataEntry';
-import Credits from './pages/Credits';
+import PageLoader from './components/ui/PageLoader';
+
+const SalesAnalytics = lazy(() => import('./pages/SalesAnalytics'));
+const ProfitOptimization = lazy(() => import('./pages/ProfitOptimization'));
+const Inventory = lazy(() => import('./pages/Inventory'));
+const CalendarPage = lazy(() => import('./pages/Calendar'));
+const Settings = lazy(() => import('./pages/Settings'));
+const HelpContact = lazy(() => import('./pages/HelpContact'));
+const DataEntry = lazy(() => import('./pages/DataEntry'));
+const Credits = lazy(() => import('./pages/Credits'));
 
 /* Protected route wrapper */
 function ProtectedRoute({ children }) {
@@ -36,14 +39,14 @@ export default function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
                 <Route index element={<HomePage />} />
-                <Route path="analytics" element={<SalesAnalytics />} />
-                <Route path="profit" element={<ProfitOptimization />} />
-                <Route path="inventory" element={<Inventory />} />
-                <Route path="calendar" element={<CalendarPage />} />
-                <Route path="credits" element={<Credits />} />
-                <Route path="settings" element={<Settings />} />
-                <Route path="help" element={<HelpContact />} />
-                <Route path="data-entry" element={<DataEntry />} />
+                <Route path="analytics" element={<Suspense fallback={<PageLoader />}><SalesAnalytics /></Suspense>} />
+                <Route path="profit" element={<Suspense fallback={<PageLoader />}><ProfitOptimization /></Suspense>} />
+                <Route path="inventory" element={<Suspense fallback={<PageLoader />}><Inventory /></Suspense>} />
+                <Route path="calendar" element={<Suspense fallback={<PageLoader />}><CalendarPage /></Suspense>} />
+                <Route path="credits" element={<Suspense fallback={<PageLoader />}><Credits /></Suspense>} />
+                <Route path="settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
+                <Route path="help" element={<Suspense fallback={<PageLoader />}><HelpContact /></Suspense>} />
+                <Route path="data-entry" element={<Suspense fallback={<PageLoader />}><DataEntry /></Suspense>} />
               </Route>
             </Routes>
           </BrowserRouter>

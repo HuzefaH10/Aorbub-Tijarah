@@ -7,6 +7,7 @@ import {
   Download, Edit2, Trash2, ShieldAlert, ChevronDown, ChevronUp, X, Layers, ClipboardList
 } from 'lucide-react';
 import Toast, { useToast } from '../components/ui/Toast';
+import Pagination from '../components/ui/Pagination';
 import ExportModal from '../components/inventory/ExportModal';
 import ProductHistoryDrawer from '../components/inventory/ProductHistoryDrawer';
 import { useAuth } from '../context/AuthContext';
@@ -359,6 +360,8 @@ function TabOverview({ computedData, onEdit, onDelete, onLoad, onHistory, onBulk
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const ITEMS_PER_PAGE = 50;
 
   const categories = ['All', ...new Set(computedData.map(p => p.category).filter(Boolean))];
 
@@ -454,12 +457,12 @@ function TabOverview({ computedData, onEdit, onDelete, onLoad, onHistory, onBulk
       <div className="flex flex-col md:flex-row gap-3">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by product name or SKU..." className="w-full bg-gray-900 border border-white/10 rounded-xl pl-9 pr-3 py-2 text-sm text-white outline-none focus:border-primary-500 transition-colors" />
+          <input value={search} onChange={e => {setSearch(e.target.value); setPage(1);}} placeholder="Search by product name or SKU..." className="w-full bg-gray-900 border border-white/10 rounded-xl pl-9 pr-3 py-2 text-sm text-white outline-none focus:border-primary-500 transition-colors" />
         </div>
-        <select value={catFilter} onChange={e => setCatFilter(e.target.value)} className="bg-gray-900 border border-white/10 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-primary-500">
+        <select value={catFilter} onChange={e => {setCatFilter(e.target.value); setPage(1);}} className="bg-gray-900 border border-white/10 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-primary-500">
           {categories.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="bg-gray-900 border border-white/10 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-primary-500">
+        <select value={statusFilter} onChange={e => {setStatusFilter(e.target.value); setPage(1);}} className="bg-gray-900 border border-white/10 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-primary-500">
           {['All', 'Healthy', 'Low Stock', 'Out of Stock'].map(c => <option key={c} value={c}>{c}</option>)}
         </select>
       </div>
@@ -486,7 +489,7 @@ function TabOverview({ computedData, onEdit, onDelete, onLoad, onHistory, onBulk
               </tr>
             </thead>
             <tbody>
-              {filtered.map((p, i) => {
+              {filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE).map((p, i) => {
                 const isChecked = selected.has(p.id);
                 const isExactSku = search && (p.defaults?.sku === search || p.sku === search);
                 return (
@@ -529,6 +532,15 @@ function TabOverview({ computedData, onEdit, onDelete, onLoad, onHistory, onBulk
         )}
       </div>
 
+      <Pagination 
+        currentPage={page}
+        totalPages={Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE))}
+        totalCount={filtered.length}
+        pageSize={ITEMS_PER_PAGE}
+        onNext={() => setPage(p => p + 1)}
+        onPrevious={() => setPage(p => p - 1)}
+      />
+
       {/* Bulk Modals */}
       {bulkDeleteOpen && (
         <BulkDeleteModal
@@ -554,6 +566,8 @@ function TabOverview({ computedData, onEdit, onDelete, onLoad, onHistory, onBulk
 
 function TabHistory({ logs, onDelete }) {
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const ITEMS_PER_PAGE = 20;
   
   const filtered = logs.filter(l => l.productName?.toLowerCase().includes(search.toLowerCase()));
 
@@ -580,7 +594,7 @@ function TabHistory({ logs, onDelete }) {
 
       <div className="relative w-full md:w-64">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Filter by product..." className="w-full bg-gray-900 border border-white/10 rounded-xl pl-9 pr-3 py-2 text-sm text-white outline-none focus:border-primary-500 transition-colors" />
+        <input value={search} onChange={e => {setSearch(e.target.value); setPage(1);}} placeholder="Filter by product..." className="w-full bg-gray-900 border border-white/10 rounded-xl pl-9 pr-3 py-2 text-sm text-white outline-none focus:border-primary-500 transition-colors" />
       </div>
 
       <div className="overflow-x-auto -mx-5 px-5">
@@ -601,7 +615,7 @@ function TabHistory({ logs, onDelete }) {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((l, i) => (
+              {filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE).map((l, i) => (
                 <tr key={l.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors" style={{ animation: `fadeIn 0.3s ease-out ${i * 0.04}s both` }}>
                   <td className="py-3 text-gray-400">{l.date}</td>
                   <td className="py-3 font-bold text-gray-200">{l.productName}</td>
@@ -619,6 +633,15 @@ function TabHistory({ logs, onDelete }) {
           </table>
         )}
       </div>
+
+      <Pagination 
+        currentPage={page}
+        totalPages={Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE))}
+        totalCount={filtered.length}
+        pageSize={ITEMS_PER_PAGE}
+        onNext={() => setPage(p => p + 1)}
+        onPrevious={() => setPage(p => p - 1)}
+      />
     </div>
   );
 }
