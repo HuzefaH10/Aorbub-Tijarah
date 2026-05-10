@@ -2,9 +2,13 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useProducts, useEntries, useStockLogs, useCategories, useEvents, useAddStockHistory } from '../hooks/useFirestore';
 import { useSearchParams } from 'react-router-dom';
 import ReactApexChart from 'react-apexcharts';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../services/firebase';
+import { groupByNameSimilarity } from '../utils/importDetector';
 import { 
   Package, AlertTriangle, XCircle, CheckCircle, Plus, Search, Filter,
-  Download, Edit2, Trash2, ShieldAlert, ChevronDown, ChevronUp, X, Layers, ClipboardList
+  Download, Edit2, Trash2, ShieldAlert, ChevronDown, ChevronUp, X, Layers, ClipboardList,
+  FolderTree, Wand2
 } from 'lucide-react';
 import Toast, { useToast } from '../components/ui/Toast';
 import Pagination from '../components/ui/Pagination';
@@ -28,7 +32,7 @@ export default function Inventory() {
   const { toast, showToast, hideToast } = useToast();
   const addStockHistory = useAddStockHistory();
   const { user } = useAuth();
-  const { activeBusinessId } = useBusiness();
+  const { activeBusinessId, userProfile } = useBusiness();
   const { role, hasPermission } = useRole();
 
   const handleAddProduct = async (data) => {
@@ -163,9 +167,48 @@ export default function Inventory() {
 
   const todayStr = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
+  const [showCategoryBanner, setShowCategoryBanner] = useState(true);
+  const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false);
+
+  const uncategorizedProducts = useMemo(() => {
+    return products.filter(p => !p.category || p.category.toLowerCase() === 'uncategorized');
+  }, [products]);
+
+  const handleDismissCategoryBanner = async (forever = false) => {
+    setShowCategoryBanner(false);
+    if (forever && user) {
+      try {
+        await updateDoc(doc(db, 'users', user.uid), { skipCategoryPrompt: true });
+      } catch (err) { console.error('Failed to dismiss forever', err); }
+    }
+  };
+
   return (
     <div className="space-y-6 pb-20 animate-fadeIn relative min-h-[calc(100vh-100px)]">
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
+
+      {/* CATEGORY PROMPT BANNER */}
+      {showCategoryBanner && !userProfile?.skipCategoryPrompt && uncategorizedProducts.length > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-5 py-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl animate-fadeIn">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0">
+              <FolderTree size={20} className="text-amber-400" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-amber-400">Organize your inventory</h3>
+              <p className="text-xs text-amber-500/80 mt-0.5">{uncategorizedProducts.length} product{uncategorizedProducts.length !== 1 ? 's are' : ' is'} currently uncategorized. Would you like to organize them into categories?</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <button onClick={() => { setShowCategoryBanner(false); setCategoryDrawerOpen(true); }} className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-lg shadow-amber-600/20 transition-colors">
+              Organize Now
+            </button>
+            <button onClick={() => handleDismissCategoryBanner(false)} className="text-xs font-bold text-amber-500 hover:text-amber-300 transition-colors underline underline-offset-2">
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* SECTION 1: TOPBAR */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 glass p-5 shadow-xl">
@@ -225,6 +268,17 @@ export default function Inventory() {
       {deleteModal.open && <DeleteModal target={deleteModal} onClose={() => setDeleteModal({ open: false, type: null, id: null, name: '' })} onConfirm={deleteModal.type === 'product' ? handleDeleteProduct : handleDeleteStockLog} toast={showToast} />}
       {exportModalOpen && <ExportModal onClose={() => setExportModalOpen(false)} computedData={computedData.data} stockLogs={stockLogs} toast={showToast} />}
       {historyDrawer.open && historyDrawer.product && <ProductHistoryDrawer product={historyDrawer.product} onClose={() => setHistoryDrawer({ open: false, product: null })} />}
+      {categoryDrawerOpen && (
+        <CategoryAssignmentDrawer 
+          products={uncategorizedProducts} 
+          firestoreCategories={firestoreCategories} 
+          onClose={() => setCategoryDrawerOpen(false)} 
+          onUpdateProduct={handleUpdateProduct} 
+          addCategory={addCategory} 
+          onDismissForever={() => handleDismissCategoryBanner(true)}
+          toast={showToast} 
+        />
+      )}
 
     </div>
   );
@@ -1413,6 +1467,199 @@ function QuickLoadModal({ product, onClose, onSave, onUpdateProduct, events = []
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+function CategoryAssignmentDrawer({ products, firestoreCategories, onClose, onUpdateProduct, addCategory, onDismissForever, toast }) {
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [targetCategory, setTargetCategory] = useState('');
+  const [isNewCategory, setIsNewCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  
+  const [groups, setGroups] = useState([]);
+  const [showGroups, setShowGroups] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleAutoSuggest = () => {
+    const g = groupByNameSimilarity(products.map(p => p.name));
+    const groupedObjects = g.map(group => {
+      const prodObjs = products.filter(p => group.products.includes(p.name));
+      return { suggestedCategory: group.suggestedCategory, products: prodObjs };
+    }).filter(x => x.products.length > 0);
+    setGroups(groupedObjects.filter(x => x.products.length > 1));
+    setShowGroups(true);
+  };
+
+  const handleAssignSelected = async () => {
+    if (selectedIds.size === 0) return toast('Select products first', 'error');
+    if (!isNewCategory && !targetCategory) return toast('Select a category', 'error');
+    if (isNewCategory && !newCategoryName.trim()) return toast('Enter category name', 'error');
+
+    setLoading(true);
+    try {
+      let finalCat = targetCategory;
+      if (isNewCategory) {
+        if (!firestoreCategories.find(c => c.name.toLowerCase() === newCategoryName.trim().toLowerCase())) {
+          await addCategory(newCategoryName.trim());
+        }
+        finalCat = newCategoryName.trim();
+      }
+
+      await Promise.all([...selectedIds].map(id => onUpdateProduct(id, { category: finalCat })));
+      toast(`Assigned ${selectedIds.size} products to ${finalCat}`);
+      
+      setSelectedIds(new Set());
+      setTargetCategory('');
+      setIsNewCategory(false);
+      setNewCategoryName('');
+      
+      if (showGroups) {
+        setGroups(prev => prev.map(g => ({
+          ...g,
+          products: g.products.filter(p => !selectedIds.has(p.id))
+        })).filter(g => g.products.length > 1));
+      }
+    } catch (e) {
+      toast('Failed to assign categories', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAssignGroup = async (groupIndex, catName) => {
+    const group = groups[groupIndex];
+    if (!catName.trim()) return toast('Category name is required', 'error');
+    setLoading(true);
+    try {
+      if (!firestoreCategories.find(c => c.name.toLowerCase() === catName.toLowerCase())) {
+        await addCategory(catName.trim());
+      }
+      await Promise.all(group.products.map(p => onUpdateProduct(p.id, { category: catName.trim() })));
+      toast(`Assigned group to ${catName.trim()}`);
+      setGroups(prev => prev.filter((_, i) => i !== groupIndex));
+    } catch (e) {
+      toast('Failed to assign group', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleSelect = (id) => setSelectedIds(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+
+  const toggleAll = () => {
+    if (selectedIds.size === products.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(products.map(p => p.id)));
+  };
+
+  return (
+    <div className="fixed inset-0 z-[120] flex justify-end bg-black/60 backdrop-blur-sm animate-fadeIn">
+      <div className="w-full max-w-3xl bg-gray-950 border-l border-white/10 h-full flex flex-col shadow-2xl animate-[slideInRight_0.3s_ease-out_forwards]">
+        {/* Header */}
+        <div className="px-6 py-5 border-b border-white/10 flex items-center justify-between shrink-0 bg-gray-900">
+          <div>
+            <h2 className="text-lg font-bold text-white font-heading">Organize Your Products</h2>
+            <p className="text-xs text-gray-500 mt-1">{products.length} uncategorized items</p>
+          </div>
+          <button onClick={onClose} className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-xl transition-colors"><X size={20} /></button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
+          
+          <div className="flex items-center justify-between">
+            <button onClick={handleAutoSuggest} disabled={products.length < 2 || loading} className="flex items-center gap-2 px-4 py-2 bg-primary-600/10 text-primary-400 hover:bg-primary-600/20 border border-primary-500/30 rounded-xl text-sm font-bold transition-all disabled:opacity-50">
+              <Wand2 size={16} /> Auto-suggest categories
+            </button>
+            <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+              <input type="checkbox" checked={selectedIds.size > 0 && selectedIds.size === products.length} onChange={toggleAll} className="w-4 h-4 accent-primary-600 rounded" />
+              Select All
+            </label>
+          </div>
+
+          <div className="flex flex-col md:flex-row gap-6">
+            <div className="flex-1 border border-white/10 rounded-2xl overflow-hidden bg-gray-900/50 flex flex-col min-h-[300px] max-h-[500px]">
+              <div className="p-3 bg-gray-900 border-b border-white/10 text-xs font-bold text-gray-500 uppercase tracking-wider">Uncategorized Items</div>
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
+                {products.length === 0 && <p className="p-4 text-center text-gray-500 text-sm">All products are categorized!</p>}
+                {products.map(p => (
+                  <label key={p.id} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors ${selectedIds.has(p.id) ? 'bg-primary-600/10 border border-primary-500/30' : 'hover:bg-white/5 border border-transparent'}`}>
+                    <input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => toggleSelect(p.id)} className="w-4 h-4 accent-primary-600 rounded" />
+                    <span className="text-sm font-medium text-gray-200 truncate">{p.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="w-full md:w-[300px] space-y-4 shrink-0">
+              <div className="p-5 glass rounded-2xl space-y-4">
+                <h3 className="text-sm font-bold text-white mb-2">Assign Selected ({selectedIds.size})</h3>
+                
+                <div className="space-y-3">
+                  <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                    <input type="radio" name="catType" checked={!isNewCategory} onChange={() => setIsNewCategory(false)} className="accent-primary-600" />
+                    Existing Category
+                  </label>
+                  {!isNewCategory && (
+                    <select value={targetCategory} onChange={e => setTargetCategory(e.target.value)} className="w-full bg-gray-950 border border-white/10 rounded-xl px-3 py-2 text-sm text-white outline-none">
+                      <option value="">Select...</option>
+                      {firestoreCategories.filter(c => c.name.toLowerCase() !== 'uncategorized').map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                    </select>
+                  )}
+
+                  <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer mt-4">
+                    <input type="radio" name="catType" checked={isNewCategory} onChange={() => setIsNewCategory(true)} className="accent-primary-600" />
+                    New Category
+                  </label>
+                  {isNewCategory && (
+                    <input value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} placeholder="e.g. Beverages" className="w-full bg-gray-950 border border-white/10 rounded-xl px-3 py-2 text-sm text-white outline-none" />
+                  )}
+                </div>
+
+                <button onClick={handleAssignSelected} disabled={loading || selectedIds.size === 0} className="w-full mt-2 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-bold text-sm rounded-xl transition-all disabled:opacity-50">
+                  {loading ? 'Assigning...' : 'Assign Category'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {showGroups && groups.length > 0 && (
+            <div className="mt-8 space-y-4 border-t border-white/10 pt-6 pb-4">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Wand2 size={16} className="text-primary-400" /> Suggested Groups
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {groups.map((g, idx) => (
+                  <div key={idx} className="glass p-4 rounded-2xl space-y-3">
+                    <div className="flex items-center gap-2">
+                      <input type="text" value={g.suggestedCategory} onChange={e => {
+                        const newGroups = [...groups];
+                        newGroups[idx].suggestedCategory = e.target.value;
+                        setGroups(newGroups);
+                      }} className="bg-gray-950 border border-white/10 text-white text-sm font-bold px-3 py-1.5 rounded-lg flex-1 min-w-0" />
+                      <button onClick={() => handleAssignGroup(idx, g.suggestedCategory)} disabled={loading} className="px-4 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-lg transition-colors shrink-0">Accept</button>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {g.products.map(p => <span key={p.id} className="px-2 py-1 bg-white/5 text-gray-300 text-[10px] rounded border border-white/5">{p.name}</span>)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+        </div>
+
+        {/* Footer */}
+        <div className="p-5 border-t border-white/10 flex items-center justify-between bg-gray-900 shrink-0">
+          <button onClick={() => { onDismissForever(); onClose(); }} className="text-xs text-gray-500 hover:text-white transition-colors underline underline-offset-2">Don't ask again</button>
+          <button onClick={onClose} className="px-5 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-sm font-bold transition-colors">Skip for now</button>
+        </div>
       </div>
     </div>
   );
