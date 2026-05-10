@@ -2,12 +2,14 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useEvents, useMilestones, useProducts, useBills, useStockLogs, useEventTemplates } from '../hooks/useFirestore';
 import { usePageGuard } from '../hooks/usePageGuard';
+import { useBusiness } from '../context/BusinessContext';
+import { generateRecurringEvents } from '../services/recurringEvents';
 
 import { 
   Calendar as CalendarIcon, Clock, CheckCircle2, AlertTriangle, 
   ChevronLeft, ChevronRight, Plus, Search, X, Edit2, Trash2,
   CalendarDays, ListTodo, MapPin, TrendingUp, DollarSign, Package, ShieldAlert,
-  Flag
+  Flag, RefreshCcw
 } from 'lucide-react';
 import Toast, { useToast } from '../components/ui/Toast';
 import MilestoneModal from '../components/calendar/MilestoneModal';
@@ -33,6 +35,7 @@ export default function CalendarPage() {
   const { stockLogs } = useStockLogs();
   const { templates, addTemplate, deleteTemplate } = useEventTemplates();
   const { toast, showToast, hideToast } = useToast();
+  const { activeBusinessId } = useBusiness();
 
   const [searchParams, setSearchParams] = useSearchParams();
   
@@ -69,15 +72,19 @@ export default function CalendarPage() {
   // Auto-Overdue Logic on Mount
   useEffect(() => {
     if (!events.length) return;
-    let changed = false;
     events.forEach(e => {
       if (e.status === 'upcoming' && e.date < todayStr) {
         updateEvent(e.id, { status: 'overdue' });
-        changed = true;
       }
     });
-    // Silent update, no toast needed for background task
-  }, [events.length]); // run when events load initially
+  }, [events.length]);
+
+  // Recurring event auto-generation on mount
+  useEffect(() => {
+    if (activeBusinessId) {
+      generateRecurringEvents(activeBusinessId);
+    }
+  }, [activeBusinessId]);
 
   // Filtered Events
   const filteredEvents = useMemo(() => {
@@ -517,6 +524,11 @@ function DaySummaryPopup({ dateStr, onClose, events, bills, products, stockLogs,
                             }`}>{e.status}</span>
                           </div>
                           <p className="text-sm font-bold text-white truncate">{e.title}</p>
+                          {e.recurring?.enabled && (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-bold text-green-400 bg-green-500/10 border border-green-500/20 rounded px-1.5 py-0.5 mt-1">
+                              <RefreshCcw size={9} /> Recurring — {e.recurring.frequency}
+                            </span>
+                          )}
                           {linkedProduct && <p className="text-[11px] text-orange-400 mt-0.5">🔗 {linkedProduct.name}</p>}
                           {e.note && <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{e.note}</p>}
                         </div>
@@ -646,7 +658,8 @@ function MonthView({ cells, events, heatmapData, currentDate, onPrev, onNext, on
               </div>
               <div className="flex-1 flex flex-col gap-1 overflow-hidden">
                 {dayEvents.slice(0, 3).map(e => (
-                  <div key={e.id} className={`text-[9px] font-bold px-1.5 py-0.5 rounded truncate ${getType(e.type).bg} text-white`}>
+                  <div key={e.id} className={`text-[9px] font-bold px-1.5 py-0.5 rounded truncate flex items-center gap-0.5 ${getType(e.type).bg} text-white`}>
+                    {e.recurring?.enabled && <RefreshCcw size={8} className="shrink-0 opacity-80" />}
                     {e.title}
                   </div>
                 ))}
@@ -789,6 +802,7 @@ function EventModal({ editId, data, prefillDate, onClose, onSave, products = [],
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [managingTemplates, setManagingTemplates] = useState(false);
+  const [appliedTemplateName, setAppliedTemplateName] = useState('');
 
   // Auto-fill template name
   useEffect(() => {
@@ -806,11 +820,13 @@ function EventModal({ editId, data, prefillDate, onClose, onSave, products = [],
       ...prev,
       type: 'stock_order',
       title: t.name,
+      date: '',  // User must pick start date manually
       linkedProductId: t.linkedProductId,
       recurring: { enabled: true, frequency: t.frequency },
       note: t.defaultNote || ''
     }));
-    toast('Template applied');
+    setAppliedTemplateName(t.name);
+    toast('Template applied — set your start date to continue');
   };
 
   const handleSubmit = async (e) => {
@@ -892,6 +908,11 @@ function EventModal({ editId, data, prefillDate, onClose, onSave, products = [],
                   <option value="" disabled>Select a template...</option>
                   {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
+                {appliedTemplateName && (
+                  <p className="mt-2 text-[10px] text-primary-300/70 italic flex items-center gap-1">
+                    <RefreshCcw size={10} /> Using template: <strong>{appliedTemplateName}</strong> — set your start date to continue
+                  </p>
+                )}
               </div>
             )}
 

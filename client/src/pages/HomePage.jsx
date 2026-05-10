@@ -11,6 +11,7 @@ import {
   Receipt, DollarSign, CreditCard, Package, Plus, TrendingUp, Calendar, 
   Clock, CheckCircle, AlertTriangle, XCircle, ArrowRight, X, ShieldAlert
 } from 'lucide-react';
+import { generateRecurringEvents } from '../services/recurringEvents';
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -40,6 +41,13 @@ export default function HomePage() {
       setRecentLogs(logs.slice(0, 5));
     });
     return unsub;
+  }, [activeBusinessId]);
+
+  // ── Recurring Events Auto-generation on App Open ──
+  useEffect(() => {
+    if (activeBusinessId) {
+      generateRecurringEvents(activeBusinessId);
+    }
   }, [activeBusinessId]);
 
   // ── Greeting ──
