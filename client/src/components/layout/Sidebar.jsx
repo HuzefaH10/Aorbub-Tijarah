@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import {
-  BarChart3, DollarSign, Package, CalendarDays, Settings, PenLine, Home, NotebookTabs, Receipt
+  BarChart3, DollarSign, Package, CalendarDays, Settings, PenLine, Home, NotebookTabs, Receipt, Truck
 } from 'lucide-react';
 
 const navItems = [
@@ -9,8 +9,9 @@ const navItems = [
   { to: '/profit', icon: DollarSign, label: 'Profit Optimization' },
   { to: '/inventory', icon: Package, label: 'Inventory' },
   { to: '/calendar', icon: CalendarDays, label: 'Calendar' },
-  { to: '/credits', icon: NotebookTabs, label: 'Credits' },
   { to: '/expenses', icon: Receipt, label: 'Expenses' },
+  { to: '/suppliers', icon: Truck, label: 'Suppliers' },
+  { to: '/credits', icon: NotebookTabs, label: 'Credits' },
 ];
 
 export default function Sidebar() {

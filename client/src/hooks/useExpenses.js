@@ -60,7 +60,9 @@ export function useExpenses() {
         receiptUrl,
         createdBy: user.uid,
         createdAt: serverTimestamp(),
-        amount: parseFloat(expenseData.amount) || 0
+        amount: parseFloat(expenseData.amount) || 0,
+        supplierId: expenseData.supplierId || null,
+        status: expenseData.status || 'paid' // Need to track paid/unpaid status for suppliers
       });
 
       await updateDoc(docRef, { expenseId: docRef.id });
@@ -87,7 +89,9 @@ export function useExpenses() {
       await updateDoc(doc(db, 'expenses', id), {
         ...updates,
         receiptUrl,
-        amount: parseFloat(updates.amount) || 0
+        amount: parseFloat(updates.amount) || 0,
+        supplierId: updates.supplierId !== undefined ? updates.supplierId : null,
+        status: updates.status !== undefined ? updates.status : 'paid'
       });
 
       await writeAuditLog(user, role, 'Expense Updated', `Updated expense: ${updates.category} - ${updates.amount}`, 'Expenses', activeBusinessId);

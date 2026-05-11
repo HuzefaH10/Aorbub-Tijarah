@@ -13,6 +13,8 @@ import { collection, query, where, getDocs, addDoc, updateDoc, doc, serverTimest
 import { writeAuditLog } from '../hooks/useAuditLog';
 import { useAuth } from '../context/AuthContext';
 import { useRole } from '../hooks/useRole';
+import { useSuppliers } from '../hooks/useSuppliers';
+import { useLocation } from 'react-router-dom';
 
 const EXPENSE_CATEGORIES = [
   'Rent',
@@ -33,6 +35,8 @@ export default function Expenses() {
   const { user } = useAuth();
   const { role } = useRole();
   const { expenses, loading, addExpense, updateExpense, deleteExpense } = useExpenses();
+  const { suppliers } = useSuppliers();
+  const location = useLocation();
   const { toast } = useToast();
 
   // Filters
@@ -115,7 +119,16 @@ export default function Expenses() {
     processRecurring();
   }, [activeBusinessId]);
 
-  const initForm = (expense = null) => {
+  // Handle pre-fill from Suppliers page
+  useEffect(() => {
+    if (location.state?.prefillSupplierId && suppliers.length > 0) {
+      initForm(null, location.state.prefillSupplierId);
+      // clear the state so it doesn't re-trigger on refresh
+      window.history.replaceState({}, document.title)
+    }
+  }, [location.state, suppliers]);
+
+  const initForm = (expense = null, defaultSupplierId = '') => {
     if (expense) {
       setFormData({
         date: expense.date.toISOString().split('T')[0],
@@ -123,6 +136,8 @@ export default function Expenses() {
         category: EXPENSE_CATEGORIES.includes(expense.category) ? expense.category : 'Custom',
         paymentMethod: expense.paymentMethod,
         description: expense.description || '',
+        supplierId: expense.supplierId || '',
+        status: expense.status || 'paid',
         recurring: expense.recurring?.enabled || false,
         frequency: expense.recurring?.frequency || 'monthly'
       });
@@ -136,6 +151,8 @@ export default function Expenses() {
         category: 'Rent',
         paymentMethod: 'bank_transfer',
         description: '',
+        supplierId: defaultSupplierId,
+        status: 'paid',
         recurring: false,
         frequency: 'monthly'
       });
@@ -163,6 +180,8 @@ export default function Expenses() {
       category: cat,
       paymentMethod: formData.paymentMethod,
       description: formData.description,
+      supplierId: formData.supplierId || null,
+      status: formData.supplierId ? formData.status : 'paid',
       recurring: {
         enabled: formData.recurring,
         frequency: formData.recurring ? formData.frequency : null
@@ -435,6 +454,15 @@ export default function Expenses() {
                         {expense.date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                         {expense.recurring?.enabled && <RefreshCcw size={12} className="text-primary-500" title={`Recurring ${expense.recurring.frequency}`} />}
                       </div>
+                      {expense.supplierId && (
+                        <div className="mt-1">
+                          <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                            expense.status === 'paid' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'
+                          }`}>
+                            {expense.status}
+                          </span>
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <span className="px-2.5 py-1 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-semibold">
@@ -577,16 +605,47 @@ export default function Expenses() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Description (Optional)</label>
-                  <input 
-                    type="text" 
-                    value={formData.description}
-                    onChange={(e) => setFormData({...formData, description: e.target.value})}
-                    placeholder="e.g. Monthly rent payment — Dubai Design District"
-                    className="w-full bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-sm text-gray-900 dark:text-white outline-none focus:border-primary-500 transition-colors"
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Description (Optional)</label>
+                    <input 
+                      type="text" 
+                      value={formData.description}
+                      onChange={(e) => setFormData({...formData, description: e.target.value})}
+                      placeholder="e.g. Monthly rent payment"
+                      className="w-full bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-sm text-gray-900 dark:text-white outline-none focus:border-primary-500 transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Supplier (Optional)</label>
+                    <select 
+                      value={formData.supplierId}
+                      onChange={(e) => setFormData({...formData, supplierId: e.target.value})}
+                      className="w-full bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-sm text-gray-900 dark:text-white outline-none focus:border-primary-500 transition-colors"
+                    >
+                      <option value="">No Supplier</option>
+                      {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  </div>
                 </div>
+
+                {formData.supplierId && (
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Payment Status</label>
+                    <div className="flex bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-white/10 rounded-xl overflow-hidden p-1">
+                      {['paid', 'unpaid'].map((status) => (
+                        <button
+                          key={status}
+                          type="button"
+                          onClick={() => setFormData({...formData, status})}
+                          className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-colors ${formData.status === status ? (status === 'paid' ? 'bg-green-600 text-white shadow-md' : 'bg-red-600 text-white shadow-md') : 'text-gray-500 hover:text-white hover:bg-white/5'}`}
+                        >
+                          {status}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 dark:bg-gray-950/50 p-4 border border-gray-200 dark:border-white/5 rounded-xl">
                   {/* File Upload */}
