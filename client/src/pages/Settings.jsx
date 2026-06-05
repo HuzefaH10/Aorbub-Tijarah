@@ -6,9 +6,10 @@ import { useAuditLog, writeAuditLog, ACTION_TYPES } from '../hooks/useAuditLog';
 import { useTheme } from '../context/ThemeContext';
 import { useNavigate } from 'react-router-dom';
 import { useLoginHistory } from '../hooks/useLoginHistory';
-import { Save, Bell, Shield, KeyRound, Building2, User, BellRing, BellOff, Eye, EyeOff, Check, Camera, MonitorSmartphone, LogOut, Users, Send, X, Crown, ShieldCheck, UserCog, Palette, Clock, Copy, Download, Upload, UploadCloud, Database, FileJson, FileSpreadsheet, AlertTriangle, ScrollText, Search, ChevronLeft, ChevronRight, RefreshCw, Receipt, Smartphone, Laptop, Tablet, Globe, CheckCircle, XCircle } from 'lucide-react';
+import { Save, Bell, Shield, KeyRound, Building2, User, BellRing, BellOff, Eye, EyeOff, Check, Camera, MonitorSmartphone, LogOut, Users, Send, X, Crown, ShieldCheck, UserCog, Palette, Clock, Copy, Download, Upload, UploadCloud, Database, FileJson, FileSpreadsheet, AlertTriangle, ScrollText, Search, ChevronLeft, ChevronRight, RefreshCw, Receipt, Smartphone, Laptop, Tablet, Globe, CheckCircle, XCircle, Trash2 } from 'lucide-react';
 import Toast, { useToast } from '../components/ui/Toast';
 import TabBillHistory from '../components/settings/TabBillHistory';
+import DeleteAccountModal from '../components/settings/DeleteAccountModal';
 import TabDataImport from '../components/settings/TabDataImport';
 import Pagination from '../components/ui/Pagination';
 import { db } from '../services/firebase';
@@ -250,6 +251,9 @@ export default function Settings() {
   const [exporting, setExporting] = useState(false);
   const [restoreModal, setRestoreModal] = useState(null);
   const [restoring, setRestoring] = useState(false);
+
+  // ── Delete Account state ──
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   // Collection configs for fetching
   const EXPORT_COLLECTIONS = {
@@ -696,6 +700,7 @@ export default function Settings() {
   return (
     <div className="w-full animate-fadeIn pb-24">
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
+      <DeleteAccountModal isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)} />
 
       {/* Page Header */}
       <div className="border-b border-gray-100 dark:border-gray-800/60 pb-4 mb-6 px-6">
@@ -1543,6 +1548,31 @@ export default function Settings() {
                 )}
               </div>
             </div>
+
+            {/* DANGER ZONE — Owner only */}
+            {isOwner && (
+              <div className="rounded-xl border border-red-500/20 bg-red-500/[0.03] p-7 mt-2">
+                <div className="flex items-center gap-3 mb-4 pb-4 border-b border-red-500/10">
+                  <div className="p-2 rounded-lg bg-red-500/10">
+                    <Trash2 size={20} className="text-red-500" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-red-500 font-heading">Delete Account</h3>
+                    <p className="text-[10px] text-gray-500 dark:text-gray-600 uppercase tracking-wider font-bold mt-0.5">Danger Zone</p>
+                  </div>
+                </div>
+                <p className="text-sm text-gray-400 leading-relaxed mb-5">
+                  Permanently deletes your account, all businesses, branches, products, sales, expenses, staff records, and every piece of data associated with your account. This action is irreversible and cannot be undone.
+                </p>
+                <button
+                  id="delete-account-btn"
+                  onClick={() => setShowDeleteModal(true)}
+                  className="h-[44px] px-6 rounded-lg border border-red-500/40 text-red-500 text-sm font-bold hover:bg-red-500/10 hover:border-red-500/60 transition-all"
+                >
+                  Delete My Account
+                </button>
+              </div>
+            )}
           </div>
 
           {/* DATA & PRIVACY SECTION */}

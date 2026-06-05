@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { auth, db } from '../services/firebase';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import { Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Loader2, X } from 'lucide-react';
 import { writeLoginHistory } from '../hooks/useLoginHistory';
 
 export default function Login() {
@@ -16,6 +16,7 @@ export default function Login() {
   const [error, setError] = useState({ field: '', message: '' });
   const [msg, setMsg] = useState('');
   const [loading, setLoading] = useState(false);
+  const [deletedBanner, setDeletedBanner] = useState(false);
 
   const { login, signup } = useAuth();
   const navigate = useNavigate();
@@ -27,6 +28,11 @@ export default function Login() {
     if (savedEmail) {
       setEmail(savedEmail);
       setRememberMe(true);
+    }
+    // Check for account-deleted flag
+    if (sessionStorage.getItem('account_deleted')) {
+      setDeletedBanner(true);
+      sessionStorage.removeItem('account_deleted');
     }
   }, []);
 
@@ -161,6 +167,19 @@ export default function Login() {
               {isSignup ? 'Create an account to get started' : 'Sign in to continue to your dashboard'}
             </p>
           </div>
+
+          {deletedBanner && (
+            <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-medium text-center relative">
+              Your account has been permanently deleted. We're sorry to see you go.
+              <button
+                onClick={() => setDeletedBanner(false)}
+                className="absolute top-2 right-2 p-1 rounded-md text-red-400/60 hover:text-red-400 transition-colors"
+                aria-label="Dismiss"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
 
           {error.general && (
             <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-bold text-center">
