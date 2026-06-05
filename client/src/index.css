@@ -108,6 +108,72 @@
                 #0A0A0A;
     background-attachment: fixed;
   }
+
+  /* ─── Royal Green Theme ─── */
+  [data-theme="royal-green"] {
+    --color-primary-50: #e8f5e9;
+    --color-primary-100: #c8e6c9;
+    --color-primary-200: #a5d6a7;
+    --color-primary-300: #81c784;
+    --color-primary-400: #66bb6a;
+    --color-primary-500: #2e7d32;
+    --color-primary-600: #27692a;
+    --color-primary-700: #1b5e20;
+    --color-primary-800: #145218;
+    --color-primary-900: #0d3b10;
+    --color-sidebar: #0d150d;
+    --color-gray-950: #0a0f0a;
+    --color-gray-900: #111a11;
+    --color-gray-800: #1b5e20;
+    --color-gray-500: #558b5a;
+    --color-gray-400: #a5d6a7;
+    --color-gray-300: #c8e6c9;
+    --color-success: #43a047;
+    --color-danger: #c62828;
+    --color-warning: #f9a825;
+  }
+
+  html[data-theme="royal-green"] body {
+    background: radial-gradient(ellipse at 20% 30%, #0a1f0a 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 70%, #081a08 0%, transparent 55%),
+                radial-gradient(ellipse at 50% 90%, #061406 0%, transparent 50%),
+                radial-gradient(ellipse at 10% 80%, #040e04 0%, transparent 40%),
+                #0a0f0a;
+    background-attachment: fixed;
+  }
+
+  /* ─── Sharp Silver Theme ─── */
+  [data-theme="sharp-silver"] {
+    --color-primary-50: #fafafa;
+    --color-primary-100: #f5f5f5;
+    --color-primary-200: #eeeeee;
+    --color-primary-300: #e0e0e0;
+    --color-primary-400: #bdbdbd;
+    --color-primary-500: #9e9e9e;
+    --color-primary-600: #757575;
+    --color-primary-700: #616161;
+    --color-primary-800: #424242;
+    --color-primary-900: #212121;
+    --color-sidebar: #0a0a0c;
+    --color-gray-950: #0c0c0e;
+    --color-gray-900: #141418;
+    --color-gray-800: #424242;
+    --color-gray-500: #555560;
+    --color-gray-400: #9e9e9e;
+    --color-gray-300: #e0e0e0;
+    --color-success: #69f0ae;
+    --color-danger: #ff5252;
+    --color-warning: #ffd740;
+  }
+
+  html[data-theme="sharp-silver"] body {
+    background: radial-gradient(ellipse at 20% 30%, #12121a 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 70%, #0e0e16 0%, transparent 55%),
+                radial-gradient(ellipse at 50% 90%, #0a0a12 0%, transparent 50%),
+                radial-gradient(ellipse at 10% 80%, #08080e 0%, transparent 40%),
+                #0c0c0e;
+    background-attachment: fixed;
+  }
 }
 
 @layer components {
@@ -188,5 +254,69 @@
   }
   html[data-theme="royal-purple"] .hover-glass-opaque:hover {
     background: linear-gradient(135deg, rgba(26, 0, 48, 0.95) 0%, rgba(13, 0, 24, 0.95) 100%);
+  }
+
+  /* ─── Royal Green Glass ─── */
+  html[data-theme="royal-green"] .glass, 
+  html[data-theme="royal-green"] .card, 
+  html[data-theme="royal-green"] .panel, 
+  html[data-theme="royal-green"] .stat-box, 
+  html[data-theme="royal-green"] .navbar, 
+  html[data-theme="royal-green"] .modal, 
+  html[data-theme="royal-green"] .dropdown, 
+  html[data-theme="royal-green"] .input-field, 
+  html[data-theme="royal-green"] .icon-container {
+    background: linear-gradient(135deg, rgba(30, 70, 30, 0.15) 0%, rgba(15, 40, 15, 0.05) 100%);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(46, 125, 50, 0.15);
+    border-top: 1px solid rgba(46, 125, 50, 0.3);
+    border-left: 1px solid rgba(46, 125, 50, 0.2);
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05), 0 8px 32px rgba(0, 0, 0, 0.3);
+  }
+
+  html[data-theme="royal-green"] .glass-opaque {
+    background: linear-gradient(135deg, rgba(10, 25, 10, 0.95) 0%, rgba(5, 15, 5, 0.95) 100%);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(46, 125, 50, 0.15);
+    border-top: 1px solid rgba(46, 125, 50, 0.3);
+    border-left: 1px solid rgba(46, 125, 50, 0.2);
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05), 0 10px 40px rgba(0, 0, 0, 0.5);
+  }
+  html[data-theme="royal-green"] .hover-glass-opaque:hover {
+    background: linear-gradient(135deg, rgba(10, 25, 10, 0.95) 0%, rgba(5, 15, 5, 0.95) 100%);
+  }
+
+  /* ─── Sharp Silver Glass ─── */
+  html[data-theme="sharp-silver"] .glass, 
+  html[data-theme="sharp-silver"] .card, 
+  html[data-theme="sharp-silver"] .panel, 
+  html[data-theme="sharp-silver"] .stat-box, 
+  html[data-theme="sharp-silver"] .navbar, 
+  html[data-theme="sharp-silver"] .modal, 
+  html[data-theme="sharp-silver"] .dropdown, 
+  html[data-theme="sharp-silver"] .input-field, 
+  html[data-theme="sharp-silver"] .icon-container {
+    background: linear-gradient(135deg, rgba(158, 158, 158, 0.08) 0%, rgba(100, 100, 100, 0.03) 100%);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(158, 158, 158, 0.12);
+    border-top: 1px solid rgba(158, 158, 158, 0.25);
+    border-left: 1px solid rgba(158, 158, 158, 0.18);
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05), 0 8px 32px rgba(0, 0, 0, 0.3);
+  }
+
+  html[data-theme="sharp-silver"] .glass-opaque {
+    background: linear-gradient(135deg, rgba(14, 14, 18, 0.95) 0%, rgba(10, 10, 14, 0.95) 100%);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(158, 158, 158, 0.12);
+    border-top: 1px solid rgba(158, 158, 158, 0.25);
+    border-left: 1px solid rgba(158, 158, 158, 0.18);
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05), 0 10px 40px rgba(0, 0, 0, 0.5);
+  }
+  html[data-theme="sharp-silver"] .hover-glass-opaque:hover {
+    background: linear-gradient(135deg, rgba(14, 14, 18, 0.95) 0%, rgba(10, 10, 14, 0.95) 100%);
   }
 }

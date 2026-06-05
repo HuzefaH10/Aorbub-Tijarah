@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { db } from '../services/firebase';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth } from '../services/firebase';
@@ -6,15 +6,17 @@ import { onAuthStateChanged } from 'firebase/auth';
 
 const ThemeContext = createContext();
 
+const DARK_THEMES = ['dark', 'royal-purple', 'royal-green', 'sharp-silver'];
+
 export function useTheme() {
   return useContext(ThemeContext);
 }
 
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
-    // Read from localStorage first to prevent flash
     return localStorage.getItem('app-theme') || 'royal-purple';
   });
+  const prevThemeRef = useRef(theme);
 
   // Apply theme immediately on initial state
   useEffect(() => {
@@ -43,22 +45,24 @@ export function ThemeProvider({ children }) {
 
   const applyTheme = (newTheme) => {
     const root = document.documentElement;
-    // Clean up
-    root.classList.remove('dark', 'light', 'royal-purple');
+    // Clean up all theme classes and attributes
+    root.classList.remove('dark', 'light', 'royal-purple', 'royal-green', 'sharp-silver');
     root.removeAttribute('data-theme');
 
     // Apply new theme
-    if (newTheme === 'royal-purple') {
-      root.classList.add('dark', 'royal-purple');
-      root.setAttribute('data-theme', 'royal-purple');
-    } else if (newTheme === 'dark') {
-      root.classList.add('dark');
-    } else {
+    if (newTheme === 'light') {
       root.classList.add('light');
+    } else if (DARK_THEMES.includes(newTheme)) {
+      root.classList.add('dark', newTheme);
+      root.setAttribute('data-theme', newTheme);
+    } else {
+      root.classList.add('dark');
     }
   };
 
   const changeTheme = async (newTheme) => {
+    const previousTheme = theme;
+    prevThemeRef.current = previousTheme;
     setTheme(newTheme);
     applyTheme(newTheme);
     localStorage.setItem('app-theme', newTheme);
@@ -72,13 +76,15 @@ export function ThemeProvider({ children }) {
         console.error('Failed to save theme to Firestore:', err);
       }
     }
+
+    return { from: previousTheme, to: newTheme };
   };
 
   // Backwards compatibility for components that only read isDark
-  const isDark = theme === 'dark' || theme === 'royal-purple';
+  const isDark = DARK_THEMES.includes(theme) || theme === 'dark';
 
   return (
-    <ThemeContext.Provider value={{ theme, isDark, changeTheme }}>
+    <ThemeContext.Provider value={{ theme, isDark, changeTheme, previousTheme: prevThemeRef.current }}>
       {children}
     </ThemeContext.Provider>
   );
