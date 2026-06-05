@@ -50,7 +50,7 @@ export function useProducts() {
   const { activeBusinessId } = useBusiness();
 
   useEffect(() => {
-    if (!user || !activeBusinessId) return;
+    if (!user || !activeBusinessId) { setProducts([]); setLoading(false); return; }
     const q = query(collection(db, 'products'), where('businessId', '==', activeBusinessId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -84,7 +84,7 @@ export function useEvents() {
   const { activeBusinessId } = useBusiness();
 
   useEffect(() => {
-    if (!user || !activeBusinessId) return;
+    if (!user || !activeBusinessId) { setEvents([]); setLoading(false); return; }
     const q = query(collection(db, 'events'), where('businessId', '==', activeBusinessId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -242,7 +242,7 @@ export function useBills() {
   const { activeBusinessId } = useBusiness();
 
   useEffect(() => {
-    if (!user || !activeBusinessId) return;
+    if (!user || !activeBusinessId) { setBills([]); setLoading(false); return; }
     const q = query(collection(db, 'bills'), where('businessId', '==', activeBusinessId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
