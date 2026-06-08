@@ -360,8 +360,185 @@ export default function HomePage() {
     tooltip: { theme: 'dark', y: { formatter: val => `$${val}` } }
   };
 
+  // Free User Stats
+  const freeStats = useMemo(() => {
+    if (!isFree) return null;
+    
+    // Stock Status
+    const totalProducts = products.length;
+    let lowStock = 0;
+    let outOfStock = 0;
+    products.forEach(p => {
+      const remaining = Number(p.stockRemaining) || 0;
+      const threshold = Number(p.lowStockThreshold) || 5;
+      if (remaining === 0) outOfStock++;
+      else if (remaining <= threshold) lowStock++;
+    });
+
+    // Today's P&L
+    const todaySales = bills.filter(b => b.date === todayISO && b.status === 'paid').reduce((sum, b) => sum + (Number(b.netTotal) || 0), 0);
+    const todayExp = expenses.filter(e => {
+      if (!e.date) return false;
+      const eDateStr = (e.date.toDate ? e.date.toDate() : new Date(e.date)).toISOString().split('T')[0];
+      return eDateStr === todayISO;
+    }).reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+    const todayPnL = todaySales - todayExp;
+
+    // Credits & Dues
+    const totalCredits = bills.filter(b => b.status === 'unpaid').reduce((sum, b) => sum + (Number(b.netTotal) || 0), 0);
+    const totalDues = expenses.filter(e => e.status === 'unpaid').reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+
+    return { totalProducts, lowStock, outOfStock, todayPnL, todaySales, todayExp, totalCredits, totalDues };
+  }, [isFree, products, bills, expenses, todayISO]);
+
   if (billsLoading || productsLoading) {
     return <div className="flex h-[80vh] items-center justify-center"><div className="w-10 h-10 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" /></div>;
+  }
+
+  // ── FREE USER CORE 3 LAYOUT ──
+  if (isFree && freeStats) {
+    return (
+      <div className="space-y-6 animate-fadeIn pb-20">
+        {appToast && <Toast message={appToast.message} type={appToast.type} onClose={hideToast} />}
+
+        {/* Free Plan Nudge */}
+        {showNudge && (
+          <div className="bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 px-4 py-3 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 relative">
+            <p className="text-sm">
+              <strong>You're on the Free plan.</strong> Upgrade to Pro to unlock invoicing, analytics, and more.
+            </p>
+            <div className="flex items-center gap-4 shrink-0">
+              <button 
+                onClick={() => navigate('/settings?tab=bills')} 
+                className="text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg transition-colors"
+              >
+                Upgrade
+              </button>
+              <button onClick={dismissNudge} className="text-amber-600/50 hover:text-amber-600 dark:text-amber-400/50 dark:hover:text-amber-400 transition-colors">
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Greeting Header */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 glass p-6 shadow-xl">
+          <div>
+            <h1 className="text-3xl font-bold text-white font-heading">
+              {greeting}, <span className="text-primary-400">{displayName}</span>
+            </h1>
+            <p className="text-sm text-gray-400 mt-1">{todayDisplay}</p>
+          </div>
+        </div>
+
+        {/* Low Stock Alert Strip */}
+        {freeStats.lowStock > 0 && (
+          <div className="bg-amber-500/10 border border-amber-500/30 text-amber-400 px-4 py-3 rounded-xl flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <AlertTriangle size={18} />
+              <span className="text-sm font-bold">{freeStats.lowStock} products are running low. View Inventory →</span>
+            </div>
+            <button onClick={() => navigate('/inventory')} className="text-amber-400 hover:text-white transition-colors">
+              <ArrowRight size={18} />
+            </button>
+          </div>
+        )}
+
+        {/* Today's Snapshot */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Stock Status */}
+          <div className="glass p-5 rounded-2xl flex flex-col">
+            <div className="flex items-center gap-2 mb-3">
+              <Package size={18} className="text-primary-400" />
+              <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Stock Status</h3>
+            </div>
+            <div className="text-3xl font-bold text-white mb-2">{freeStats.totalProducts}</div>
+            <p className="text-xs text-gray-400 mb-4">Total Products</p>
+            <div className="flex gap-4 mt-auto border-t border-white/10 pt-3">
+              <div>
+                <p className="text-[10px] text-amber-400 uppercase font-bold">Low</p>
+                <p className="text-sm font-bold text-amber-300">{freeStats.lowStock}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-red-400 uppercase font-bold">Out</p>
+                <p className="text-sm font-bold text-red-300">{freeStats.outOfStock}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Today's P&L */}
+          <div className="glass p-5 rounded-2xl flex flex-col">
+            <div className="flex items-center gap-2 mb-3">
+              <TrendingUp size={18} className={freeStats.todayPnL >= 0 ? "text-green-400" : "text-red-400"} />
+              <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Today's P&L</h3>
+            </div>
+            <div className={`text-3xl font-bold mb-2 ${freeStats.todayPnL >= 0 ? "text-green-400" : "text-red-400"}`}>
+              {freeStats.todayPnL >= 0 ? '+' : '-'}${Math.abs(freeStats.todayPnL).toFixed(2)}
+            </div>
+            <p className="text-xs text-gray-400 mb-4">Net Profit/Loss</p>
+            <div className="flex justify-between mt-auto border-t border-white/10 pt-3">
+              <div>
+                <p className="text-[10px] text-gray-500 uppercase font-bold">Sales</p>
+                <p className="text-sm font-bold text-white">${freeStats.todaySales.toFixed(2)}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] text-gray-500 uppercase font-bold">Expenses</p>
+                <p className="text-sm font-bold text-gray-300">${freeStats.todayExp.toFixed(2)}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Credits & Dues */}
+          <div className="glass p-5 rounded-2xl flex flex-col">
+            <div className="flex items-center gap-2 mb-3">
+              <DollarSign size={18} className="text-blue-400" />
+              <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Credits & Dues</h3>
+            </div>
+            <div className="flex justify-between items-end mb-4">
+              <div>
+                <p className="text-[10px] text-gray-500 uppercase font-bold mb-1">Owed to you</p>
+                <div className="text-2xl font-bold text-green-400">${freeStats.totalCredits.toFixed(2)}</div>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] text-gray-500 uppercase font-bold mb-1">You owe</p>
+                <div className="text-xl font-bold text-red-400">${freeStats.totalDues.toFixed(2)}</div>
+              </div>
+            </div>
+            <div className="mt-auto border-t border-white/10 pt-3 flex items-center justify-between">
+              <span className="text-xs font-bold text-gray-400">Total Balance</span>
+              <span className={`text-sm font-bold ${freeStats.totalCredits - freeStats.totalDues >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {freeStats.totalCredits - freeStats.totalDues >= 0 ? '+' : '-'}${Math.abs(freeStats.totalCredits - freeStats.totalDues).toFixed(2)}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div>
+          <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4 px-1">Quick Actions</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <button onClick={() => navigate('/data-entry')} className="glass p-4 rounded-xl flex items-center justify-center gap-3 hover:bg-white/5 transition-colors group">
+              <div className="p-2 rounded-lg bg-primary-500/20 text-primary-400 group-hover:bg-primary-500 group-hover:text-white transition-colors">
+                <Plus size={20} />
+              </div>
+              <span className="font-bold text-sm text-gray-300 group-hover:text-white">Add Sale</span>
+            </button>
+            <button onClick={() => navigate('/inventory')} className="glass p-4 rounded-xl flex items-center justify-center gap-3 hover:bg-white/5 transition-colors group">
+              <div className="p-2 rounded-lg bg-amber-500/20 text-amber-400 group-hover:bg-amber-500 group-hover:text-white transition-colors">
+                <Package size={20} />
+              </div>
+              <span className="font-bold text-sm text-gray-300 group-hover:text-white">Update Stock</span>
+            </button>
+            <button onClick={() => navigate('/credits')} className="glass p-4 rounded-xl flex items-center justify-center gap-3 hover:bg-white/5 transition-colors group">
+              <div className="p-2 rounded-lg bg-blue-500/20 text-blue-400 group-hover:bg-blue-500 group-hover:text-white transition-colors">
+                <Receipt size={20} />
+              </div>
+              <span className="font-bold text-sm text-gray-300 group-hover:text-white">Record Credit/Due</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
