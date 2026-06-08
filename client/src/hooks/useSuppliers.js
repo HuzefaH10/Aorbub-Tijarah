@@ -8,10 +8,12 @@ import { useAuth } from '../context/AuthContext';
 import { useBusiness } from '../context/BusinessContext';
 import { writeAuditLog } from './useAuditLog';
 import { useRole } from './useRole';
+import { isPermissionDenied } from '../utils/handleFirestoreError';
 
 export function useSuppliers() {
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [permissionDenied, setPermissionDenied] = useState(false);
   const { user } = useAuth();
   const { activeBusinessId } = useBusiness();
   const { role } = useRole();
@@ -27,6 +29,13 @@ export function useSuppliers() {
       const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       data.sort((a, b) => a.name.localeCompare(b.name));
       setSuppliers(data);
+      setLoading(false);
+    }, (err) => {
+      if (isPermissionDenied(err)) {
+        setPermissionDenied(true);
+      } else {
+        console.error('useSuppliers error:', err);
+      }
       setLoading(false);
     });
     return unsubscribe;
@@ -56,5 +65,5 @@ export function useSuppliers() {
     await writeAuditLog(user, role, 'Supplier deleted', `Supplier deleted: ${name}`, 'Suppliers', activeBusinessId);
   }, [user, role, activeBusinessId]);
 
-  return { suppliers, loading, addSupplier, updateSupplier, deleteSupplier };
+  return { suppliers, loading, permissionDenied, addSupplier, updateSupplier, deleteSupplier };
 }

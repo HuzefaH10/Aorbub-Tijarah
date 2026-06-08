@@ -14,6 +14,11 @@ export function useProGate() {
     return true; // allowed
   }, [isFree]);
 
+  // Force-open the upgrade modal (used when server returns permission-denied)
+  const showUpgradeModal = useCallback((featureName) => {
+    setModalState({ isOpen: true, featureName });
+  }, []);
+
   const close = () => setModalState(prev => ({ ...prev, isOpen: false }));
 
   const UpgradeModalRenderer = useCallback(() => (
@@ -24,5 +29,5 @@ export function useProGate() {
     />
   ), [modalState]);
 
-  return { requirePro, UpgradeModalRenderer };
+  return { requirePro, showUpgradeModal, UpgradeModalRenderer };
 }

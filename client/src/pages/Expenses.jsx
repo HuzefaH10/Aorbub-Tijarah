@@ -15,6 +15,7 @@ import { useAuth } from '../context/AuthContext';
 import { useRole } from '../hooks/useRole';
 import { useSuppliers } from '../hooks/useSuppliers';
 import { useLocation } from 'react-router-dom';
+import { useProGate } from '../hooks/useProGate';
 
 const EXPENSE_CATEGORIES = [
   'Rent',
@@ -34,10 +35,16 @@ export default function Expenses() {
   const { activeBusinessId, currency, timezone } = useBusiness();
   const { user } = useAuth();
   const { role } = useRole();
-  const { expenses, loading, addExpense, updateExpense, deleteExpense } = useExpenses();
+  const { expenses, loading, permissionDenied, addExpense, updateExpense, deleteExpense } = useExpenses();
   const { suppliers } = useSuppliers();
   const location = useLocation();
   const { toast } = useToast();
+  const { showUpgradeModal, UpgradeModalRenderer } = useProGate();
+
+  // If Firestore security rules blocked access, show upgrade modal
+  useEffect(() => {
+    if (permissionDenied) showUpgradeModal('Expenses');
+  }, [permissionDenied]);
 
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -718,6 +725,7 @@ export default function Expenses() {
           </div>
         </div>
       )}
+      <UpgradeModalRenderer />
     </div>
   );
 }

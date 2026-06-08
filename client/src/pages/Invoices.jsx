@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useInvoices } from '../hooks/useInvoices';
 import { useBusiness } from '../context/BusinessContext';
 import { useAuth } from '../context/AuthContext';
@@ -9,6 +9,7 @@ import InvoiceBuilder from '../components/invoice/InvoiceBuilder';
 import InvoicePreviewModal from '../components/invoice/InvoicePreviewModal';
 import ProBadge from '../components/ProBadge';
 import { Plus, FileText, Search, Filter, Trash2, Eye, Download, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useProGate } from '../hooks/useProGate';
 
 const PAGE_SIZE = 15;
 const STATUS_COLORS = {
@@ -18,11 +19,17 @@ const STATUS_COLORS = {
 };
 
 export default function Invoices() {
-  const { invoices, loading, deleteInvoice } = useInvoices();
+  const { invoices, loading, permissionDenied, deleteInvoice } = useInvoices();
   const { currency, timezone, activeBusinessId, businessData } = useBusiness();
   const { user } = useAuth();
   const { role } = useRole();
   const { toast, showToast, hideToast } = useToast();
+  const { showUpgradeModal, UpgradeModalRenderer } = useProGate();
+
+  // If Firestore security rules blocked access, show upgrade modal
+  useEffect(() => {
+    if (permissionDenied) showUpgradeModal('Invoicing');
+  }, [permissionDenied]);
 
   // Views
   const [view, setView] = useState('list'); // 'list' | 'builder'
@@ -94,6 +101,7 @@ export default function Invoices() {
 
   // List view
   return (
+    <>
     <div className="w-full px-6 pb-12 animate-fadeIn">
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
 
@@ -211,5 +219,7 @@ export default function Invoices() {
         />
       )}
     </div>
+    <UpgradeModalRenderer />
+    </>
   );
 }

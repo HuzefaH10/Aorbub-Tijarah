@@ -7,6 +7,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useRole } from './useRole';
 import { useBusiness } from '../context/BusinessContext';
+import { isPermissionDenied } from '../utils/handleFirestoreError';
 
 
 /**
@@ -51,6 +52,7 @@ export function useAuditLog() {
 
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [permissionDenied, setPermissionDenied] = useState(false);
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState({
     dateFrom: '',
@@ -149,7 +151,11 @@ export function useAuditLog() {
         setLastVisible(null);
       }
     } catch (err) {
-      console.error('Failed to fetch paginated audit logs:', err);
+      if (isPermissionDenied(err)) {
+        setPermissionDenied(true);
+      } else {
+        console.error('Failed to fetch paginated audit logs:', err);
+      }
     } finally {
       setLoading(false);
     }
@@ -214,6 +220,7 @@ export function useAuditLog() {
   return {
     logs,
     loading,
+    permissionDenied,
     page,
     totalPages: Math.max(1, Math.ceil(totalCount / PAGE_SIZE)),
     totalCount,

@@ -6,6 +6,7 @@ import {
 } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import { useBusiness } from '../context/BusinessContext';
+import { isPermissionDenied } from '../utils/handleFirestoreError';
 
 /**
  * useInvoices — CRUD hook for the invoices collection.
@@ -14,6 +15,7 @@ import { useBusiness } from '../context/BusinessContext';
 export function useInvoices() {
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [permissionDenied, setPermissionDenied] = useState(false);
   const { user } = useAuth();
   const { activeBusinessId } = useBusiness();
 
@@ -25,7 +27,14 @@ export function useInvoices() {
       data.sort((a, b) => (b.invoiceNumber || 0) - (a.invoiceNumber || 0));
       setInvoices(data);
       setLoading(false);
-    }, (err) => { console.error('useInvoices error:', err); setLoading(false); });
+    }, (err) => {
+      if (isPermissionDenied(err)) {
+        setPermissionDenied(true);
+      } else {
+        console.error('useInvoices error:', err);
+      }
+      setLoading(false);
+    });
     return unsubscribe;
   }, [user, activeBusinessId]);
 
@@ -49,7 +58,7 @@ export function useInvoices() {
     await deleteDoc(doc(db, 'invoices', id));
   }, [user]);
 
-  return { invoices, loading, addInvoice, updateInvoice, deleteInvoice };
+  return { invoices, loading, permissionDenied, addInvoice, updateInvoice, deleteInvoice };
 }
 
 /**

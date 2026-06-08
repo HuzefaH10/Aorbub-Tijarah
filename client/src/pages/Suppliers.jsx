@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Truck, Plus, Search, X, Edit2, Trash2, Eye, Building2, MapPin, Phone, 
   Mail, Calendar, Box, DollarSign, Wallet, TrendingUp
@@ -10,16 +10,23 @@ import { useProducts } from '../hooks/useFirestore';
 import { formatCurrency } from '../utils/currencyFormat';
 import Toast, { useToast } from '../components/ui/Toast';
 import { useNavigate } from 'react-router-dom';
+import { useProGate } from '../hooks/useProGate';
 
 const PAYMENT_TERMS = ['Immediate', '7 Days', '15 Days', '30 Days', '60 Days', 'Custom'];
 
 export default function Suppliers() {
   const { currency } = useBusiness();
-  const { suppliers, loading, addSupplier, updateSupplier, deleteSupplier } = useSuppliers();
+  const { suppliers, loading, permissionDenied, addSupplier, updateSupplier, deleteSupplier } = useSuppliers();
   const { expenses } = useExpenses();
   const { products } = useProducts();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { showUpgradeModal, UpgradeModalRenderer } = useProGate();
+
+  // If Firestore security rules blocked access, show upgrade modal
+  useEffect(() => {
+    if (permissionDenied) showUpgradeModal('Supplier Management');
+  }, [permissionDenied]);
 
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -586,6 +593,7 @@ export default function Suppliers() {
       {showDrawer && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 transition-opacity" onClick={() => setShowDrawer(false)} />
       )}
+      <UpgradeModalRenderer />
     </div>
   );
 }

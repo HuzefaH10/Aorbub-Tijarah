@@ -6,6 +6,7 @@ import { useBusiness } from '../context/BusinessContext';
 import { useAuth } from '../context/AuthContext';
 import { writeAuditLog } from './useAuditLog';
 import { useRole } from './useRole';
+import { isPermissionDenied } from '../utils/handleFirestoreError';
 
 export function useExpenses() {
   const { activeBusinessId } = useBusiness();
@@ -14,6 +15,7 @@ export function useExpenses() {
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [permissionDenied, setPermissionDenied] = useState(false);
 
   useEffect(() => {
     if (!activeBusinessId) {
@@ -37,7 +39,11 @@ export function useExpenses() {
       setExpenses(data);
       setLoading(false);
     }, (err) => {
-      console.error("Error fetching expenses:", err);
+      if (isPermissionDenied(err)) {
+        setPermissionDenied(true);
+      } else {
+        console.error("Error fetching expenses:", err);
+      }
       setError(err);
       setLoading(false);
     });
@@ -115,6 +121,7 @@ export function useExpenses() {
     expenses,
     loading,
     error,
+    permissionDenied,
     addExpense,
     updateExpense,
     deleteExpense
