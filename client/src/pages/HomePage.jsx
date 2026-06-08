@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { db } from '../services/firebase';
 import { collection, query, where, onSnapshot, doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import { generateRecurringEvents } from '../services/recurringEvents';
 import { useExpenses } from '../hooks/useExpenses';
+import Toast, { useToast } from '../components/ui/Toast';
+import { usePlan } from '../hooks/usePlan';
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -23,6 +25,29 @@ export default function HomePage() {
   const { products, loading: productsLoading } = useProducts();
   const { events, loading: eventsLoading } = useEvents();
   const { expenses } = useExpenses();
+
+  const location = useLocation();
+  const { toast: appToast, showToast, hideToast } = useToast();
+  const { isFree } = usePlan();
+  
+  const [showNudge, setShowNudge] = useState(() => {
+    const dismissed = localStorage.getItem('proNudgeDismissed');
+    if (!dismissed) return true;
+    const isOld = (Date.now() - Number(dismissed)) > 7 * 24 * 60 * 60 * 1000;
+    return isOld;
+  });
+
+  useEffect(() => {
+    if (location.state?.toast) {
+      showToast(location.state.toast, location.state.type || 'warning');
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state, showToast]);
+
+  const dismissNudge = () => {
+    setShowNudge(false);
+    localStorage.setItem('proNudgeDismissed', Date.now().toString());
+  };
 
   const [recentLogs, setRecentLogs] = useState([]);
   
@@ -341,6 +366,27 @@ export default function HomePage() {
 
   return (
     <div className="space-y-6 animate-fadeIn pb-20">
+      {appToast && <Toast message={appToast.message} type={appToast.type} onClose={hideToast} />}
+
+      {/* Free Plan Nudge */}
+      {isFree && showNudge && (
+        <div className="bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 px-4 py-3 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 relative">
+          <p className="text-sm">
+            <strong>You're on the Free plan.</strong> Upgrade to Pro to unlock invoicing, analytics, and more.
+          </p>
+          <div className="flex items-center gap-4 shrink-0">
+            <button 
+              onClick={() => navigate('/settings?tab=bills')} 
+              className="text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg transition-colors"
+            >
+              Upgrade
+            </button>
+            <button onClick={dismissNudge} className="text-amber-600/50 hover:text-amber-600 dark:text-amber-400/50 dark:hover:text-amber-400 transition-colors">
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
       
       {/* ── HEADER ── */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 glass p-6 shadow-xl">

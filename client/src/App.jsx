@@ -20,6 +20,8 @@ const Expenses = lazy(() => import('./pages/Expenses'));
 const Suppliers = lazy(() => import('./pages/Suppliers'));
 const Invoices = lazy(() => import('./pages/Invoices'));
 
+import { usePlan } from './hooks/usePlan';
+
 /* Protected route wrapper */
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -29,6 +31,14 @@ function ProtectedRoute({ children }) {
     </div>
   );
   if (!user) return <Navigate to="/login" />;
+  return children;
+}
+
+function ProRoute({ children, pageName }) {
+  const { isFree } = usePlan();
+  if (isFree) {
+    return <Navigate to="/" state={{ toast: `Upgrade to Pro to access ${pageName}.`, type: 'warning' }} replace />;
+  }
   return children;
 }
 
@@ -42,14 +52,14 @@ export default function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
                 <Route index element={<HomePage />} />
-                <Route path="analytics" element={<Suspense fallback={<PageLoader />}><SalesAnalytics /></Suspense>} />
+                <Route path="analytics" element={<ProRoute pageName="Sales Analytics"><Suspense fallback={<PageLoader />}><SalesAnalytics /></Suspense></ProRoute>} />
                 <Route path="profit" element={<Suspense fallback={<PageLoader />}><ProfitOptimization /></Suspense>} />
                 <Route path="inventory" element={<Suspense fallback={<PageLoader />}><Inventory /></Suspense>} />
                 <Route path="calendar" element={<Suspense fallback={<PageLoader />}><CalendarPage /></Suspense>} />
                 <Route path="credits" element={<Suspense fallback={<PageLoader />}><Credits /></Suspense>} />
-                <Route path="expenses" element={<Suspense fallback={<PageLoader />}><Expenses /></Suspense>} />
-                <Route path="suppliers" element={<Suspense fallback={<PageLoader />}><Suppliers /></Suspense>} />
-                <Route path="invoices" element={<Suspense fallback={<PageLoader />}><Invoices /></Suspense>} />
+                <Route path="expenses" element={<ProRoute pageName="Expenses"><Suspense fallback={<PageLoader />}><Expenses /></Suspense></ProRoute>} />
+                <Route path="suppliers" element={<ProRoute pageName="Suppliers"><Suspense fallback={<PageLoader />}><Suppliers /></Suspense></ProRoute>} />
+                <Route path="invoices" element={<ProRoute pageName="Invoices"><Suspense fallback={<PageLoader />}><Invoices /></Suspense></ProRoute>} />
                 <Route path="settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
                 <Route path="help" element={<Suspense fallback={<PageLoader />}><HelpContact /></Suspense>} />
                 <Route path="data-entry" element={<Suspense fallback={<PageLoader />}><DataEntry /></Suspense>} />

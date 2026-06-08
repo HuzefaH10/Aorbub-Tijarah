@@ -13,6 +13,7 @@ import DeleteAccountModal from '../components/settings/DeleteAccountModal';
 import TabDataImport from '../components/settings/TabDataImport';
 import Pagination from '../components/ui/Pagination';
 import ProBadge from '../components/ProBadge';
+import { useProGate } from '../hooks/useProGate';
 import { db } from '../services/firebase';
 import { doc, getDoc, setDoc, collection, query, where, getDocs, addDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
@@ -91,6 +92,7 @@ const compressImage = (file, maxWidth, maxHeight, quality = 0.8) => {
 };
 
 export default function Settings() {
+  const { requirePro, UpgradeModalRenderer } = useProGate();
   const { user, logout } = useAuth();
   const { toast, showToast, hideToast } = useToast();
   const { settings, updateSettings } = useSettings();
@@ -691,6 +693,14 @@ export default function Settings() {
   };
 
   const scrollToSection = (id) => {
+    const proTabMap = {
+      audit: 'Audit Log',
+      import: 'Data Import'
+    };
+    if (proTabMap[id] && !requirePro(proTabMap[id])) {
+      return;
+    }
+
     const element = document.getElementById(id);
     if (element) {
       const topbarOffset = 64;
@@ -714,6 +724,7 @@ export default function Settings() {
   return (
     <div className="w-full animate-fadeIn pb-24">
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
+      <UpgradeModalRenderer />
       <DeleteAccountModal isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)} />
 
       {/* Page Header */}
@@ -1294,7 +1305,7 @@ export default function Settings() {
 
                 {/* Royal Green */}
                 <button
-                  onClick={async () => { const r = await changeTheme('royal-green'); writeAuditLog(user, role, 'THEME_CHANGED', `Theme changed from ${r.from} to ${r.to}`, null, activeBusinessId); }}
+                  onClick={async () => { if (!requirePro('Multiple Themes')) return; const r = await changeTheme('royal-green'); writeAuditLog(user, role, 'THEME_CHANGED', `Theme changed from ${r.from} to ${r.to}`, null, activeBusinessId); }}
                   className={`group relative rounded-xl overflow-hidden border-2 transition-all duration-200 ${
                     colorTheme === 'royal-green'
                       ? 'border-green-500 ring-2 ring-green-500/30 shadow-lg shadow-green-500/10'
@@ -1329,7 +1340,7 @@ export default function Settings() {
 
                 {/* Sharp Silver */}
                 <button
-                  onClick={async () => { const r = await changeTheme('sharp-silver'); writeAuditLog(user, role, 'THEME_CHANGED', `Theme changed from ${r.from} to ${r.to}`, null, activeBusinessId); }}
+                  onClick={async () => { if (!requirePro('Multiple Themes')) return; const r = await changeTheme('sharp-silver'); writeAuditLog(user, role, 'THEME_CHANGED', `Theme changed from ${r.from} to ${r.to}`, null, activeBusinessId); }}
                   className={`group relative rounded-xl overflow-hidden border-2 transition-all duration-200 ${
                     colorTheme === 'sharp-silver'
                       ? 'border-gray-400 ring-2 ring-gray-400/30 shadow-lg shadow-gray-400/10'
@@ -1364,7 +1375,7 @@ export default function Settings() {
 
                 {/* Gold & Black */}
                 <button
-                  onClick={async () => { const r = await changeTheme('dark'); writeAuditLog(user, role, 'THEME_CHANGED', `Theme changed from ${r.from} to ${r.to}`, null, activeBusinessId); }}
+                  onClick={async () => { if (!requirePro('Multiple Themes')) return; const r = await changeTheme('dark'); writeAuditLog(user, role, 'THEME_CHANGED', `Theme changed from ${r.from} to ${r.to}`, null, activeBusinessId); }}
                   className={`group relative rounded-xl overflow-hidden border-2 transition-all duration-200 ${
                     colorTheme === 'dark'
                       ? 'border-amber-500 ring-2 ring-amber-500/30 shadow-lg shadow-amber-500/10'
