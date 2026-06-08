@@ -457,23 +457,34 @@ export default function Settings() {
   // Handle scroll spy
   useEffect(() => {
     const handleScroll = () => {
-      const sections = TABS.map(t => document.getElementById(t.id));
       const scrollPosition = window.scrollY + 120;
+      const atBottom =
+        window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 4;
 
-      for (let i = sections.length - 1; i >= 0; i--) {
-        const section = sections[i];
-        if (section && section.offsetTop <= scrollPosition) {
-          if (activeTab !== section.id) {
-            setActiveTab(section.id);
-          }
+      // Build list of tabs that have a real DOM element (owner-only ones may not render)
+      const visibleTabs = TABS.map(t => ({ id: t.id, el: document.getElementById(t.id) }))
+                              .filter(t => t.el !== null);
+
+      if (atBottom && visibleTabs.length > 0) {
+        // Force-activate the last rendered section when page bottom is reached
+        const lastId = visibleTabs[visibleTabs.length - 1].id;
+        setActiveTab(lastId);
+        return;
+      }
+
+      // Normal top-down scroll-spy: walk from last section backwards
+      for (let i = visibleTabs.length - 1; i >= 0; i--) {
+        const { id, el } = visibleTabs[i];
+        if (el.offsetTop <= scrollPosition) {
+          setActiveTab(id);
           break;
         }
       }
     };
 
-    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [activeTab]);
+  }, []); // no deps — handler uses no stale state; setActiveTab is stable
 
   // ── Handlers ──
   const handlePhotoUpload = async (e) => {
@@ -688,6 +699,8 @@ export default function Settings() {
         top: offsetPosition,
         behavior: 'smooth'
       });
+      // Immediately highlight the clicked item — don't wait for scroll-spy
+      setActiveTab(id);
     }
   };
 
