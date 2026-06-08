@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+import { IMPORT_CONFIG } from '../../constants/importConfig';
 
 function detectColType(values) {
   const nonEmpty = values.filter(v => v !== null && v !== undefined && v !== '');
@@ -91,13 +91,13 @@ export default function CsvUploader({ onClose, onAdd }) {
     if (!file) return;
     setError('');
 
-    if (file.size > MAX_BYTES) {
-      setError('File too large. Maximum size is 10 MB.');
+    if (IMPORT_CONFIG.maxFileSizeMB && file.size > IMPORT_CONFIG.maxFileSizeMB * 1024 * 1024) {
+      setError(`File too large. Maximum size is ${IMPORT_CONFIG.maxFileSizeMB} MB.`);
       return;
     }
 
-    const ext = file.name.split('.').pop().toLowerCase();
-    if (!['csv', 'xlsx', 'xls'].includes(ext)) {
+    const ext = '.' + file.name.split('.').pop().toLowerCase();
+    if (!IMPORT_CONFIG.supportedFormats.includes(ext)) {
       setError('Only .csv, .xlsx, and .xls files are supported.');
       return;
     }
@@ -273,7 +273,7 @@ export default function CsvUploader({ onClose, onAdd }) {
                   <p className="text-white font-semibold">
                     {loading ? 'Parsing file…' : 'Drag & drop your file here'}
                   </p>
-                  <p className="text-sm text-gray-500 mt-1">or click to browse — .csv, .xlsx, .xls · max 10 MB</p>
+                  <p className="text-sm text-gray-500 mt-1">or click to browse — .csv, .xlsx, .xls</p>
                 </div>
               </div>
               <input
