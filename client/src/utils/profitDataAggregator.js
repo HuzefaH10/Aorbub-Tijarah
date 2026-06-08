@@ -1,4 +1,4 @@
-import { db } from './firebase';
+import { db } from '../services/firebase';
 import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 
 // In-memory cache: key -> { data, timestamp }
