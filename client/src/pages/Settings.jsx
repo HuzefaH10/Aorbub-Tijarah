@@ -127,49 +127,43 @@ export default function Settings() {
     return `${browser} on ${os}`;
   };
 
+  const { userProfile, businessData, activeBusinessId } = useBusiness();
+
   // ── Profile state ──
   const [profile, setProfile] = useState({
-    name: user?.email?.split('@')[0] || 'Admin',
-    displayName: '',
+    name: userProfile?.fullName || userProfile?.displayName || user?.email?.split('@')[0] || 'Admin',
+    displayName: userProfile?.displayName || userProfile?.fullName || '',
     email: user?.email || '',
-    phone: '+971 50 123 4567',
-    phoneSecondary: '',
-    emailBackup: '',
-    language: 'en',
-    bio: '',
-    photoURL: ''
+    phone: userProfile?.phone || '+971 50 123 4567',
+    phoneSecondary: userProfile?.phoneSecondary || '',
+    emailBackup: userProfile?.emailBackup || '',
+    language: userProfile?.language || 'en',
+    bio: userProfile?.bio || '',
+    photoURL: userProfile?.photoURL || ''
   });
   const [profileSaving, setProfileSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
+  // Sync profile when userProfile updates (e.g. initial load or cross-tab updates)
   useEffect(() => {
-    if (!user) return;
-    const fetchProfile = async () => {
-      try {
-        const docSnap = await getDoc(doc(db, 'users', user.uid));
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setProfile(prev => ({
-            ...prev,
-            name: data.fullName || data.displayName || prev.name,
-            displayName: data.displayName || data.fullName || prev.displayName,
-            phone: data.phone || prev.phone,
-            phoneSecondary: data.phoneSecondary || '',
-            emailBackup: data.emailBackup || '',
-            language: data.language || 'en',
-            bio: data.bio || '',
-            photoURL: data.photoURL || ''
-          }));
-          if (data.notificationPreferences) {
-            setNotifications(prev => ({ ...prev, ...data.notificationPreferences }));
-          }
-        }
-      } catch (err) {
-        console.error('Failed to load user profile:', err);
+    if (userProfile) {
+      setProfile(prev => ({
+        ...prev,
+        name: userProfile.fullName || userProfile.displayName || prev.name,
+        displayName: userProfile.displayName || userProfile.fullName || prev.displayName,
+        phone: userProfile.phone || prev.phone,
+        phoneSecondary: userProfile.phoneSecondary || '',
+        emailBackup: userProfile.emailBackup || '',
+        language: userProfile.language || 'en',
+        bio: userProfile.bio || '',
+        photoURL: userProfile.photoURL || prev.photoURL
+      }));
+      if (userProfile.notificationPreferences) {
+        setNotifications(prev => ({ ...prev, ...userProfile.notificationPreferences }));
       }
-    };
-    fetchProfile();
-  }, [user]);
+    }
+  }, [userProfile]);
+
 
   // ── Business state ──
   const [business, setBusiness] = useState({
@@ -182,21 +176,18 @@ export default function Settings() {
   const [businessSaving, setBusinessSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
 
+  // Sync business when businessData updates
   useEffect(() => {
-    if (!user) return;
-    const fetchBusiness = async () => {
-      try {
-        const docSnap = await getDoc(doc(db, 'businesses', user.uid));
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setBusiness(prev => ({ ...prev, ...data }));
+    if (businessData) {
+      setBusiness(prev => ({ ...prev, ...businessData }));
+      if (businessData.businessHours) {
+        setHoursEnabled(businessData.businessHours.enabled || false);
+        if (businessData.businessHours.hours) {
+          setBusinessHours(prev => ({ ...prev, ...businessData.businessHours.hours }));
         }
-      } catch (err) {
-        console.error('Failed to load business details:', err);
       }
-    };
-    fetchBusiness();
-  }, [user]);
+    }
+  }, [businessData]);
 
   const DAYS = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
   const DAY_LABELS = { monday:'Monday', tuesday:'Tuesday', wednesday:'Wednesday', thursday:'Thursday', friday:'Friday', saturday:'Saturday', sunday:'Sunday' };
@@ -206,25 +197,6 @@ export default function Settings() {
   const [businessHours, setBusinessHours] = useState(defaultHours);
   const [hoursSaving, setHoursSaving] = useState(false);
 
-  // Load business hours from fetched business data
-  useEffect(() => {
-    if (!user) return;
-    const loadHours = async () => {
-      try {
-        const docSnap = await getDoc(doc(db, 'businesses', user.uid));
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          if (data.businessHours) {
-            setHoursEnabled(data.businessHours.enabled || false);
-            if (data.businessHours.hours) setBusinessHours(prev => ({ ...prev, ...data.businessHours.hours }));
-          }
-        }
-      } catch (err) {
-        console.error('Failed to load business hours:', err);
-      }
-    };
-    loadHours();
-  }, [user]);
 
   // ── Notifications state ──
   const [notifications, setNotifications] = useState({
@@ -493,7 +465,7 @@ export default function Settings() {
   const handlePhotoUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
-    if (file.size > 2 * 1024 * 1024) return showToast('File must be less than 2MB', 'error');
+    if (file.size > 10 * 1024 * 1024) return showToast('File must be less than 10MB', 'error');
     if (!file.type.startsWith('image/')) return showToast('Must be an image', 'error');
     
     setUploadingPhoto(true);
@@ -538,7 +510,7 @@ export default function Settings() {
   const handleLogoUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
-    if (file.size > 3 * 1024 * 1024) return showToast('File must be less than 3MB', 'error');
+    if (file.size > 10 * 1024 * 1024) return showToast('File must be less than 10MB', 'error');
     if (!file.type.startsWith('image/')) return showToast('Must be an image', 'error');
     
     setUploadingLogo(true);

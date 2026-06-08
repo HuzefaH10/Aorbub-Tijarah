@@ -103,7 +103,7 @@ const LATEST_CHANGELOG_DATE = new Date('2026-05-09T00:00:00').getTime();
 export default function Topbar() {
   const { user, logout } = useAuth();
   const { role } = useRole();
-  const { activeBusinessId, activeBusiness, businesses, switchBusiness, createBusiness } = useBusiness();
+  const { activeBusinessId, activeBusiness, businesses, switchBusiness, createBusiness, userProfile } = useBusiness();
   const location = useLocation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -118,46 +118,24 @@ export default function Topbar() {
   const { toast, showToast, hideToast } = useToast();
   const timerRef = useRef();
 
-  // Profile data
-  const [profileData, setProfileData] = useState({
-    displayName: '',
-    fullName: '',
-    photoURL: '',
-    status: 'online',
-  });
-
-  // Fetch profile + changelog read state
+  // Fetch changelog read state
   useEffect(() => {
-    if (!user) return;
-    const fetchData = async () => {
-      try {
-        const snap = await getDoc(doc(db, 'users', user.uid));
-        if (snap.exists()) {
-          const d = snap.data();
-          setProfileData({
-            displayName: d.displayName || d.fullName || user.email?.split('@')[0] || 'Admin',
-            fullName: d.fullName || d.displayName || '',
-            photoURL: d.photoURL || '',
-            status: d.status || 'online',
-          });
-          // Check unread changelog
-          const lastSeen = d.lastSeenChangelog?.toDate?.()?.getTime?.() || 0;
-          setHasUnread(lastSeen < LATEST_CHANGELOG_DATE);
-        } else {
-          setHasUnread(true);
-        }
-      } catch (err) {
-        console.error('Topbar: failed to fetch profile:', err);
-      }
-    };
-    fetchData();
-  }, [user]);
+    if (!userProfile) return;
+    const lastSeen = userProfile.lastSeenChangelog?.toDate?.()?.getTime?.() || 0;
+    setHasUnread(lastSeen < LATEST_CHANGELOG_DATE);
+  }, [userProfile]);
+
+  // Derived profile data
+  const profileData = {
+    displayName: userProfile?.displayName || userProfile?.fullName || user?.email?.split('@')[0] || 'Admin',
+    fullName: userProfile?.fullName || userProfile?.displayName || '',
+    photoURL: userProfile?.photoURL || '',
+    status: userProfile?.status || 'online',
+  };
 
   // Status update
   const setStatus = async (newStatus) => {
     if (!user) return;
-    setProfileData(p => ({ ...p, status: newStatus }));
-    setStatusPicker(false);
     try {
       await setDoc(doc(db, 'users', user.uid), { status: newStatus }, { merge: true });
     } catch (err) {
