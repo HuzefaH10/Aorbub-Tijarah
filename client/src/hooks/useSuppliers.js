@@ -1,14 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
 import { db } from '../services/firebase';
 import {
-  collection, query, where, onSnapshot, addDoc, updateDoc,
-  deleteDoc, doc, serverTimestamp, getDocs
+  collection, query, where, onSnapshot,
+  deleteDoc, doc
 } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import { useBusiness } from '../context/BusinessContext';
 import { writeAuditLog } from './useAuditLog';
 import { useRole } from './useRole';
 import { isPermissionDenied } from '../utils/handleFirestoreError';
+import { createDocument, updateDocument } from '../utils/firestoreWrite';
+import { validateSupplier } from '../utils/validators';
 
 export function useSuppliers() {
   const [suppliers, setSuppliers] = useState([]);
@@ -43,20 +45,26 @@ export function useSuppliers() {
 
   const addSupplier = useCallback(async (data) => {
     if (!user) return;
-    const ref = await addDoc(collection(db, 'suppliers'), {
-      ...data,
+    const ref = await createDocument(collection(db, 'suppliers'), data, {
       businessId: activeBusinessId,
-      createdAt: serverTimestamp()
+      user,
+      role,
+      validator: validateSupplier,
+      collectionName: 'Supplier',
+      summaryField: 'name',
     });
-    await updateDoc(ref, { supplierId: ref.id });
-    await writeAuditLog(user, role, 'Supplier added', `Supplier added: ${data.name}`, 'Suppliers', activeBusinessId);
     return ref.id;
   }, [user, activeBusinessId, role]);
 
   const updateSupplier = useCallback(async (id, data) => {
     if (!user) return;
-    await updateDoc(doc(db, 'suppliers', id), data);
-    await writeAuditLog(user, role, 'Supplier updated', `Supplier updated: ${data.name || id}`, 'Suppliers', activeBusinessId);
+    await updateDocument(doc(db, 'suppliers', id), data, {
+      businessId: activeBusinessId,
+      user,
+      role,
+      collectionName: 'Supplier',
+      summaryField: 'name',
+    });
   }, [user, role, activeBusinessId]);
 
   const deleteSupplier = useCallback(async (id, name) => {

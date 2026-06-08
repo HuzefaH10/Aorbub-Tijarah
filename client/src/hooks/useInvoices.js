@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { db } from '../services/firebase';
 import {
-  collection, query, where, onSnapshot, addDoc, updateDoc,
-  deleteDoc, doc, serverTimestamp, getDoc, setDoc
+  collection, query, where, onSnapshot,
+  deleteDoc, doc, getDoc, setDoc
 } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import { useBusiness } from '../context/BusinessContext';
 import { isPermissionDenied } from '../utils/handleFirestoreError';
+import { createDocument, updateDocument, setDocument } from '../utils/firestoreWrite';
+import { validateInvoice } from '../utils/validators';
 
 /**
  * useInvoices — CRUD hook for the invoices collection.
@@ -40,18 +42,25 @@ export function useInvoices() {
 
   const addInvoice = useCallback(async (data) => {
     if (!user || !activeBusinessId) return null;
-    const ref = await addDoc(collection(db, 'invoices'), {
-      ...data,
+    const ref = await createDocument(collection(db, 'invoices'), data, {
       businessId: activeBusinessId,
-      createdAt: serverTimestamp(),
+      user,
+      validator: validateInvoice,
+      collectionName: 'Invoice',
+      summaryField: 'customerName',
     });
     return ref;
   }, [user, activeBusinessId]);
 
   const updateInvoice = useCallback(async (id, data) => {
     if (!user) return;
-    await updateDoc(doc(db, 'invoices', id), { ...data, updatedAt: serverTimestamp() });
-  }, [user]);
+    await updateDocument(doc(db, 'invoices', id), data, {
+      businessId: activeBusinessId,
+      user,
+      collectionName: 'Invoice',
+      summaryField: 'customerName',
+    });
+  }, [user, activeBusinessId]);
 
   const deleteInvoice = useCallback(async (id) => {
     if (!user) return;

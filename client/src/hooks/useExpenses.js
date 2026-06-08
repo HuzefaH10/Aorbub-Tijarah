@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { db, storage } from '../services/firebase';
-import { collection, query, where, onSnapshot, orderBy, doc, deleteDoc, updateDoc, addDoc, serverTimestamp, getDocs } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, doc, deleteDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useBusiness } from '../context/BusinessContext';
 import { useAuth } from '../context/AuthContext';
 import { writeAuditLog } from './useAuditLog';
 import { useRole } from './useRole';
 import { isPermissionDenied } from '../utils/handleFirestoreError';
+import { createDocument, updateDocument } from '../utils/firestoreWrite';
+import { validateExpense } from '../utils/validators';
 
 export function useExpenses() {
   const { activeBusinessId } = useBusiness();
@@ -60,22 +62,21 @@ export function useExpenses() {
         receiptUrl = await getDownloadURL(snapshot.ref);
       }
 
-      const docRef = await addDoc(collection(db, 'expenses'), {
+      const docRef = await createDocument(collection(db, 'expenses'), {
         ...expenseData,
-        businessId: activeBusinessId,
         receiptUrl,
-        createdBy: user.uid,
-        createdAt: serverTimestamp(),
         amount: parseFloat(expenseData.amount) || 0,
         supplierId: expenseData.supplierId || null,
-        status: expenseData.status || 'paid' // Need to track paid/unpaid status for suppliers
+        status: expenseData.status || 'paid',
+      }, {
+        businessId: activeBusinessId,
+        user,
+        role,
+        validator: validateExpense,
+        collectionName: 'Expense',
+        summaryField: 'category',
       });
 
-      await updateDoc(docRef, { expenseId: docRef.id });
-
-      // Audit Log
-      await writeAuditLog(user, role, 'Expense Recorded', `Recorded expense: ${expenseData.category} - ${expenseData.amount}`, 'Expenses', activeBusinessId);
-      
       return docRef.id;
     } catch (err) {
       console.error("Error adding expense:", err);
@@ -92,15 +93,19 @@ export function useExpenses() {
         receiptUrl = await getDownloadURL(snapshot.ref);
       }
 
-      await updateDoc(doc(db, 'expenses', id), {
+      await updateDocument(doc(db, 'expenses', id), {
         ...updates,
         receiptUrl,
         amount: parseFloat(updates.amount) || 0,
         supplierId: updates.supplierId !== undefined ? updates.supplierId : null,
-        status: updates.status !== undefined ? updates.status : 'paid'
+        status: updates.status !== undefined ? updates.status : 'paid',
+      }, {
+        businessId: activeBusinessId,
+        user,
+        role,
+        collectionName: 'Expense',
+        summaryField: 'category',
       });
-
-      await writeAuditLog(user, role, 'Expense Updated', `Updated expense: ${updates.category} - ${updates.amount}`, 'Expenses', activeBusinessId);
     } catch (err) {
       console.error("Error updating expense:", err);
       throw err;

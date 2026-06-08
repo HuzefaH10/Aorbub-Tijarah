@@ -6,6 +6,8 @@ import {
 } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import { useBusiness } from '../context/BusinessContext';
+import { createDocument, updateDocument, setDocument } from '../utils/firestoreWrite';
+import { validateProduct, validateSale, validateGeneric } from '../utils/validators';
 
 export function useEntries() {
   const [entries, setEntries] = useState([]);
@@ -27,13 +29,24 @@ export function useEntries() {
 
   const addEntry = useCallback(async (data) => {
     if (!user) return;
-    await addDoc(collection(db, 'entries'), { ...data, userId: activeBusinessId, createdAt: serverTimestamp() });
+    await createDocument(collection(db, 'entries'), data, {
+      businessId: activeBusinessId,
+      user,
+      collectionName: 'Entry',
+      summaryField: 'date',
+      skipAudit: true, // entries are high-frequency, skip individual audit
+    });
   }, [user, activeBusinessId]);
 
   const updateEntry = useCallback(async (id, data) => {
     if (!user) return;
-    await updateDoc(doc(db, 'entries', id), data);
-  }, [user]);
+    await updateDocument(doc(db, 'entries', id), data, {
+      businessId: activeBusinessId,
+      user,
+      collectionName: 'Entry',
+      skipAudit: true,
+    });
+  }, [user, activeBusinessId]);
 
   const deleteEntry = useCallback(async (id) => {
     if (!user) return;
@@ -61,13 +74,24 @@ export function useProducts() {
 
   const addProduct = useCallback(async (data) => {
     if (!user) return;
-    await addDoc(collection(db, 'products'), { ...data, businessId: activeBusinessId, userId: user.uid, createdAt: serverTimestamp() });
+    await createDocument(collection(db, 'products'), data, {
+      businessId: activeBusinessId,
+      user,
+      validator: validateProduct,
+      collectionName: 'Product',
+      summaryField: 'name',
+    });
   }, [user, activeBusinessId]);
 
   const updateProduct = useCallback(async (id, data) => {
     if (!user) return;
-    await updateDoc(doc(db, 'products', id), data);
-  }, [user]);
+    await updateDocument(doc(db, 'products', id), data, {
+      businessId: activeBusinessId,
+      user,
+      collectionName: 'Product',
+      summaryField: 'name',
+    });
+  }, [user, activeBusinessId]);
 
   const deleteProduct = useCallback(async (id) => {
     if (!user) return;
@@ -97,7 +121,12 @@ export function useEvents() {
 
   const addEvent = useCallback(async (_, data) => {
     if (!user) return;
-    await addDoc(collection(db, 'events'), { ...data, businessId: activeBusinessId, userId: user.uid, createdAt: serverTimestamp() });
+    await createDocument(collection(db, 'events'), data, {
+      businessId: activeBusinessId,
+      user,
+      collectionName: 'Event',
+      summaryField: 'title',
+    });
   }, [user, activeBusinessId]);
 
   const deleteEvent = useCallback(async (id) => {
@@ -107,8 +136,13 @@ export function useEvents() {
 
   const updateEvent = useCallback(async (id, data) => {
     if (!user) return;
-    await updateDoc(doc(db, 'events', id), data);
-  }, [user]);
+    await updateDocument(doc(db, 'events', id), data, {
+      businessId: activeBusinessId,
+      user,
+      collectionName: 'Event',
+      summaryField: 'title',
+    });
+  }, [user, activeBusinessId]);
 
   return { events, loading, addEvent, deleteEvent, updateEvent };
 }
@@ -131,7 +165,13 @@ export function useStockLogs() {
 
   const addStockLog = useCallback(async (data) => {
     if (!user) return;
-    await addDoc(collection(db, 'stockLogs'), { ...data, userId: activeBusinessId, createdAt: serverTimestamp() });
+    await createDocument(collection(db, 'stockLogs'), data, {
+      businessId: activeBusinessId,
+      user,
+      collectionName: 'Stock Log',
+      summaryField: 'date',
+      skipAudit: true,
+    });
   }, [user, activeBusinessId]);
 
   const deleteStockLog = useCallback(async (id) => {
@@ -141,8 +181,13 @@ export function useStockLogs() {
 
   const updateStockLog = useCallback(async (id, data) => {
     if (!user) return;
-    await updateDoc(doc(db, 'stockLogs', id), data);
-  }, [user]);
+    await updateDocument(doc(db, 'stockLogs', id), data, {
+      businessId: activeBusinessId,
+      user,
+      collectionName: 'Stock Log',
+      skipAudit: true,
+    });
+  }, [user, activeBusinessId]);
 
   return { stockLogs, loading, addStockLog, deleteStockLog, updateStockLog };
 }
@@ -165,7 +210,12 @@ export function useEventTemplates() {
 
   const addTemplate = useCallback(async (data) => {
     if (!user) return;
-    await addDoc(collection(db, 'templates'), { ...data, businessId: activeBusinessId, createdAt: serverTimestamp() });
+    await createDocument(collection(db, 'templates'), data, {
+      businessId: activeBusinessId,
+      user,
+      collectionName: 'Template',
+      summaryField: 'name',
+    });
   }, [user, activeBusinessId]);
 
   const deleteTemplate = useCallback(async (id) => {
@@ -194,7 +244,12 @@ export function useMilestones() {
 
   const addMilestone = useCallback(async (data) => {
     if (!user) return;
-    await addDoc(collection(db, 'milestones'), { ...data, userId: activeBusinessId, createdAt: serverTimestamp() });
+    await createDocument(collection(db, 'milestones'), data, {
+      businessId: activeBusinessId,
+      user,
+      collectionName: 'Milestone',
+      summaryField: 'title',
+    });
   }, [user, activeBusinessId]);
 
   const deleteMilestone = useCallback(async (id) => {
@@ -204,8 +259,13 @@ export function useMilestones() {
 
   const updateMilestone = useCallback(async (id, data) => {
     if (!user) return;
-    await updateDoc(doc(db, 'milestones', id), data);
-  }, [user]);
+    await updateDocument(doc(db, 'milestones', id), data, {
+      businessId: activeBusinessId,
+      user,
+      collectionName: 'Milestone',
+      summaryField: 'title',
+    });
+  }, [user, activeBusinessId]);
 
   return { milestones, loading, addMilestone, deleteMilestone, updateMilestone };
 }
@@ -229,7 +289,12 @@ export function useSettings() {
 
   const updateSettings = useCallback(async (data) => {
     if (!user) return;
-    await setDoc(doc(db, 'settings', `profile_${activeBusinessId}`), data, { merge: true });
+    await setDocument(doc(db, 'settings', `profile_${activeBusinessId}`), data, {
+      businessId: activeBusinessId,
+      user,
+      collectionName: 'Settings',
+      summaryField: 'businessName',
+    }, { merge: true });
   }, [user, activeBusinessId]);
 
   return { settings, loading, updateSettings };
@@ -255,7 +320,13 @@ export function useBills() {
 
   const addBill = useCallback(async (data) => {
     if (!user) return;
-    const ref = await addDoc(collection(db, 'bills'), { ...data, businessId: activeBusinessId, createdAt: serverTimestamp() });
+    const ref = await createDocument(collection(db, 'bills'), data, {
+      businessId: activeBusinessId,
+      user,
+      validator: validateSale,
+      collectionName: 'Sale',
+      summaryField: 'date',
+    });
     return ref;
   }, [user, activeBusinessId]);
 
@@ -285,7 +356,13 @@ export function useCategories() {
     if (!user || !name.trim()) return;
     const existing = await getDocs(query(collection(db, 'categories'), where('businessId', '==', activeBusinessId), where('name', '==', name.trim())));
     if (!existing.empty) return existing.docs[0].data().name;
-    await addDoc(collection(db, 'categories'), { name: name.trim(), businessId: activeBusinessId, createdAt: serverTimestamp() });
+    await createDocument(collection(db, 'categories'), { name: name.trim() }, {
+      businessId: activeBusinessId,
+      user,
+      collectionName: 'Category',
+      summaryField: 'name',
+      skipAudit: true,
+    });
     return name.trim();
   }, [user, activeBusinessId]);
 
@@ -322,10 +399,12 @@ export function useAddStockHistory() {
 
   const addStockHistory = useCallback(async (data) => {
     if (!user) return;
-    await addDoc(collection(db, 'stockHistory'), {
-      ...data,
+    await createDocument(collection(db, 'stockHistory'), data, {
       businessId: activeBusinessId,
-      loadedAt: serverTimestamp(),
+      user,
+      collectionName: 'Stock History',
+      summaryField: 'productId',
+      skipAudit: true,
     });
   }, [user, activeBusinessId]);
 
