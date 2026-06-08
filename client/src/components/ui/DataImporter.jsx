@@ -10,6 +10,10 @@ import { writeBatch, collection, doc, serverTimestamp } from 'firebase/firestore
 import { motion, AnimatePresence } from 'framer-motion';
 import { IMPORT_CONFIG } from '../../constants/importConfig';
 
+// For files above 50MB in future: consider uploading raw file to Firebase Storage first,
+// then processing server-side via a Cloud Function trigger.
+// Current implementation handles files up to ~50MB client-side efficiently.
+
 export default function DataImporter() {
   const [isOpen, setIsOpen] = useState(false);
   const [dragActive, setDragActive] = useState(false);
