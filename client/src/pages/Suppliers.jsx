@@ -174,7 +174,7 @@ export default function Suppliers() {
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-white font-heading">Supplier Management</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-white font-heading flex items-center gap-2">Supplier Management <ProBadge /></h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage your suppliers and track payments</p>
         </div>
         <button 
