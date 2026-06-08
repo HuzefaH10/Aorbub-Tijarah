@@ -1,394 +1,234 @@
-import React, { useState, useMemo } from 'react';
-import { useBills, useEvents } from '../../hooks/useFirestore';
+import React, { useState, useEffect } from 'react';
+import { usePlan } from '../../hooks/usePlan';
 import { useBusiness } from '../../context/BusinessContext';
-import { useAuth } from '../../context/AuthContext';
 import { useRole } from '../../hooks/useRole';
-import { writeAuditLog } from '../../hooks/useAuditLog';
-import { todayISO as getTodayISO } from '../../utils/dateUtils';
+import { Crown, Check, Receipt } from 'lucide-react';
+import { collection, query, getDocs } from 'firebase/firestore';
 import { db } from '../../services/firebase';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { Search, ChevronLeft, ChevronRight, Eye, Calendar, DollarSign, X, Receipt, CheckCircle, FileText } from 'lucide-react';
 import Toast, { useToast } from '../ui/Toast';
-import Pagination from '../ui/Pagination';
-import InvoiceModal from '../invoice/InvoiceModal';
 
-export default function TabBillHistory({ cardCls, labelCls, inputCls }) {
-  const { bills } = useBills();
-  const { events } = useEvents();
-  const { activeBusinessId, timezone, businessData, currency } = useBusiness();
-  const { user } = useAuth();
-  const { role } = useRole();
+export default function TabBillHistory({ cardCls }) {
+  const { plan, isPro, isFree, isTrialActive, daysLeftInTrial, planActivatedAt } = usePlan();
+  const { activeBusinessId } = useBusiness();
+  const { isOwner } = useRole();
   const { toast, showToast, hideToast } = useToast();
+  const [billingHistory, setBillingHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const [search, setSearch] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [payMethod, setPayMethod] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [page, setPage] = useState(1);
-  const ITEMS_PER_PAGE = 25;
-
-  const [selectedBill, setSelectedBill] = useState(null);
-  const [confirmPay, setConfirmPay] = useState(null);
-  const [showInvoice, setShowInvoice] = useState(false);
-
-  const todayISO = getTodayISO(timezone);
-
-  // Quick preset functions
-  const setPreset = (preset) => {
-    const d = new Date(todayISO);
-    let from = todayISO;
-    let to = todayISO;
-    
-    if (preset === 'week') {
-      const day = d.getDay();
-      const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday
-      const monday = new Date(d.setDate(diff));
-      from = monday.toISOString().split('T')[0];
-    } else if (preset === 'month') {
-      from = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
-      to = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0];
-    } else if (preset === 'year') {
-      from = new Date(d.getFullYear(), 0, 1).toISOString().split('T')[0];
-      to = new Date(d.getFullYear(), 11, 31).toISOString().split('T')[0];
-    }
-    setDateFrom(from);
-    setDateTo(to);
-    setPage(1);
-  };
-
-  const resetFilters = () => {
-    setSearch('');
-    setDateFrom('');
-    setDateTo('');
-    setPayMethod('all');
-    setStatusFilter('all');
-    setPage(1);
-  };
-
-  const filteredBills = useMemo(() => {
-    let res = bills;
-    if (search) {
-      const q = search.toLowerCase();
-      res = res.filter(b => 
-        b.id.toLowerCase().includes(q) || 
-        b.items.some(i => i.name.toLowerCase().includes(q)) || 
-        (b.credit?.customerName && b.credit.customerName.toLowerCase().includes(q))
-      );
-    }
-    if (dateFrom) res = res.filter(b => b.date >= dateFrom);
-    if (dateTo) res = res.filter(b => b.date <= dateTo);
-    if (payMethod !== 'all') res = res.filter(b => b.paymentMethod === payMethod);
-    if (statusFilter !== 'all') res = res.filter(b => b.status === statusFilter);
-
-    // Sort newest first
-    return res.sort((a, b) => b.createdAt - a.createdAt);
-  }, [bills, search, dateFrom, dateTo, payMethod, statusFilter]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredBills.length / ITEMS_PER_PAGE));
-  const paginatedBills = filteredBills.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
-
-  const handleMarkAsPaid = async (billId) => {
-    try {
-      // 1. Update bill document
-      await updateDoc(doc(db, 'bills', billId), {
-        status: 'paid',
-        paidAt: serverTimestamp()
-      });
-
-      // 2. Update associated event if exists
-      const linkedEvent = events.find(e => e.type === 'credit_due' && e.linkedBillId === billId);
-      if (linkedEvent) {
-        await updateDoc(doc(db, 'events', linkedEvent.id), {
-          status: 'completed'
-        });
+  useEffect(() => {
+    async function fetchBilling() {
+      if (!activeBusinessId) return;
+      try {
+        const q = query(collection(db, `businesses/${activeBusinessId}/billing`));
+        const snap = await getDocs(q);
+        const records = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        // sort by date desc
+        records.sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0));
+        setBillingHistory(records);
+      } catch (err) {
+        console.error("Failed to fetch billing history:", err);
+      } finally {
+        setLoading(false);
       }
-
-      // 3. Write audit log
-      writeAuditLog(user, role, 'Bill paid', `Bill #${billId} marked as paid`, billId, activeBusinessId);
-      
-      showToast('Bill marked as paid');
-      setConfirmPay(null);
-      // Close modal if open
-      if (selectedBill?.id === billId) {
-        setSelectedBill(prev => ({ ...prev, status: 'paid', paidAt: new Date() }));
-      }
-    } catch (err) {
-      console.error('Failed to mark paid:', err);
-      showToast('Failed to update bill', 'error');
     }
+    fetchBilling();
+  }, [activeBusinessId]);
+
+  const handleUpgradeClick = () => {
+    showToast('To upgrade, contact us at support@aorbubtijarah.com');
   };
+
+  const handleManageClick = () => {
+    showToast('Contact support to manage your plan');
+  };
+
+  const features = [
+    { name: 'Stock Management', free: true, pro: true },
+    { name: 'Daily P&L', free: true, pro: true },
+    { name: 'Credits & Dues', free: true, pro: true },
+    { name: 'Invoicing', free: false, pro: true },
+    { name: 'Expenses Tracking', free: false, pro: true },
+    { name: 'Supplier Management', free: false, pro: true },
+    { name: 'Staff & Roles', free: false, pro: true },
+    { name: 'Branch Management', free: false, pro: true },
+    { name: 'Sales Analytics', free: false, pro: true },
+    { name: 'Audit Log', free: false, pro: true },
+    { name: 'Data Import/Export', free: false, pro: true },
+    { name: 'Multiple Themes', free: false, pro: true },
+  ];
+
+  const planDate = planActivatedAt ? new Date(planActivatedAt.seconds * 1000).toLocaleDateString() : '';
 
   return (
-    <div id="bills" className={cardCls}>
+    <div id="bills" className="space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
       
-      <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100 dark:border-white/[0.06]">
-        <div className="p-2 rounded-lg bg-primary-500/10">
-          <Receipt size={20} className="text-primary-500" />
-        </div>
-        <div>
-          <h3 className="text-base font-bold text-gray-800 dark:text-white font-heading">Bill History</h3>
-          <p className="text-xs text-gray-400 dark:text-gray-500">View and manage all recorded transactions</p>
+      {/* Current Plan Card */}
+      <div className={cardCls}>
+        {isFree ? (
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white font-heading mb-2">Free Plan</h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                You have access to Stock Management, Daily P&L, and Credits & Dues.
+              </p>
+              <p className="text-xs text-amber-600 dark:text-amber-400 font-semibold mt-2">
+                Unlock invoicing, analytics, staff management and more.
+              </p>
+            </div>
+            {isOwner && (
+              <button 
+                onClick={handleUpgradeClick}
+                className="shrink-0 bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg shadow-amber-500/30 transition-all"
+              >
+                Upgrade to Pro
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-500/20 text-amber-500 flex items-center justify-center">
+                  <Crown size={24} />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white font-heading">Pro Plan</h2>
+              </div>
+              <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
+                {isTrialActive ? `Trial active — ${daysLeftInTrial} days remaining` : 'Active — No expiry'}
+              </p>
+              {planDate && (
+                <p className="text-xs text-gray-500 mt-1">Member since {planDate}</p>
+              )}
+            </div>
+            {isOwner && (
+              <button 
+                onClick={handleManageClick}
+                className="shrink-0 bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-gray-700 dark:text-white font-bold py-3 px-6 rounded-xl transition-all"
+              >
+                Manage Plan
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Plan Comparison Table */}
+      <div className={cardCls}>
+        <h3 className="text-base font-bold text-gray-800 dark:text-white font-heading mb-6">Plan Comparison</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead>
+              <tr className="border-b border-gray-100 dark:border-white/10">
+                <th className="py-3 px-4 font-bold text-gray-900 dark:text-white">Feature</th>
+                <th className="py-3 px-4 font-bold text-gray-900 dark:text-white text-center">Free</th>
+                <th className="py-3 px-4 font-bold text-gray-900 dark:text-white text-center">Pro</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50 dark:divide-white/5">
+              {features.map((f, i) => (
+                <tr key={i} className="hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors">
+                  <td className="py-3 px-4 font-medium text-gray-700 dark:text-gray-300">{f.name}</td>
+                  <td className="py-3 px-4 text-center">
+                    {f.free ? <Check size={16} className="mx-auto text-gray-400" /> : <span className="text-gray-300 dark:text-gray-600">—</span>}
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    {f.pro ? <Check size={16} className="mx-auto text-amber-500" /> : <span className="text-gray-300 dark:text-gray-600">—</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* FILTERS */}
-      <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 mb-6 space-y-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input 
-              value={search} onChange={e => {setSearch(e.target.value); setPage(1)}}
-              placeholder="Search ID, product, customer..." 
-              className={`pl-8 ${inputCls}`} 
-            />
+      {/* Billing History Table */}
+      <div className={cardCls}>
+        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100 dark:border-white/[0.06]">
+          <div className="p-2 rounded-lg bg-primary-500/10">
+            <Receipt size={20} className="text-primary-500" />
           </div>
-          <select value={payMethod} onChange={e => {setPayMethod(e.target.value); setPage(1)}} className={inputCls}>
-            <option value="all">All Payment Methods</option>
-            <option value="cash">Cash</option>
-            <option value="credit">Credit</option>
-          </select>
-          <select value={statusFilter} onChange={e => {setStatusFilter(e.target.value); setPage(1)}} className={inputCls}>
-            <option value="all">All Statuses</option>
-            <option value="paid">Paid</option>
-            <option value="unpaid">Unpaid</option>
-          </select>
+          <div>
+            <h3 className="text-base font-bold text-gray-800 dark:text-white font-heading">Billing History</h3>
+            <p className="text-xs text-gray-400 dark:text-gray-500">View past payments and invoices</p>
+          </div>
         </div>
         
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <input type="date" value={dateFrom} onChange={e => {setDateFrom(e.target.value); setPage(1)}} className={inputCls} />
-            <span className="text-gray-400 text-xs">to</span>
-            <input type="date" value={dateTo} onChange={e => {setDateTo(e.target.value); setPage(1)}} className={inputCls} />
+        {loading ? (
+          <div className="flex justify-center py-8">
+            <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
           </div>
-          <div className="h-6 w-px bg-gray-300 dark:bg-gray-700 mx-1"></div>
-          <button onClick={() => setPreset('today')} className="text-xs font-bold text-gray-500 hover:text-primary-500 transition-colors">Today</button>
-          <button onClick={() => setPreset('week')} className="text-xs font-bold text-gray-500 hover:text-primary-500 transition-colors">This Week</button>
-          <button onClick={() => setPreset('month')} className="text-xs font-bold text-gray-500 hover:text-primary-500 transition-colors">This Month</button>
-          <button onClick={() => setPreset('year')} className="text-xs font-bold text-gray-500 hover:text-primary-500 transition-colors">This Year</button>
-          <div className="flex-1"></div>
-          <button onClick={resetFilters} className="text-xs font-bold text-gray-500 hover:text-gray-800 dark:hover:text-white transition-colors">Reset Filters</button>
-        </div>
+        ) : billingHistory.length === 0 ? (
+          <div className="text-center py-10 border border-dashed border-gray-200 dark:border-white/10 rounded-xl">
+            <Receipt size={32} className="mx-auto mb-3 text-gray-400 dark:text-gray-600" />
+            <p className="text-sm text-gray-500 dark:text-gray-400 font-medium mb-1">No billing history yet.</p>
+            {isFree && <p className="text-xs text-gray-400">Upgrade to Pro to get started.</p>}
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-gray-100 dark:border-white/5">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 dark:bg-gray-900/60">
+                <tr>
+                  <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Date</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Plan</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Amount</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Invoice</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-white/5">
+                {billingHistory.map((record) => (
+                  <tr key={record.id} className="hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors">
+                    <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap text-xs">
+                      {record.date?.seconds ? new Date(record.date.seconds * 1000).toLocaleDateString() : '—'}
+                    </td>
+                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white capitalize">{record.planName || '—'}</td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{record.amount || '—'}</td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${
+                        record.status === 'paid' ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400' :
+                        'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400'
+                      }`}>
+                        {record.status || 'Unknown'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {record.invoiceUrl ? (
+                        <a href={record.invoiceUrl} target="_blank" rel="noreferrer" className="text-primary-600 dark:text-primary-400 hover:underline text-xs font-semibold">Download</a>
+                      ) : (
+                        <span className="text-gray-400 text-xs">—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      <div className="mb-3 text-xs font-bold text-gray-400">
-        Showing {(page - 1) * ITEMS_PER_PAGE + 1}–{Math.min(page * ITEMS_PER_PAGE, filteredBills.length)} of {filteredBills.length} bills
-      </div>
-
-      {/* TABLE */}
-      <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-white/10">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-gray-50 dark:bg-gray-800/80 text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-            <tr>
-              <th className="px-4 py-3 font-bold">Bill ID</th>
-              <th className="px-4 py-3 font-bold">Date</th>
-              <th className="px-4 py-3 font-bold">Items</th>
-              <th className="px-4 py-3 font-bold text-right">Net Total</th>
-              <th className="px-4 py-3 font-bold">Method</th>
-              <th className="px-4 py-3 font-bold">Status</th>
-              <th className="px-4 py-3 font-bold">Paid On</th>
-              <th className="px-4 py-3 font-bold text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-white/5">
-            {paginatedBills.map(b => (
-              <tr key={b.id} className="hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors">
-                <td className="px-4 py-3 font-mono text-xs text-gray-600 dark:text-gray-300">{b.id}</td>
-                <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{b.date}</td>
-                <td className="px-4 py-3 text-gray-800 dark:text-white font-medium">
-                  {b.items[0]?.name || 'Unknown'} {b.items.length > 1 && <span className="text-gray-400 text-xs ml-1">+{b.items.length - 1} more</span>}
-                </td>
-                <td className="px-4 py-3 text-right font-bold text-gray-800 dark:text-white">${Number(b.netTotal || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                <td className="px-4 py-3 capitalize text-gray-600 dark:text-gray-300">{b.paymentMethod}</td>
-                <td className="px-4 py-3">
-                  <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${
-                    b.status === 'paid' ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'
-                  }`}>
-                    {b.status}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-gray-500 text-xs">
-                  {b.status === 'paid' ? (b.paidAt?.toDate ? b.paidAt.toDate().toISOString().split('T')[0] : todayISO) : '—'}
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <button onClick={() => setSelectedBill(b)} className="p-1.5 text-gray-400 hover:text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-500/10 rounded transition-colors" title="View Details">
-                    <Eye size={16} />
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {paginatedBills.length === 0 && (
-              <tr>
-                <td colSpan="8" className="px-4 py-8 text-center text-gray-500 text-sm">No bills found matching your filters.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* PAGINATION */}
-      <Pagination 
-        currentPage={page}
-        totalPages={totalPages}
-        totalCount={filteredBills.length}
-        pageSize={ITEMS_PER_PAGE}
-        onNext={() => setPage(p => Math.min(totalPages, p + 1))}
-        onPrevious={() => setPage(p => Math.max(1, p - 1))}
-      />
-
-      {/* BILL DETAIL MODAL */}
-      {selectedBill && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-white/10">
-              <h2 className="text-lg font-bold text-gray-800 dark:text-white font-heading">Bill Details</h2>
-              <div className="flex items-center gap-3">
-                <button onClick={() => setShowInvoice(true)} className="flex items-center gap-2 px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-xs font-bold transition-colors">
-                  <FileText size={14} /> Generate Invoice
-                </button>
-                <button onClick={() => setSelectedBill(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
-                  <X size={20} />
-                </button>
-              </div>
+      {/* Upgrade CTA Section (Free users only, Owner only) */}
+      {isFree && isOwner && (
+        <div className="bg-gradient-to-r from-gray-900 to-gray-800 border border-gray-700 rounded-2xl p-8 text-center relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-8 opacity-10">
+            <Crown size={120} />
+          </div>
+          <div className="relative z-10">
+            <h3 className="text-2xl font-bold text-white font-heading mb-2">Ready to grow? Upgrade to Pro.</h3>
+            <p className="text-gray-300 text-sm mb-6">One plan. Everything unlocked. Cancel anytime.</p>
+            <div className="inline-block bg-white/10 rounded-xl px-4 py-2 mb-6 border border-white/20">
+              <p className="text-white font-semibold text-sm">Contact us for pricing</p>
             </div>
-            
-            <div className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-6">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Bill ID</p>
-                  <p className="font-mono font-bold text-gray-800 dark:text-white">{selectedBill.id}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Date</p>
-                  <p className="font-bold text-gray-800 dark:text-white">{selectedBill.date}</p>
-                </div>
-              </div>
-
-              <div className="flex justify-between items-center bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl">
-                <div>
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Status</p>
-                  <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${
-                    selectedBill.status === 'paid' ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'
-                  }`}>
-                    {selectedBill.status}
-                  </span>
-                  {selectedBill.status === 'paid' && (
-                    <span className="text-xs text-gray-500 ml-2">
-                      on {selectedBill.paidAt?.toDate ? selectedBill.paidAt.toDate().toISOString().split('T')[0] : todayISO}
-                    </span>
-                  )}
-                </div>
-                <div className="text-right">
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Payment Method</p>
-                  <p className="font-bold capitalize text-gray-800 dark:text-white">{selectedBill.paymentMethod}</p>
-                </div>
-              </div>
-
-              {selectedBill.paymentMethod === 'credit' && selectedBill.credit && (
-                <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 p-4 rounded-xl">
-                  <h4 className="text-xs font-bold text-amber-800 dark:text-amber-400 uppercase tracking-widest mb-2">Credit Details</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-xs text-amber-600/70 dark:text-amber-500/70 font-semibold mb-0.5">Customer Name</p>
-                      <p className="font-bold text-amber-900 dark:text-amber-200">{selectedBill.credit.customerName}</p>
-                    </div>
-                    {selectedBill.credit.customerPhone && (
-                      <div>
-                        <p className="text-xs text-amber-600/70 dark:text-amber-500/70 font-semibold mb-0.5">Phone</p>
-                        <p className="font-bold text-amber-900 dark:text-amber-200">{selectedBill.credit.customerPhone}</p>
-                      </div>
-                    )}
-                    {selectedBill.credit.dueDate && (
-                      <div>
-                        <p className="text-xs text-amber-600/70 dark:text-amber-500/70 font-semibold mb-0.5">Due Date</p>
-                        <p className="font-bold text-amber-900 dark:text-amber-200">{selectedBill.credit.dueDate}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Line Items</h4>
-                <div className="border border-gray-200 dark:border-white/10 rounded-xl overflow-hidden">
-                  <table className="w-full text-left text-sm">
-                    <thead className="bg-gray-50 dark:bg-gray-800/80 text-xs text-gray-500 dark:text-gray-400">
-                      <tr>
-                        <th className="px-4 py-2 font-bold">Product</th>
-                        <th className="px-4 py-2 font-bold">Category</th>
-                        <th className="px-4 py-2 font-bold text-right">Qty</th>
-                        <th className="px-4 py-2 font-bold text-right">Price</th>
-                        <th className="px-4 py-2 font-bold text-right">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-white/5 text-gray-800 dark:text-white">
-                      {selectedBill.items.map((item, idx) => (
-                        <tr key={idx}>
-                          <td className="px-4 py-2 font-medium">{item.name}</td>
-                          <td className="px-4 py-2 text-xs text-gray-500">{item.category}</td>
-                          <td className="px-4 py-2 text-right">{item.quantity} <span className="text-xs text-gray-500">{item.unit}</span></td>
-                          <td className="px-4 py-2 text-right">${Number(item.price || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                          <td className="px-4 py-2 text-right font-bold">${(Number(item.price || 0) * Number(item.quantity || 0)).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl space-y-2">
-                <div className="flex justify-between text-sm text-gray-600 dark:text-gray-300">
-                  <span>Subtotal</span>
-                  <span className="font-bold">${Number(selectedBill.subTotal || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
-                </div>
-                {Number(selectedBill.discount || 0) > 0 && (
-                  <div className="flex justify-between text-sm text-red-500">
-                    <span>Discount</span>
-                    <span className="font-bold">-${Number(selectedBill.discount || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
-                  </div>
-                )}
-                <div className="pt-2 border-t border-gray-200 dark:border-white/10 flex justify-between text-lg font-bold text-gray-800 dark:text-white">
-                  <span>Net Total</span>
-                  <span>${Number(selectedBill.netTotal || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
-                </div>
-              </div>
-
-              {selectedBill.status === 'unpaid' && (
-                <div className="pt-4 border-t border-gray-200 dark:border-white/10">
-                  {confirmPay === selectedBill.id ? (
-                    <div className="bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 p-4 rounded-xl flex items-center justify-between">
-                      <span className="text-sm font-bold text-green-800 dark:text-green-400">Mark this bill as paid?</span>
-                      <div className="flex gap-2">
-                        <button onClick={() => setConfirmPay(null)} className="px-3 py-1.5 text-xs font-bold text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors">Cancel</button>
-                        <button onClick={() => handleMarkAsPaid(selectedBill.id)} className="px-3 py-1.5 text-xs font-bold bg-green-600 text-white hover:bg-green-700 rounded-lg shadow-lg shadow-green-600/20 transition-colors">Confirm</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <button 
-                      onClick={() => setConfirmPay(selectedBill.id)}
-                      className="w-full py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold shadow-lg shadow-green-600/20 transition-all flex items-center justify-center gap-2 text-base"
-                    >
-                      <CheckCircle size={20} /> Mark as Paid
-                    </button>
-                  )}
-                </div>
-              )}
-
+            <div>
+              <button 
+                onClick={handleUpgradeClick}
+                className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-8 rounded-xl shadow-xl shadow-amber-500/20 transition-all hover:scale-105"
+              >
+                Get Pro
+              </button>
             </div>
           </div>
         </div>
-      )}
-
-      {/* INVOICE MODAL */}
-      {showInvoice && selectedBill && (
-        <InvoiceModal
-          bill={selectedBill}
-          businessData={businessData}
-          currency={currency}
-          timezone={timezone}
-          onClose={() => setShowInvoice(false)}
-        />
       )}
     </div>
   );
