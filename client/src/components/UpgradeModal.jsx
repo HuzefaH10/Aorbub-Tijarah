@@ -1,11 +1,14 @@
-import React from 'react';
-import { Crown, Check } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Crown, Check, Loader2 } from 'lucide-react';
+import { useBusiness } from '../context/BusinessContext';
+import { startCheckout } from '../services/stripe';
+import { PRO_PRICE_DISPLAY } from '../constants/pricing';
 import Toast, { useToast } from './ui/Toast';
 
 export default function UpgradeModal({ isOpen, onClose, featureName }) {
-  const navigate = useNavigate();
+  const { activeBusinessId } = useBusiness();
   const { toast, showToast, hideToast } = useToast();
+  const [loading, setLoading] = useState(false);
 
   if (!isOpen) return null;
 
@@ -21,8 +24,16 @@ export default function UpgradeModal({ isOpen, onClose, featureName }) {
     'And more'
   ];
 
-  const handleUpgradeClick = () => {
-    showToast('Payment processing coming soon! Contact us to upgrade.');
+  const handleUpgradeClick = async () => {
+    setLoading(true);
+    try {
+      await startCheckout(activeBusinessId);
+      // User is redirected to Stripe — this line won't execute
+    } catch (err) {
+      console.error('Checkout error:', err);
+      showToast(err.message || 'Something went wrong. Please try again.', 'error');
+      setLoading(false);
+    }
   };
 
   return (
@@ -57,15 +68,30 @@ export default function UpgradeModal({ isOpen, onClose, featureName }) {
             </ul>
           </div>
 
+          {/* Price display */}
+          <div className="mb-6">
+            <p className="text-2xl font-bold text-gray-900 dark:text-white font-heading">{PRO_PRICE_DISPLAY}</p>
+            <p className="text-xs text-gray-400 mt-1">Cancel anytime</p>
+          </div>
+
           <div className="flex flex-col gap-3">
             <button 
               onClick={handleUpgradeClick}
-              className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl transition-all shadow-lg shadow-amber-500/30"
+              disabled={loading}
+              className="w-full h-12 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-500/50 text-white font-bold rounded-xl transition-all shadow-lg shadow-amber-500/30 flex items-center justify-center gap-2"
             >
-              Upgrade to Pro
+              {loading ? (
+                <>
+                  <Loader2 size={18} className="animate-spin" />
+                  Redirecting to checkout...
+                </>
+              ) : (
+                'Upgrade to Pro'
+              )}
             </button>
             <button 
               onClick={onClose}
+              disabled={loading}
               className="w-full h-12 bg-transparent text-gray-500 dark:text-gray-400 font-bold hover:text-gray-700 dark:hover:text-white transition-colors"
             >
               Maybe Later
@@ -73,7 +99,7 @@ export default function UpgradeModal({ isOpen, onClose, featureName }) {
           </div>
 
           <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-6">
-            Already on Pro? Contact support if you're seeing this by mistake.
+            Secure payment powered by Stripe. Already on Pro? Contact support if you're seeing this by mistake.
           </p>
         </div>
       </div>

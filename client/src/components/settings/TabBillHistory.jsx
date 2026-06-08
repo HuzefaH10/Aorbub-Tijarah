@@ -2,44 +2,67 @@ import React, { useState, useEffect } from 'react';
 import { usePlan } from '../../hooks/usePlan';
 import { useBusiness } from '../../context/BusinessContext';
 import { useRole } from '../../hooks/useRole';
-import { Crown, Check, Receipt } from 'lucide-react';
-import { collection, query, getDocs } from 'firebase/firestore';
-import { db } from '../../services/firebase';
+import { Crown, Check, Receipt, Loader2, ExternalLink, Download } from 'lucide-react';
+import { startCheckout, fetchBillingHistory } from '../../services/stripe';
+import { PRO_PRICE_DISPLAY } from '../../constants/pricing';
 import Toast, { useToast } from '../ui/Toast';
+import { useSearchParams } from 'react-router-dom';
 
 export default function TabBillHistory({ cardCls }) {
   const { plan, isPro, isFree, isTrialActive, daysLeftInTrial, planActivatedAt } = usePlan();
-  const { activeBusinessId } = useBusiness();
+  const { activeBusinessId, businessData } = useBusiness();
   const { isOwner } = useRole();
   const { toast, showToast, hideToast } = useToast();
   const [billingHistory, setBillingHistory] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [upgradeLoading, setUpgradeLoading] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
 
+  // Handle return from Stripe
   useEffect(() => {
-    async function fetchBilling() {
+    const upgradeStatus = searchParams.get('upgrade');
+    if (upgradeStatus === 'success') {
+      showToast('🎉 Welcome to Pro! All features are now unlocked.', 'success');
+      // Clean the URL
+      searchParams.delete('upgrade');
+      setSearchParams(searchParams, { replace: true });
+    } else if (upgradeStatus === 'cancelled') {
+      showToast("Upgrade cancelled. You're still on the Free plan.", 'warning');
+      searchParams.delete('upgrade');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, []);
+
+  // Fetch billing history from Stripe
+  useEffect(() => {
+    async function loadBilling() {
       if (!activeBusinessId) return;
       try {
-        const q = query(collection(db, `businesses/${activeBusinessId}/billing`));
-        const snap = await getDocs(q);
-        const records = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        // sort by date desc
-        records.sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0));
-        setBillingHistory(records);
+        const invoices = await fetchBillingHistory(activeBusinessId);
+        setBillingHistory(invoices);
       } catch (err) {
-        console.error("Failed to fetch billing history:", err);
+        console.error('Failed to fetch billing history:', err);
+        // Silent fallback — empty list is fine
       } finally {
         setLoading(false);
       }
     }
-    fetchBilling();
+    loadBilling();
   }, [activeBusinessId]);
 
-  const handleUpgradeClick = () => {
-    showToast('To upgrade, contact us at support@aorbubtijarah.com');
+  const handleUpgradeClick = async () => {
+    setUpgradeLoading(true);
+    try {
+      await startCheckout(activeBusinessId);
+    } catch (err) {
+      console.error('Checkout error:', err);
+      showToast(err.message || 'Something went wrong. Please try again.', 'error');
+      setUpgradeLoading(false);
+    }
   };
 
   const handleManageClick = () => {
-    showToast('Contact support to manage your plan');
+    showToast('Contact support to manage your plan.');
   };
 
   const features = [
@@ -57,7 +80,11 @@ export default function TabBillHistory({ cardCls }) {
     { name: 'Multiple Themes', free: false, pro: true },
   ];
 
-  const planDate = planActivatedAt ? new Date(planActivatedAt.seconds * 1000).toLocaleDateString() : '';
+  const planDate = planActivatedAt
+    ? new Date(planActivatedAt.seconds ? planActivatedAt.seconds * 1000 : planActivatedAt).toLocaleDateString()
+    : (businessData?.planActivatedAt?.seconds
+        ? new Date(businessData.planActivatedAt.seconds * 1000).toLocaleDateString()
+        : '');
 
   return (
     <div id="bills" className="space-y-6">
@@ -79,9 +106,17 @@ export default function TabBillHistory({ cardCls }) {
             {isOwner && (
               <button 
                 onClick={handleUpgradeClick}
-                className="shrink-0 bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg shadow-amber-500/30 transition-all"
+                disabled={upgradeLoading}
+                className="shrink-0 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-500/50 text-white font-bold py-3 px-6 rounded-xl shadow-lg shadow-amber-500/30 transition-all flex items-center gap-2"
               >
-                Upgrade to Pro
+                {upgradeLoading ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Loading...
+                  </>
+                ) : (
+                  'Upgrade to Pro'
+                )}
               </button>
             )}
           </div>
@@ -122,7 +157,9 @@ export default function TabBillHistory({ cardCls }) {
               <tr className="border-b border-gray-100 dark:border-white/10">
                 <th className="py-3 px-4 font-bold text-gray-900 dark:text-white">Feature</th>
                 <th className="py-3 px-4 font-bold text-gray-900 dark:text-white text-center">Free</th>
-                <th className="py-3 px-4 font-bold text-gray-900 dark:text-white text-center">Pro</th>
+                <th className="py-3 px-4 font-bold text-amber-600 dark:text-amber-400 text-center">
+                  Pro — {PRO_PRICE_DISPLAY}
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50 dark:divide-white/5">
@@ -180,24 +217,35 @@ export default function TabBillHistory({ cardCls }) {
                 {billingHistory.map((record) => (
                   <tr key={record.id} className="hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors">
                     <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap text-xs">
-                      {record.date?.seconds ? new Date(record.date.seconds * 1000).toLocaleDateString() : '—'}
+                      {record.date ? new Date(record.date).toLocaleDateString() : '—'}
                     </td>
                     <td className="px-4 py-3 font-medium text-gray-900 dark:text-white capitalize">{record.planName || '—'}</td>
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{record.amount || '—'}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${
                         record.status === 'paid' ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400' :
+                        record.status === 'open' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400' :
                         'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400'
                       }`}>
                         {record.status || 'Unknown'}
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      {record.invoiceUrl ? (
-                        <a href={record.invoiceUrl} target="_blank" rel="noreferrer" className="text-primary-600 dark:text-primary-400 hover:underline text-xs font-semibold">Download</a>
-                      ) : (
-                        <span className="text-gray-400 text-xs">—</span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {record.invoiceUrl && (
+                          <a href={record.invoiceUrl} target="_blank" rel="noreferrer" className="text-primary-600 dark:text-primary-400 hover:underline text-xs font-semibold flex items-center gap-1">
+                            <ExternalLink size={12} /> View
+                          </a>
+                        )}
+                        {record.invoicePdf && (
+                          <a href={record.invoicePdf} target="_blank" rel="noreferrer" className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 text-xs font-semibold flex items-center gap-1">
+                            <Download size={12} /> PDF
+                          </a>
+                        )}
+                        {!record.invoiceUrl && !record.invoicePdf && (
+                          <span className="text-gray-400 text-xs">—</span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -217,14 +265,22 @@ export default function TabBillHistory({ cardCls }) {
             <h3 className="text-2xl font-bold text-white font-heading mb-2">Ready to grow? Upgrade to Pro.</h3>
             <p className="text-gray-300 text-sm mb-6">One plan. Everything unlocked. Cancel anytime.</p>
             <div className="inline-block bg-white/10 rounded-xl px-4 py-2 mb-6 border border-white/20">
-              <p className="text-white font-semibold text-sm">Contact us for pricing</p>
+              <p className="text-white font-semibold text-sm">{PRO_PRICE_DISPLAY}</p>
             </div>
             <div>
               <button 
                 onClick={handleUpgradeClick}
-                className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-8 rounded-xl shadow-xl shadow-amber-500/20 transition-all hover:scale-105"
+                disabled={upgradeLoading}
+                className="bg-amber-500 hover:bg-amber-600 disabled:bg-amber-500/50 text-white font-bold py-3 px-8 rounded-xl shadow-xl shadow-amber-500/20 transition-all hover:scale-105 flex items-center gap-2 mx-auto"
               >
-                Get Pro
+                {upgradeLoading ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Loading...
+                  </>
+                ) : (
+                  'Get Pro'
+                )}
               </button>
             </div>
           </div>

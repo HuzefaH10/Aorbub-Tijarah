@@ -34,6 +34,7 @@ export function usePlan() {
     isFree,
     isTrialActive,
     daysLeftInTrial,
-    trialUsed: businessData?.trialUsed || false
+    trialUsed: businessData?.trialUsed || false,
+    planActivatedAt: businessData?.planActivatedAt || null,
   };
 }
