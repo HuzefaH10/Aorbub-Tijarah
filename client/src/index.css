@@ -175,6 +175,39 @@
     background-attachment: fixed;
   }
 
+  /* ─── Gold & Black Theme ─── */
+  [data-theme="gold-black"] {
+    --color-primary-50: #fdf8ee;
+    --color-primary-100: #faf0d7;
+    --color-primary-200: #f5e4b0;
+    --color-primary-300: #ffd600;
+    --color-primary-400: #e0ab2a;
+    --color-primary-500: #c9971c;
+    --color-primary-600: #a07a10;
+    --color-primary-700: #7a5c00;
+    --color-primary-800: #543b00;
+    --color-primary-900: #2a2000;
+    --color-sidebar: #080600;
+    --color-gray-950: #0a0800;
+    --color-gray-900: #120f00;
+    --color-gray-800: #1a1500;
+    --color-gray-500: #7a6520;
+    --color-gray-400: #d4ac3a;
+    --color-gray-300: #fff8e1;
+    --color-success: #69f0ae;
+    --color-danger: #c62828;
+    --color-warning: #ffab40;
+  }
+
+  html[data-theme="gold-black"] body {
+    background: radial-gradient(ellipse at 20% 30%, #1a1500 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 70%, #120f00 0%, transparent 55%),
+                radial-gradient(ellipse at 50% 90%, #0d0a00 0%, transparent 50%),
+                radial-gradient(ellipse at 10% 80%, #0a0800 0%, transparent 40%),
+                #0a0800;
+    background-attachment: fixed;
+  }
+
   /* ═══════════════════════════════════════════════
      LIGHT MODE VARIANTS
      Applied when data-mode="light" is set
@@ -294,7 +327,7 @@
 
   /* ─── Gold & Black Light ─── */
   [data-mode="light"]:not([data-theme]),
-  [data-mode="light"][data-theme="dark"] {
+  [data-theme="gold-black"][data-mode="light"] {
     --color-primary-50:  #fdf8ee;
     --color-primary-100: #faf0d7;
     --color-primary-200: #f5e4b0;
@@ -323,7 +356,7 @@
   }
 
   html[data-mode="light"]:not([data-theme]) body,
-  html[data-mode="light"][data-theme="dark"] body {
+  html[data-theme="gold-black"][data-mode="light"] body {
     background: #fdf8ee;
     background-attachment: fixed;
     color: #1a1400;

@@ -1375,9 +1375,9 @@ export default function Settings() {
 
                 {/* Gold & Black */}
                 <button
-                  onClick={async () => { if (!requirePro('Multiple Themes')) return; const r = await changeTheme('dark'); writeAuditLog(user, role, 'THEME_CHANGED', `Theme changed from ${r.from} to ${r.to}`, null, activeBusinessId); }}
+                  onClick={async () => { if (!requirePro('Multiple Themes')) return; const r = await changeTheme('gold-black'); writeAuditLog(user, role, 'THEME_CHANGED', `Theme changed from ${r.from} to ${r.to}`, null, activeBusinessId); }}
                   className={`group relative rounded-xl overflow-hidden border-2 transition-all duration-200 ${
-                    colorTheme === 'dark'
+                    colorTheme === 'gold-black'
                       ? 'border-amber-500 ring-2 ring-amber-500/30 shadow-lg shadow-amber-500/10'
                       : 'border-gray-200 dark:border-white/10 hover:border-amber-400'
                   }`}
@@ -1393,7 +1393,7 @@ export default function Settings() {
                         <div className="h-full rounded" style={{ background: '#F59E0B', width: '40%', opacity: 0.5 }} />
                       </div>
                     </div>
-                    {colorTheme === 'dark' && (
+                    {colorTheme === 'gold-black' && (
                       <div className="absolute top-1.5 right-1.5 w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center">
                         <Check size={12} className="text-white" />
                       </div>

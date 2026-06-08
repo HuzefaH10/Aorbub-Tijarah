@@ -7,7 +7,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 const ThemeContext = createContext();
 
 // Valid color themes (palette only, no mode)
-const COLOR_THEMES = ['royal-purple', 'royal-green', 'sharp-silver', 'dark'];
+const COLOR_THEMES = ['royal-purple', 'royal-green', 'sharp-silver', 'gold-black', 'dark'];
 const THEME_MODES  = ['dark', 'light'];
 
 export function useTheme() {
@@ -20,19 +20,24 @@ export function useTheme() {
  *   'royal-purple'       → { colorTheme: 'royal-purple', themeMode: 'dark' }
  *   'royal-purple-light' → { colorTheme: 'royal-purple', themeMode: 'light' }
  *   'light'              → { colorTheme: 'royal-purple', themeMode: 'light' }
- *   'dark'               → { colorTheme: 'dark',         themeMode: 'dark' }
+ *   'dark'               → { colorTheme: 'gold-black',         themeMode: 'dark' }
  */
 function parseTheme(raw) {
   if (!raw) return { colorTheme: 'royal-purple', themeMode: 'dark' };
-  // Legacy light-only
+
   if (raw === 'light') return { colorTheme: 'royal-purple', themeMode: 'light' };
+  if (raw === 'dark') return { colorTheme: 'gold-black', themeMode: 'dark' };
+
   // Combined strings e.g. 'royal-purple-light'
   if (raw.endsWith('-light')) {
-    const base = raw.slice(0, -'-light'.length);
+    const base = raw.replace('-light', '');
     return { colorTheme: COLOR_THEMES.includes(base) ? base : 'royal-purple', themeMode: 'light' };
   }
-  // Plain dark base themes
-  if (COLOR_THEMES.includes(raw)) return { colorTheme: raw, themeMode: 'dark' };
+
+  if (COLOR_THEMES.includes(raw)) {
+    return { colorTheme: raw, themeMode: 'dark' };
+  }
+
   return { colorTheme: 'royal-purple', themeMode: 'dark' };
 }
 
@@ -90,9 +95,7 @@ export function ThemeProvider({ children }) {
       root.setAttribute('data-mode', 'light');
     } else {
       root.classList.add('dark');
-      if (ct !== 'dark') {
-        root.setAttribute('data-theme', ct);
-      }
+      root.setAttribute('data-theme', ct);
     }
   }
 
