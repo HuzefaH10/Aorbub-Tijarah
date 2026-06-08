@@ -5,6 +5,8 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { StockAlertProvider } from '../../context/StockAlertContext';
 import OnboardingFlow from '../onboarding/OnboardingFlow';
+import { TrialBanner, TrialExpiredModal } from '../trial/TrialIndicators';
+import TrialExpiryEnforcer from '../trial/TrialExpiryEnforcer';
 
 export default function Layout() {
   const location = useLocation();
@@ -16,6 +18,7 @@ export default function Layout() {
         <Sidebar />
         <div className="ml-[64px] relative z-10">
           <Topbar />
+          <TrialBanner />
           <main className="p-6 mt-16">
             <AnimatePresence mode="wait">
               <motion.div
@@ -31,6 +34,8 @@ export default function Layout() {
           </main>
         </div>
         <OnboardingFlow />
+        <TrialExpiryEnforcer />
+        <TrialExpiredModal />
       </div>
     </StockAlertProvider>
   );

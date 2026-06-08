@@ -36,5 +36,7 @@ export function usePlan() {
     daysLeftInTrial,
     trialUsed: businessData?.trialUsed || false,
     planActivatedAt: businessData?.planActivatedAt || null,
+    planExpiresAt,
+    isExpired,
   };
 }

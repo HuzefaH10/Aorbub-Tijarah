@@ -241,6 +241,10 @@ export default function OnboardingFlow() {
               <button onClick={() => setStep(1)} className="text-gray-500 hover:text-white mb-6 transition-colors flex items-center gap-2 text-sm font-semibold">
                 <ArrowLeft size={16} /> Back
               </button>
+              <div className="mb-6 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-sm flex items-center gap-2">
+                <span>✨</span>
+                <span>Your 14-day Pro trial has started. All features are unlocked.</span>
+              </div>
               <h1 className="text-3xl font-bold text-white font-heading mb-2">Add your first product</h1>
               <p className="text-gray-400 mb-10">You can add more products later in Inventory.</p>
               

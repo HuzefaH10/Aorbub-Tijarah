@@ -9,7 +9,7 @@ import Toast, { useToast } from '../ui/Toast';
 import { useSearchParams } from 'react-router-dom';
 
 export default function TabBillHistory({ cardCls }) {
-  const { plan, isPro, isFree, isTrialActive, daysLeftInTrial, planActivatedAt } = usePlan();
+  const { plan, isPro, isFree, isTrialActive, daysLeftInTrial, planActivatedAt, trialUsed } = usePlan();
   const { activeBusinessId, businessData } = useBusiness();
   const { isOwner } = useRole();
   const { toast, showToast, hideToast } = useToast();
@@ -100,7 +100,9 @@ export default function TabBillHistory({ cardCls }) {
                 You have access to Stock Management, Daily P&L, and Credits & Dues.
               </p>
               <p className="text-xs text-amber-600 dark:text-amber-400 font-semibold mt-2">
-                Unlock invoicing, analytics, staff management and more.
+                {trialUsed 
+                  ? 'Your trial has ended. Upgrade to restore full access.'
+                  : 'Unlock invoicing, analytics, staff management and more.'}
               </p>
             </div>
             {isOwner && (
@@ -120,7 +122,59 @@ export default function TabBillHistory({ cardCls }) {
               </button>
             )}
           </div>
+        ) : isTrialActive ? (
+          /* Trial-specific card */
+          <div>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
+              <div>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-500/20 text-amber-500 flex items-center justify-center">
+                    <Crown size={24} />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white font-heading">Pro Trial</h2>
+                    <p className="text-sm text-amber-600 dark:text-amber-400 font-semibold">
+                      {daysLeftInTrial} day{daysLeftInTrial !== 1 ? 's' : ''} remaining
+                    </p>
+                  </div>
+                </div>
+                {planDate && (
+                  <p className="text-xs text-gray-500 mt-1">Trial started {planDate}</p>
+                )}
+              </div>
+              {isOwner && (
+                <button 
+                  onClick={handleUpgradeClick}
+                  disabled={upgradeLoading}
+                  className="shrink-0 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-500/50 text-white font-bold py-3 px-6 rounded-xl shadow-lg shadow-amber-500/30 transition-all flex items-center gap-2 hover:scale-105"
+                >
+                  {upgradeLoading ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Loading...
+                    </>
+                  ) : (
+                    daysLeftInTrial <= 3 ? '🔥 Upgrade Before It Expires' : 'Lock in Pro'
+                  )}
+                </button>
+              )}
+            </div>
+            {/* Trial progress bar */}
+            <div className="bg-gray-100 dark:bg-gray-800 rounded-full h-2.5 overflow-hidden">
+              <div 
+                className={`h-full rounded-full transition-all duration-500 ${
+                  daysLeftInTrial <= 3 ? 'bg-red-500' : 'bg-amber-500'
+                }`}
+                style={{ width: `${Math.min(100, ((14 - (daysLeftInTrial || 0)) / 14) * 100)}%` }}
+              />
+            </div>
+            <div className="flex justify-between mt-1.5">
+              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Day {14 - (daysLeftInTrial || 0)}</span>
+              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Day 14</span>
+            </div>
+          </div>
         ) : (
+          /* Permanent Pro card */
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-3 mb-2">
@@ -130,7 +184,7 @@ export default function TabBillHistory({ cardCls }) {
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white font-heading">Pro Plan</h2>
               </div>
               <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-                {isTrialActive ? `Trial active — ${daysLeftInTrial} days remaining` : 'Active — No expiry'}
+                Active — No expiry
               </p>
               {planDate && (
                 <p className="text-xs text-gray-500 mt-1">Member since {planDate}</p>
@@ -255,15 +309,23 @@ export default function TabBillHistory({ cardCls }) {
         )}
       </div>
 
-      {/* Upgrade CTA Section (Free users only, Owner only) */}
-      {isFree && isOwner && (
+      {/* Upgrade CTA Section (Free users and trial users, Owner only) */}
+      {(isFree || isTrialActive) && isOwner && (
         <div className="bg-gradient-to-r from-gray-900 to-gray-800 border border-gray-700 rounded-2xl p-8 text-center relative overflow-hidden">
           <div className="absolute top-0 right-0 p-8 opacity-10">
             <Crown size={120} />
           </div>
           <div className="relative z-10">
-            <h3 className="text-2xl font-bold text-white font-heading mb-2">Ready to grow? Upgrade to Pro.</h3>
-            <p className="text-gray-300 text-sm mb-6">One plan. Everything unlocked. Cancel anytime.</p>
+            <h3 className="text-2xl font-bold text-white font-heading mb-2">
+              {isTrialActive 
+                ? `Lock in Pro before your trial ends in ${daysLeftInTrial} day${daysLeftInTrial !== 1 ? 's' : ''}.`
+                : 'Ready to grow? Upgrade to Pro.'}
+            </h3>
+            <p className="text-gray-300 text-sm mb-6">
+              {isTrialActive 
+                ? 'Keep all your Pro features and data access permanently.'
+                : 'One plan. Everything unlocked. Cancel anytime.'}
+            </p>
             <div className="inline-block bg-white/10 rounded-xl px-4 py-2 mb-6 border border-white/20">
               <p className="text-white font-semibold text-sm">{PRO_PRICE_DISPLAY}</p>
             </div>

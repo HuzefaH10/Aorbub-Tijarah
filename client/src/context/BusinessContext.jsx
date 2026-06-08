@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { db } from '../services/firebase';
 import {
-  doc, setDoc, addDoc, collection, onSnapshot, updateDoc, arrayUnion, serverTimestamp
+  doc, setDoc, addDoc, collection, onSnapshot, updateDoc, arrayUnion, serverTimestamp, Timestamp
 } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
 
@@ -40,11 +40,23 @@ export function BusinessProvider({ children }) {
       if (!snap.exists()) {
         // Bootstrap first-time user
         const defaultId = user.uid;
+        const trialExpiry = new Date();
+        trialExpiry.setDate(trialExpiry.getDate() + 14);
+
         await setDoc(userRef, {
           businesses: [defaultId],
           activeBusinessId: defaultId,
           role: 'owner',
         }, { merge: true });
+
+        // Activate 14-day Pro trial on the business doc
+        await setDoc(doc(db, 'businesses', defaultId), {
+          plan: 'pro',
+          planActivatedAt: Timestamp.now(),
+          planExpiresAt: Timestamp.fromDate(trialExpiry),
+          trialUsed: true,
+        }, { merge: true });
+
         return; // will re-fire
       }
 
@@ -134,12 +146,19 @@ export function BusinessProvider({ children }) {
   // ── Create a new business ──
   const createBusiness = useCallback(async ({ name, address, currency: cur }) => {
     if (!user) return;
+    const trialExpiry = new Date();
+    trialExpiry.setDate(trialExpiry.getDate() + 14);
+
     const bizRef = await addDoc(collection(db, 'businesses'), {
       businessName: name,
       address: address || '',
       currency: cur || 'USD',
       ownerId: user.uid,
       createdAt: serverTimestamp(),
+      plan: 'pro',
+      planActivatedAt: Timestamp.now(),
+      planExpiresAt: Timestamp.fromDate(trialExpiry),
+      trialUsed: true,
     });
     const newBizId = bizRef.id;
     await updateDoc(doc(db, 'users', user.uid), {
