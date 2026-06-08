@@ -6,34 +6,68 @@ import { onAuthStateChanged } from 'firebase/auth';
 
 const ThemeContext = createContext();
 
-const DARK_THEMES = ['dark', 'royal-purple', 'royal-green', 'sharp-silver'];
+// Valid color themes (palette only, no mode)
+const COLOR_THEMES = ['royal-purple', 'royal-green', 'sharp-silver', 'dark'];
+const THEME_MODES  = ['dark', 'light'];
 
 export function useTheme() {
   return useContext(ThemeContext);
 }
 
+/**
+ * Reads color theme + mode from a combined theme string.
+ * Legacy strings like 'light' are normalized.
+ *   'royal-purple'       → { colorTheme: 'royal-purple', themeMode: 'dark' }
+ *   'royal-purple-light' → { colorTheme: 'royal-purple', themeMode: 'light' }
+ *   'light'              → { colorTheme: 'royal-purple', themeMode: 'light' }
+ *   'dark'               → { colorTheme: 'dark',         themeMode: 'dark' }
+ */
+function parseTheme(raw) {
+  if (!raw) return { colorTheme: 'royal-purple', themeMode: 'dark' };
+  // Legacy light-only
+  if (raw === 'light') return { colorTheme: 'royal-purple', themeMode: 'light' };
+  // Combined strings e.g. 'royal-purple-light'
+  if (raw.endsWith('-light')) {
+    const base = raw.slice(0, -'-light'.length);
+    return { colorTheme: COLOR_THEMES.includes(base) ? base : 'royal-purple', themeMode: 'light' };
+  }
+  // Plain dark base themes
+  if (COLOR_THEMES.includes(raw)) return { colorTheme: raw, themeMode: 'dark' };
+  return { colorTheme: 'royal-purple', themeMode: 'dark' };
+}
+
+/** Produces the persisted string e.g. 'royal-purple-light' or 'royal-purple' */
+function serializeTheme(colorTheme, themeMode) {
+  if (themeMode === 'light') return `${colorTheme}-light`;
+  return colorTheme;
+}
+
 export function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState(() => {
-    return localStorage.getItem('app-theme') || 'royal-purple';
-  });
-  const prevThemeRef = useRef(theme);
+  const stored = localStorage.getItem('app-theme') || 'royal-purple';
+  const parsed  = parseTheme(stored);
 
-  // Apply theme immediately on initial state
+  const [colorTheme, setColorTheme] = useState(parsed.colorTheme);
+  const [themeMode,  setThemeMode]  = useState(parsed.themeMode);
+
+  const prevRef = useRef(stored);
+
+  // Apply on mount
   useEffect(() => {
-    applyTheme(theme);
-  }, []);
+    applyTheme(colorTheme, themeMode);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Sync with Firestore when user is authenticated
+  // Sync from Firestore on auth
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         try {
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
-          if (userDoc.exists() && userDoc.data().theme) {
-            const firestoreTheme = userDoc.data().theme;
-            setTheme(firestoreTheme);
-            applyTheme(firestoreTheme);
-            localStorage.setItem('app-theme', firestoreTheme);
+          const snap = await getDoc(doc(db, 'users', user.uid));
+          if (snap.exists() && snap.data().theme) {
+            const { colorTheme: ct, themeMode: tm } = parseTheme(snap.data().theme);
+            setColorTheme(ct);
+            setThemeMode(tm);
+            applyTheme(ct, tm);
+            localStorage.setItem('app-theme', snap.data().theme);
           }
         } catch (err) {
           console.error('Failed to load theme from Firestore:', err);
@@ -43,48 +77,96 @@ export function ThemeProvider({ children }) {
     return unsubscribe;
   }, []);
 
-  const applyTheme = (newTheme) => {
+  function applyTheme(ct, tm) {
     const root = document.documentElement;
-    // Clean up all theme classes and attributes
-    root.classList.remove('dark', 'light', 'royal-purple', 'royal-green', 'sharp-silver');
+    // Clean previous state
+    root.classList.remove('dark', 'light', 'royal-purple', 'royal-green', 'sharp-silver', 'gold-black');
     root.removeAttribute('data-theme');
+    root.removeAttribute('data-mode');
 
-    // Apply new theme
-    if (newTheme === 'light') {
+    if (tm === 'light') {
       root.classList.add('light');
-    } else if (DARK_THEMES.includes(newTheme)) {
-      root.classList.add('dark', newTheme);
-      root.setAttribute('data-theme', newTheme);
+      root.setAttribute('data-theme', ct);
+      root.setAttribute('data-mode', 'light');
     } else {
       root.classList.add('dark');
+      if (ct !== 'dark') {
+        root.setAttribute('data-theme', ct);
+      }
     }
-  };
+  }
 
-  const changeTheme = async (newTheme) => {
-    const previousTheme = theme;
-    prevThemeRef.current = previousTheme;
-    setTheme(newTheme);
-    applyTheme(newTheme);
-    localStorage.setItem('app-theme', newTheme);
+  /**
+   * Change just the color palette — keeps current mode.
+   * Also accepts legacy combined strings for backward compatibility.
+   */
+  const changeTheme = async (newVal) => {
+    // Accept both a raw color theme name and a serialized combined string
+    const { colorTheme: newCT, themeMode: newTM } = COLOR_THEMES.includes(newVal)
+      ? { colorTheme: newVal, themeMode }   // keep current mode
+      : parseTheme(newVal);                 // full parse (legacy / external)
 
-    // Persist to Firestore if user is logged in
+    const previousSerialized = serializeTheme(colorTheme, themeMode);
+    prevRef.current = previousSerialized;
+
+    setColorTheme(newCT);
+    setThemeMode(newTM);
+    applyTheme(newCT, newTM);
+
+    const serialized = serializeTheme(newCT, newTM);
+    localStorage.setItem('app-theme', serialized);
+
     const user = auth.currentUser;
     if (user) {
       try {
-        await setDoc(doc(db, 'users', user.uid), { theme: newTheme }, { merge: true });
+        await setDoc(doc(db, 'users', user.uid), { theme: serialized }, { merge: true });
       } catch (err) {
         console.error('Failed to save theme to Firestore:', err);
       }
     }
 
-    return { from: previousTheme, to: newTheme };
+    return { from: previousSerialized, to: serialized };
   };
 
-  // Backwards compatibility for components that only read isDark
-  const isDark = DARK_THEMES.includes(theme) || theme === 'dark';
+  /** Change just the light/dark mode — keeps current color theme */
+  const changeMode = async (newMode) => {
+    if (!THEME_MODES.includes(newMode)) return;
+    const previousSerialized = serializeTheme(colorTheme, themeMode);
+    prevRef.current = previousSerialized;
+
+    setThemeMode(newMode);
+    applyTheme(colorTheme, newMode);
+
+    const serialized = serializeTheme(colorTheme, newMode);
+    localStorage.setItem('app-theme', serialized);
+
+    const user = auth.currentUser;
+    if (user) {
+      try {
+        await setDoc(doc(db, 'users', user.uid), { theme: serialized }, { merge: true });
+      } catch (err) {
+        console.error('Failed to save mode to Firestore:', err);
+      }
+    }
+
+    return { from: previousSerialized, to: serialized };
+  };
+
+  // Backwards compat
+  const isDark = themeMode === 'dark';
+  // The legacy `theme` string used throughout the app
+  const theme = colorTheme;
 
   return (
-    <ThemeContext.Provider value={{ theme, isDark, changeTheme, previousTheme: prevThemeRef.current }}>
+    <ThemeContext.Provider value={{
+      theme,
+      colorTheme,
+      themeMode,
+      isDark,
+      changeTheme,
+      changeMode,
+      previousTheme: prevRef.current,
+    }}>
       {children}
     </ThemeContext.Provider>
   );

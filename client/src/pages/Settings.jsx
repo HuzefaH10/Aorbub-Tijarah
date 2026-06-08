@@ -95,7 +95,7 @@ export default function Settings() {
   const { settings, updateSettings } = useSettings();
   const { role, hasPermission, isOwner, isAdmin } = useRole();
   const { members, invites, sendInvite, cancelInvite, removeMember } = useTeam();
-  const { theme, changeTheme } = useTheme();
+  const { theme, colorTheme, themeMode, changeTheme, changeMode } = useTheme();
   const auditLog = useAuditLog();
   const navigate = useNavigate();
   const { history: loginHistory, loading: loginHistoryLoading } = useLoginHistory(user?.uid);
@@ -1240,169 +1240,169 @@ export default function Settings() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-              {/* Royal Purple */}
-              <button
-                onClick={async () => { const r = await changeTheme('royal-purple'); writeAuditLog(user, role, 'THEME_CHANGED', `Theme changed from ${r.from} to ${r.to}`, null, activeBusinessId); }}
-                className={`group relative rounded-xl overflow-hidden border-2 transition-all duration-200 ${
-                  theme === 'royal-purple'
-                    ? 'border-primary-500 ring-2 ring-primary-500/30 shadow-lg shadow-primary-500/10'
-                    : 'border-gray-200 dark:border-white/10 hover:border-primary-400'
-                }`}
-              >
-                <div className="w-full h-[80px] relative" style={{ background: '#0D0D1A' }}>
-                  <div className="absolute inset-0 p-2.5">
-                    <div className="w-full h-1.5 rounded-full mb-1.5" style={{ background: '#7C3AED', width: '60%' }} />
-                    <div className="flex gap-1.5">
-                      <div className="w-1/2 h-6 rounded" style={{ background: '#1a1a2e' }} />
-                      <div className="w-1/2 h-6 rounded" style={{ background: '#1a1a2e' }} />
+            <div className="mb-5">
+              <p className="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">Color Theme</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {/* Royal Purple */}
+                <button
+                  onClick={async () => { const r = await changeTheme('royal-purple'); writeAuditLog(user, role, 'THEME_CHANGED', `Theme changed from ${r.from} to ${r.to}`, null, activeBusinessId); }}
+                  className={`group relative rounded-xl overflow-hidden border-2 transition-all duration-200 ${
+                    colorTheme === 'royal-purple'
+                      ? 'border-[#6B0DAF] ring-2 ring-[#6B0DAF]/30 shadow-lg shadow-[#6B0DAF]/10'
+                      : 'border-gray-200 dark:border-white/10 hover:border-[#6B0DAF]/50'
+                  }`}
+                >
+                  <div className="w-full h-[80px] relative" style={{ background: themeMode === 'light' ? '#f5f3ff' : '#0D0D1A' }}>
+                    <div className="absolute inset-0 p-2.5">
+                      <div className="w-full h-1.5 rounded-full mb-1.5" style={{ background: '#7C3AED', width: '60%' }} />
+                      <div className="flex gap-1.5">
+                        <div className="w-1/2 h-6 rounded" style={{ background: themeMode === 'light' ? '#ede9fe' : '#1a1a2e' }} />
+                        <div className="w-1/2 h-6 rounded" style={{ background: themeMode === 'light' ? '#ede9fe' : '#1a1a2e' }} />
+                      </div>
+                      <div className="mt-1.5 w-full h-3 rounded" style={{ background: themeMode === 'light' ? '#ddd6fe' : '#1a1a2e' }}>
+                        <div className="h-full rounded" style={{ background: '#7C3AED', width: '40%', opacity: 0.5 }} />
+                      </div>
                     </div>
-                    <div className="mt-1.5 w-full h-3 rounded" style={{ background: '#1a1a2e' }}>
-                      <div className="h-full rounded" style={{ background: '#7C3AED', width: '40%', opacity: 0.5 }} />
-                    </div>
+                    {colorTheme === 'royal-purple' && (
+                      <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: '#6B0DAF' }}>
+                        <Check size={12} className="text-white" />
+                      </div>
+                    )}
                   </div>
-                  {theme === 'royal-purple' && (
-                    <div className="absolute top-1.5 right-1.5 w-5 h-5 bg-primary-500 rounded-full flex items-center justify-center">
-                      <Check size={12} className="text-white" />
-                    </div>
-                  )}
-                </div>
-                <div className="px-3 py-2.5 bg-white dark:bg-gray-900/80">
-                  <p className="text-xs font-bold text-gray-800 dark:text-white">Royal Purple</p>
-                  <p className="text-[10px] text-gray-400 mt-0.5">Default</p>
-                </div>
-              </button>
+                  <div className="px-3 py-2.5 bg-white dark:bg-gray-900/80">
+                    <p className="text-xs font-bold text-gray-800 dark:text-white">Royal Purple</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">Default</p>
+                  </div>
+                </button>
 
-              {/* Royal Green */}
-              <button
-                onClick={async () => { const r = await changeTheme('royal-green'); writeAuditLog(user, role, 'THEME_CHANGED', `Theme changed from ${r.from} to ${r.to}`, null, activeBusinessId); }}
-                className={`group relative rounded-xl overflow-hidden border-2 transition-all duration-200 ${
-                  theme === 'royal-green'
-                    ? 'border-green-500 ring-2 ring-green-500/30 shadow-lg shadow-green-500/10'
-                    : 'border-gray-200 dark:border-white/10 hover:border-green-400'
-                }`}
-              >
-                <div className="w-full h-[80px] relative" style={{ background: '#0a0f0a' }}>
-                  <div className="absolute inset-0 p-2.5">
-                    <div className="w-full h-1.5 rounded-full mb-1.5" style={{ background: '#2e7d32', width: '60%' }} />
-                    <div className="flex gap-1.5">
-                      <div className="w-1/2 h-6 rounded" style={{ background: '#162016' }} />
-                      <div className="w-1/2 h-6 rounded" style={{ background: '#162016' }} />
+                {/* Royal Green */}
+                <button
+                  onClick={async () => { const r = await changeTheme('royal-green'); writeAuditLog(user, role, 'THEME_CHANGED', `Theme changed from ${r.from} to ${r.to}`, null, activeBusinessId); }}
+                  className={`group relative rounded-xl overflow-hidden border-2 transition-all duration-200 ${
+                    colorTheme === 'royal-green'
+                      ? 'border-green-500 ring-2 ring-green-500/30 shadow-lg shadow-green-500/10'
+                      : 'border-gray-200 dark:border-white/10 hover:border-green-400'
+                  }`}
+                >
+                  <div className="w-full h-[80px] relative" style={{ background: themeMode === 'light' ? '#f1f8f1' : '#0a0f0a' }}>
+                    <div className="absolute inset-0 p-2.5">
+                      <div className="w-full h-1.5 rounded-full mb-1.5" style={{ background: '#2e7d32', width: '60%' }} />
+                      <div className="flex gap-1.5">
+                        <div className="w-1/2 h-6 rounded" style={{ background: themeMode === 'light' ? '#c8e6c9' : '#162016' }} />
+                        <div className="w-1/2 h-6 rounded" style={{ background: themeMode === 'light' ? '#c8e6c9' : '#162016' }} />
+                      </div>
+                      <div className="mt-1.5 w-full h-3 rounded" style={{ background: themeMode === 'light' ? '#e8f5e9' : '#162016' }}>
+                        <div className="h-full rounded" style={{ background: '#ffd600', width: '40%', opacity: 0.5 }} />
+                      </div>
                     </div>
-                    <div className="mt-1.5 w-full h-3 rounded" style={{ background: '#162016' }}>
-                      <div className="h-full rounded" style={{ background: '#ffd600', width: '40%', opacity: 0.5 }} />
-                    </div>
+                    {colorTheme === 'royal-green' && (
+                      <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: '#2e7d32' }}>
+                        <Check size={12} className="text-white" />
+                      </div>
+                    )}
                   </div>
-                  {theme === 'royal-green' && (
-                    <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: '#2e7d32' }}>
-                      <Check size={12} className="text-white" />
-                    </div>
-                  )}
-                </div>
-                <div className="px-3 py-2.5 bg-white dark:bg-gray-900/80">
-                  <p className="text-xs font-bold text-gray-800 dark:text-white">Royal Green</p>
-                  <p className="text-[10px] text-gray-400 mt-0.5">Emerald & gold</p>
-                </div>
-              </button>
+                  <div className="px-3 py-2.5 bg-white dark:bg-gray-900/80">
+                    <p className="text-xs font-bold text-gray-800 dark:text-white">Royal Green</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">Emerald & gold</p>
+                  </div>
+                </button>
 
-              {/* Sharp Silver */}
-              <button
-                onClick={async () => { const r = await changeTheme('sharp-silver'); writeAuditLog(user, role, 'THEME_CHANGED', `Theme changed from ${r.from} to ${r.to}`, null, activeBusinessId); }}
-                className={`group relative rounded-xl overflow-hidden border-2 transition-all duration-200 ${
-                  theme === 'sharp-silver'
-                    ? 'border-gray-400 ring-2 ring-gray-400/30 shadow-lg shadow-gray-400/10'
-                    : 'border-gray-200 dark:border-white/10 hover:border-gray-400'
-                }`}
-              >
-                <div className="w-full h-[80px] relative" style={{ background: '#0c0c0e' }}>
-                  <div className="absolute inset-0 p-2.5">
-                    <div className="w-full h-1.5 rounded-full mb-1.5" style={{ background: '#9e9e9e', width: '60%' }} />
-                    <div className="flex gap-1.5">
-                      <div className="w-1/2 h-6 rounded" style={{ background: '#1a1a20' }} />
-                      <div className="w-1/2 h-6 rounded" style={{ background: '#1a1a20' }} />
+                {/* Sharp Silver */}
+                <button
+                  onClick={async () => { const r = await changeTheme('sharp-silver'); writeAuditLog(user, role, 'THEME_CHANGED', `Theme changed from ${r.from} to ${r.to}`, null, activeBusinessId); }}
+                  className={`group relative rounded-xl overflow-hidden border-2 transition-all duration-200 ${
+                    colorTheme === 'sharp-silver'
+                      ? 'border-gray-400 ring-2 ring-gray-400/30 shadow-lg shadow-gray-400/10'
+                      : 'border-gray-200 dark:border-white/10 hover:border-gray-400'
+                  }`}
+                >
+                  <div className="w-full h-[80px] relative" style={{ background: themeMode === 'light' ? '#f5f5f7' : '#0c0c0e' }}>
+                    <div className="absolute inset-0 p-2.5">
+                      <div className="w-full h-1.5 rounded-full mb-1.5" style={{ background: '#9e9e9e', width: '60%' }} />
+                      <div className="flex gap-1.5">
+                        <div className="w-1/2 h-6 rounded" style={{ background: themeMode === 'light' ? '#e0e0e8' : '#1a1a20' }} />
+                        <div className="w-1/2 h-6 rounded" style={{ background: themeMode === 'light' ? '#e0e0e8' : '#1a1a20' }} />
+                      </div>
+                      <div className="mt-1.5 w-full h-3 rounded" style={{ background: themeMode === 'light' ? '#ebebef' : '#1a1a20' }}>
+                        <div className="h-full rounded" style={{ background: '#00b0ff', width: '40%', opacity: 0.5 }} />
+                      </div>
                     </div>
-                    <div className="mt-1.5 w-full h-3 rounded" style={{ background: '#1a1a20' }}>
-                      <div className="h-full rounded" style={{ background: '#00b0ff', width: '40%', opacity: 0.5 }} />
-                    </div>
+                    {colorTheme === 'sharp-silver' && (
+                      <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: '#9e9e9e' }}>
+                        <Check size={12} className="text-black" />
+                      </div>
+                    )}
                   </div>
-                  {theme === 'sharp-silver' && (
-                    <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: '#9e9e9e' }}>
-                      <Check size={12} className="text-black" />
-                    </div>
-                  )}
-                </div>
-                <div className="px-3 py-2.5 bg-white dark:bg-gray-900/80">
-                  <p className="text-xs font-bold text-gray-800 dark:text-white">Sharp Silver</p>
-                  <p className="text-[10px] text-gray-400 mt-0.5">Terminal chic</p>
-                </div>
-              </button>
+                  <div className="px-3 py-2.5 bg-white dark:bg-gray-900/80">
+                    <p className="text-xs font-bold text-gray-800 dark:text-white">Sharp Silver</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">Terminal chic</p>
+                  </div>
+                </button>
 
-              {/* Light Mode */}
-              <button
-                onClick={async () => { const r = await changeTheme('light'); writeAuditLog(user, role, 'THEME_CHANGED', `Theme changed from ${r.from} to ${r.to}`, null, activeBusinessId); }}
-                className={`group relative rounded-xl overflow-hidden border-2 transition-all duration-200 ${
-                  theme === 'light'
-                    ? 'border-primary-500 ring-2 ring-primary-500/30 shadow-lg shadow-primary-500/10'
-                    : 'border-gray-200 dark:border-white/10 hover:border-primary-400'
-                }`}
-              >
-                <div className="w-full h-[80px] relative" style={{ background: '#F8F9FA' }}>
-                  <div className="absolute inset-0 p-2.5">
-                    <div className="w-full h-1.5 rounded-full mb-1.5" style={{ background: '#7C3AED', width: '60%' }} />
-                    <div className="flex gap-1.5">
-                      <div className="w-1/2 h-6 rounded" style={{ background: '#FFFFFF', border: '1px solid #E5E7EB' }} />
-                      <div className="w-1/2 h-6 rounded" style={{ background: '#FFFFFF', border: '1px solid #E5E7EB' }} />
+                {/* Gold & Black */}
+                <button
+                  onClick={async () => { const r = await changeTheme('dark'); writeAuditLog(user, role, 'THEME_CHANGED', `Theme changed from ${r.from} to ${r.to}`, null, activeBusinessId); }}
+                  className={`group relative rounded-xl overflow-hidden border-2 transition-all duration-200 ${
+                    colorTheme === 'dark'
+                      ? 'border-amber-500 ring-2 ring-amber-500/30 shadow-lg shadow-amber-500/10'
+                      : 'border-gray-200 dark:border-white/10 hover:border-amber-400'
+                  }`}
+                >
+                  <div className="w-full h-[80px] relative" style={{ background: themeMode === 'light' ? '#fdf8ee' : '#0A0A0A' }}>
+                    <div className="absolute inset-0 p-2.5">
+                      <div className="w-full h-1.5 rounded-full mb-1.5" style={{ background: '#F59E0B', width: '60%' }} />
+                      <div className="flex gap-1.5">
+                        <div className="w-1/2 h-6 rounded" style={{ background: themeMode === 'light' ? '#f5e4b0' : '#1A1A1A' }} />
+                        <div className="w-1/2 h-6 rounded" style={{ background: themeMode === 'light' ? '#f5e4b0' : '#1A1A1A' }} />
+                      </div>
+                      <div className="mt-1.5 w-full h-3 rounded" style={{ background: themeMode === 'light' ? '#faf0d7' : '#1A1A1A' }}>
+                        <div className="h-full rounded" style={{ background: '#F59E0B', width: '40%', opacity: 0.5 }} />
+                      </div>
                     </div>
-                    <div className="mt-1.5 w-full h-3 rounded" style={{ background: '#E5E7EB' }}>
-                      <div className="h-full rounded" style={{ background: '#7C3AED', width: '40%', opacity: 0.5 }} />
-                    </div>
+                    {colorTheme === 'dark' && (
+                      <div className="absolute top-1.5 right-1.5 w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center">
+                        <Check size={12} className="text-white" />
+                      </div>
+                    )}
                   </div>
-                  {theme === 'light' && (
-                    <div className="absolute top-1.5 right-1.5 w-5 h-5 bg-primary-500 rounded-full flex items-center justify-center">
-                      <Check size={12} className="text-white" />
-                    </div>
-                  )}
-                </div>
-                <div className="px-3 py-2.5 bg-white dark:bg-gray-900/80">
-                  <p className="text-xs font-bold text-gray-800 dark:text-white">Light Mode</p>
-                  <p className="text-[10px] text-gray-400 mt-0.5">Clean & bright</p>
-                </div>
-              </button>
-
-              {/* Gold & Black */}
-              <button
-                onClick={async () => { const r = await changeTheme('dark'); writeAuditLog(user, role, 'THEME_CHANGED', `Theme changed from ${r.from} to ${r.to}`, null, activeBusinessId); }}
-                className={`group relative rounded-xl overflow-hidden border-2 transition-all duration-200 ${
-                  theme === 'dark'
-                    ? 'border-amber-500 ring-2 ring-amber-500/30 shadow-lg shadow-amber-500/10'
-                    : 'border-gray-200 dark:border-white/10 hover:border-amber-400'
-                }`}
-              >
-                <div className="w-full h-[80px] relative" style={{ background: '#0A0A0A' }}>
-                  <div className="absolute inset-0 p-2.5">
-                    <div className="w-full h-1.5 rounded-full mb-1.5" style={{ background: '#F59E0B', width: '60%' }} />
-                    <div className="flex gap-1.5">
-                      <div className="w-1/2 h-6 rounded" style={{ background: '#1A1A1A' }} />
-                      <div className="w-1/2 h-6 rounded" style={{ background: '#1A1A1A' }} />
-                    </div>
-                    <div className="mt-1.5 w-full h-3 rounded" style={{ background: '#1A1A1A' }}>
-                      <div className="h-full rounded" style={{ background: '#F59E0B', width: '40%', opacity: 0.5 }} />
-                    </div>
+                  <div className="px-3 py-2.5 bg-white dark:bg-gray-900/80">
+                    <p className="text-xs font-bold text-gray-800 dark:text-white">Gold & Black</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">Premium dark</p>
                   </div>
-                  {theme === 'dark' && (
-                    <div className="absolute top-1.5 right-1.5 w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center">
-                      <Check size={12} className="text-white" />
-                    </div>
-                  )}
-                </div>
-                <div className="px-3 py-2.5 bg-white dark:bg-gray-900/80">
-                  <p className="text-xs font-bold text-gray-800 dark:text-white">Gold & Black</p>
-                  <p className="text-[10px] text-gray-400 mt-0.5">Premium dark</p>
-                </div>
-              </button>
+                </button>
+              </div>
             </div>
 
-            <p className="text-[10px] text-gray-400 dark:text-gray-600 mt-4 text-center">Theme is applied instantly and saved to your account.</p>
+            {/* Theme Mode Toggle */}
+            <div className="flex items-center justify-between py-4 border-t border-gray-100 dark:border-white/[0.05]">
+              <div>
+                <p className="text-sm font-semibold text-gray-800 dark:text-white">Theme Mode</p>
+                <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">Choose between dark and light surfaces</p>
+              </div>
+              <div className="flex items-center gap-1 p-1 rounded-lg bg-gray-100 dark:bg-gray-900/60 border border-gray-200 dark:border-white/[0.06]">
+                {[
+                  { id: 'dark',  label: 'Dark',  icon: '🌙' },
+                  { id: 'light', label: 'Light', icon: '☀️' },
+                ].map(({ id, label, icon }) => (
+                  <button
+                    key={id}
+                    onClick={async () => {
+                      const r = await changeMode(id);
+                      writeAuditLog(user, role, 'THEME_CHANGED', `Mode changed from ${r.from} to ${r.to}`, null, activeBusinessId);
+                    }}
+                    className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-bold transition-all duration-200 ${
+                      themeMode === id
+                        ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                    }`}
+                  >
+                    <span>{icon}</span> {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <p className="text-[10px] text-gray-400 dark:text-gray-600 mt-2 text-center">Theme is applied instantly and saved to your account.</p>
           </div>
 
           {/* SECURITY SECTION */}
