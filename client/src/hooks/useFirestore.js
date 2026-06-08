@@ -21,7 +21,7 @@ export function useEntries() {
       data.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
       setEntries(data);
       setLoading(false);
-    });
+    }, (err) => { console.error('useEntries error:', err); setLoading(false); });
     return unsubscribe;
   }, [user, activeBusinessId]);
 
@@ -55,7 +55,7 @@ export function useProducts() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
-    });
+    }, (err) => { console.error('useProducts error:', err); setLoading(false); });
     return unsubscribe;
   }, [user, activeBusinessId]);
 
@@ -91,7 +91,7 @@ export function useEvents() {
       data.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
       setEvents(data);
       setLoading(false);
-    });
+    }, (err) => { console.error('useEvents error:', err); setLoading(false); });
     return unsubscribe;
   }, [user, activeBusinessId]);
 
@@ -120,12 +120,12 @@ export function useStockLogs() {
   const { activeBusinessId } = useBusiness();
 
   useEffect(() => {
-    if (!user || !activeBusinessId) return;
+    if (!user || !activeBusinessId) { setStockLogs([]); setLoading(false); return; }
     const q = query(collection(db, 'stockLogs'), where('userId', '==', activeBusinessId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setStockLogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a, b) => b.date.localeCompare(a.date)));
       setLoading(false);
-    });
+    }, (err) => { console.error('useStockLogs error:', err); setStockLogs([]); setLoading(false); });
     return unsubscribe;
   }, [user, activeBusinessId]);
 
@@ -154,12 +154,12 @@ export function useEventTemplates() {
   const { activeBusinessId } = useBusiness();
 
   useEffect(() => {
-    if (!user || !activeBusinessId) return;
+    if (!user || !activeBusinessId) { setTemplates([]); setLoading(false); return; }
     const q = query(collection(db, 'templates'), where('businessId', '==', activeBusinessId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setTemplates(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a, b) => a.name.localeCompare(b.name)));
       setLoading(false);
-    });
+    }, (err) => { console.error('useEventTemplates error:', err); setLoading(false); });
     return unsubscribe;
   }, [user, activeBusinessId]);
 
@@ -183,12 +183,12 @@ export function useMilestones() {
   const { activeBusinessId } = useBusiness();
 
   useEffect(() => {
-    if (!user || !activeBusinessId) return;
+    if (!user || !activeBusinessId) { setMilestones([]); setLoading(false); return; }
     const q = query(collection(db, 'milestones'), where('userId', '==', activeBusinessId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setMilestones(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a, b) => a.date.localeCompare(b.date)));
       setLoading(false);
-    });
+    }, (err) => { console.error('useMilestones error:', err); setLoading(false); });
     return unsubscribe;
   }, [user, activeBusinessId]);
 
@@ -217,13 +217,13 @@ export function useSettings() {
   const { activeBusinessId } = useBusiness();
 
   useEffect(() => {
-    if (!user || !activeBusinessId) return;
+    if (!user || !activeBusinessId) { setLoading(false); return; }
     const unsubscribe = onSnapshot(doc(db, 'settings', `profile_${activeBusinessId}`), (docSnap) => {
       if (docSnap.exists()) {
         setSettings({ businessName: 'My Business', ...docSnap.data() });
       }
       setLoading(false);
-    });
+    }, (err) => { console.error('useSettings error:', err); setLoading(false); });
     return unsubscribe;
   }, [user, activeBusinessId]);
 
@@ -249,7 +249,7 @@ export function useBills() {
       data.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
       setBills(data);
       setLoading(false);
-    });
+    }, (err) => { console.error('useBills error:', err); setLoading(false); });
     return unsubscribe;
   }, [user, activeBusinessId]);
 
@@ -269,7 +269,7 @@ export function useCategories() {
   const { activeBusinessId } = useBusiness();
 
   useEffect(() => {
-    if (!user || !activeBusinessId) return;
+    if (!user || !activeBusinessId) { setCategories([]); setLoading(false); return; }
     const q = query(collection(db, 'categories'), where('businessId', '==', activeBusinessId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs
@@ -277,7 +277,7 @@ export function useCategories() {
         .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
       setCategories(data);
       setLoading(false);
-    });
+    }, (err) => { console.error('useCategories error:', err); setLoading(false); });
     return unsubscribe;
   }, [user, activeBusinessId]);
 

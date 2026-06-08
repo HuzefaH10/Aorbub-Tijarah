@@ -25,7 +25,7 @@ export function useInvoices() {
       data.sort((a, b) => (b.invoiceNumber || 0) - (a.invoiceNumber || 0));
       setInvoices(data);
       setLoading(false);
-    });
+    }, (err) => { console.error('useInvoices error:', err); setLoading(false); });
     return unsubscribe;
   }, [user, activeBusinessId]);
 
