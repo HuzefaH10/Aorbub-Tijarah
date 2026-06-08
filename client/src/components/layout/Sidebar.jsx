@@ -3,6 +3,10 @@ import {
   BarChart3, DollarSign, Package, CalendarDays, Settings, PenLine, Home, NotebookTabs, Receipt, Truck, FileText
 } from 'lucide-react';
 
+import ProBadge from '../ProBadge';
+
+const PRO_NAV_ITEMS = ['Sales Analytics', 'Expenses', 'Suppliers', 'Invoices'];
+
 const navItems = [
   { to: '/', icon: Home, label: 'Dashboard', size: 24 },
   { to: '/analytics', icon: BarChart3, label: 'Sales Analytics' },
@@ -50,8 +54,9 @@ export default function Sidebar() {
             <span className="w-6 flex justify-center items-center shrink-0">
               <Icon size={size || 20} />
             </span>
-            <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            <span className="flex-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-between">
               {label}
+              {PRO_NAV_ITEMS.includes(label) && <ProBadge />}
             </span>
           </NavLink>
         ))}

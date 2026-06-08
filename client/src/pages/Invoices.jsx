@@ -7,6 +7,7 @@ import { writeAuditLog } from '../hooks/useAuditLog';
 import Toast, { useToast } from '../components/ui/Toast';
 import InvoiceBuilder from '../components/invoice/InvoiceBuilder';
 import InvoicePreviewModal from '../components/invoice/InvoicePreviewModal';
+import ProBadge from '../components/ProBadge';
 import { Plus, FileText, Search, Filter, Trash2, Eye, Download, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const PAGE_SIZE = 15;
@@ -99,7 +100,7 @@ export default function Invoices() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-gray-100 dark:border-gray-800/60 pb-4 mb-6">
         <div>
-          <h2 className="text-xl font-bold text-gray-800 dark:text-white font-heading">Invoices</h2>
+          <h2 className="text-xl font-bold text-gray-800 dark:text-white font-heading flex items-center gap-2">Invoices <ProBadge /></h2>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Create, manage and track all your invoices</p>
         </div>
         <button onClick={() => openBuilder()} className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-bold hover:bg-primary-700 transition-all shadow-lg shadow-primary-600/20">

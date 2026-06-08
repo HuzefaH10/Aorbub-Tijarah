@@ -12,6 +12,7 @@ import TabBillHistory from '../components/settings/TabBillHistory';
 import DeleteAccountModal from '../components/settings/DeleteAccountModal';
 import TabDataImport from '../components/settings/TabDataImport';
 import Pagination from '../components/ui/Pagination';
+import ProBadge from '../components/ProBadge';
 import { db } from '../services/firebase';
 import { doc, getDoc, setDoc, collection, query, where, getDocs, addDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
@@ -19,14 +20,14 @@ import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 
 const TABS = [
   { id: 'profile', label: 'My Profile', icon: User },
   { id: 'business', label: 'Business Details', icon: Building2 },
-  { id: 'team', label: 'Team', icon: Users },
+  { id: 'team', label: 'Team', icon: Users, proFeature: true },
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'security', label: 'Security', icon: Shield },
-  { id: 'bills', label: 'Bill History', icon: Receipt, ownerOnly: true },
-  { id: 'import', label: 'Data Import', icon: UploadCloud, ownerOnly: true },
+  { id: 'bills', label: 'Bill History', icon: Receipt, ownerOnly: true, proFeature: true },
+  { id: 'import', label: 'Data Import', icon: UploadCloud, ownerOnly: true, proFeature: true },
   { id: 'data', label: 'Data & Privacy', icon: Database },
-  { id: 'audit', label: 'Audit Log', icon: ScrollText, ownerOnly: true },
+  { id: 'audit', label: 'Audit Log', icon: ScrollText, ownerOnly: true, proFeature: true },
 ];
 
 const ROLE_CONFIG = {
@@ -725,18 +726,21 @@ export default function Settings() {
       <div className="flex gap-8 px-6">
         {/* Left Sidebar — fixed 200px */}
         <nav className="w-[200px] shrink-0 space-y-1.5 sticky top-24 self-start">
-          {TABS.filter(t => !t.ownerOnly || isOwner || isAdmin).map(({ id, label, icon: Icon }) => (
+          {TABS.filter(t => !t.ownerOnly || isOwner || isAdmin).map(({ id, label, icon: Icon, proFeature }) => (
             <button
               key={id}
               onClick={() => scrollToSection(id)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all duration-200 ${
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-semibold transition-all duration-200 ${
                 activeTab === id
                   ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/20'
                   : 'text-gray-500 dark:text-gray-400 hover:bg-primary-50 dark:hover:bg-primary-900/10 hover:text-primary-600 dark:hover:text-primary-400'
               }`}
             >
-              <Icon size={18} />
-              {label}
+              <div className="flex items-center gap-3">
+                <Icon size={18} />
+                {label}
+              </div>
+              {proFeature && <ProBadge />}
             </button>
           ))}
         </nav>
@@ -1139,7 +1143,7 @@ export default function Settings() {
 
             {/* Current Team Members */}
             <div>
-              <p className={`${labelCls} mb-3`}>Team Members</p>
+              <p className={`${labelCls} mb-3 flex items-center gap-2`}>Team Members <ProBadge /></p>
               <div className="space-y-2">
                 {/* Current user — always shown first */}
                 <div className="flex items-center justify-between py-3 px-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-100 dark:border-white/5">
@@ -1313,6 +1317,9 @@ export default function Settings() {
                         <Check size={12} className="text-white" />
                       </div>
                     )}
+                    <div className="absolute top-1.5 left-1.5">
+                      <ProBadge />
+                    </div>
                   </div>
                   <div className="px-3 py-2.5 bg-white dark:bg-gray-900/80">
                     <p className="text-xs font-bold text-gray-800 dark:text-white">Royal Green</p>
@@ -1345,6 +1352,9 @@ export default function Settings() {
                         <Check size={12} className="text-black" />
                       </div>
                     )}
+                    <div className="absolute top-1.5 left-1.5">
+                      <ProBadge />
+                    </div>
                   </div>
                   <div className="px-3 py-2.5 bg-white dark:bg-gray-900/80">
                     <p className="text-xs font-bold text-gray-800 dark:text-white">Sharp Silver</p>
@@ -1377,6 +1387,9 @@ export default function Settings() {
                         <Check size={12} className="text-white" />
                       </div>
                     )}
+                    <div className="absolute top-1.5 left-1.5">
+                      <ProBadge />
+                    </div>
                   </div>
                   <div className="px-3 py-2.5 bg-white dark:bg-gray-900/80">
                     <p className="text-xs font-bold text-gray-800 dark:text-white">Gold & Black</p>
