@@ -4,6 +4,7 @@ import ParallaxBackground from './ParallaxBackground';
 import { Outlet, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { StockAlertProvider } from '../../context/StockAlertContext';
+import OnboardingFlow from '../onboarding/OnboardingFlow';
 
 export default function Layout() {
   const location = useLocation();
@@ -29,6 +30,7 @@ export default function Layout() {
             </AnimatePresence>
           </main>
         </div>
+        <OnboardingFlow />
       </div>
     </StockAlertProvider>
   );
