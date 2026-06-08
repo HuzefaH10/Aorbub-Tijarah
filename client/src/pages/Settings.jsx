@@ -1050,47 +1050,6 @@ export default function Settings() {
             )}
           </div>
 
-          {/* NOTIFICATIONS SECTION */}
-          <div id="notifications" className={cardCls}>
-            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100 dark:border-white/[0.06]">
-              <div className="p-2 rounded-lg bg-primary-500/10">
-                <Bell size={20} className="text-primary-500" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-gray-800 dark:text-white font-heading">Notification Preferences</h3>
-                <p className="text-xs text-gray-400 dark:text-gray-500">Choose which alerts you want to receive</p>
-              </div>
-            </div>
-            <form onSubmit={handleNotifSave} className="space-y-1">
-              {[
-                { key: 'lowStock', label: 'Low Stock Alert', desc: 'Notify when any product hits low stock threshold', iconOn: BellRing, iconOff: BellOff },
-                { key: 'outOfStock', label: 'Out of Stock Alert', desc: 'Notify when any product hits zero', iconOn: BellRing, iconOff: BellOff },
-                { key: 'creditDue', label: 'Credit Payment Due', desc: 'Notify when a credit bill due date is today or past', iconOn: BellRing, iconOff: BellOff },
-                { key: 'stockExpiry', label: 'Stock Expiry Warning', desc: 'Notify when product expiry is within 7 days', iconOn: BellRing, iconOff: BellOff },
-                { key: 'newBill', label: 'New Bill Created', desc: 'Notify on every successful checkout', iconOn: BellRing, iconOff: BellOff },
-              ].map(({ key, label, desc }) => (
-                <div key={key} className="flex items-center justify-between py-4 border-b border-gray-100/50 dark:border-white/[0.04] last:border-0">
-                  <div>
-                    <p className="text-sm font-semibold text-gray-800 dark:text-white">{label}</p>
-                    <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">{desc}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => toggleNotif(key)}
-                    className={`relative w-11 h-6 rounded-full transition-colors duration-200 shrink-0 ${notifications[key] ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-700'}`}
-                  >
-                    <span className={`absolute top-[3px] w-[18px] h-[18px] rounded-full bg-white shadow-sm transition-all duration-200 ${notifications[key] ? 'left-[22px]' : 'left-[3px]'}`} />
-                  </button>
-                </div>
-              ))}
-              <div className="pt-4 flex justify-end">
-                <button type="submit" disabled={notifSaving} className={saveBtnCls}>
-                  {notifSaving ? 'Saving...' : <><Save size={15} /> Save Preferences</>}
-                </button>
-              </div>
-            </form>
-          </div>
-
           {/* TEAM SECTION */}
           <div id="team" className={cardCls}>
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100 dark:border-white/[0.06]">
@@ -1226,6 +1185,47 @@ export default function Settings() {
                 )}
               </div>
             </div>
+          </div>
+
+          {/* NOTIFICATIONS SECTION */}
+          <div id="notifications" className={cardCls}>
+            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100 dark:border-white/[0.06]">
+              <div className="p-2 rounded-lg bg-primary-500/10">
+                <Bell size={20} className="text-primary-500" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-gray-800 dark:text-white font-heading">Notification Preferences</h3>
+                <p className="text-xs text-gray-400 dark:text-gray-500">Choose which alerts you want to receive</p>
+              </div>
+            </div>
+            <form onSubmit={handleNotifSave} className="space-y-1">
+              {[
+                { key: 'lowStock', label: 'Low Stock Alert', desc: 'Notify when any product hits low stock threshold', iconOn: BellRing, iconOff: BellOff },
+                { key: 'outOfStock', label: 'Out of Stock Alert', desc: 'Notify when any product hits zero', iconOn: BellRing, iconOff: BellOff },
+                { key: 'creditDue', label: 'Credit Payment Due', desc: 'Notify when a credit bill due date is today or past', iconOn: BellRing, iconOff: BellOff },
+                { key: 'stockExpiry', label: 'Stock Expiry Warning', desc: 'Notify when product expiry is within 7 days', iconOn: BellRing, iconOff: BellOff },
+                { key: 'newBill', label: 'New Bill Created', desc: 'Notify on every successful checkout', iconOn: BellRing, iconOff: BellOff },
+              ].map(({ key, label, desc }) => (
+                <div key={key} className="flex items-center justify-between py-4 border-b border-gray-100/50 dark:border-white/[0.04] last:border-0">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800 dark:text-white">{label}</p>
+                    <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">{desc}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => toggleNotif(key)}
+                    className={`relative w-11 h-6 rounded-full transition-colors duration-200 shrink-0 ${notifications[key] ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-700'}`}
+                  >
+                    <span className={`absolute top-[3px] w-[18px] h-[18px] rounded-full bg-white shadow-sm transition-all duration-200 ${notifications[key] ? 'left-[22px]' : 'left-[3px]'}`} />
+                  </button>
+                </div>
+              ))}
+              <div className="pt-4 flex justify-end">
+                <button type="submit" disabled={notifSaving} className={saveBtnCls}>
+                  {notifSaving ? 'Saving...' : <><Save size={15} /> Save Preferences</>}
+                </button>
+              </div>
+            </form>
           </div>
 
           {/* APPEARANCE SECTION */}
@@ -1639,6 +1639,18 @@ export default function Settings() {
             )}
           </div>
 
+          {/* BILL HISTORY SECTION — owner/admin only */}
+          {(isOwner || isAdmin) && (
+            <TabBillHistory cardCls={cardCls} labelCls={labelCls} inputCls={inputCls} />
+          )}
+
+          {/* DATA IMPORT SECTION — owner only */}
+          {isOwner && (
+            <div id="import" className={cardCls}>
+              <TabDataImport />
+            </div>
+          )}
+
           {/* DATA & PRIVACY SECTION */}
           <div id="data" className="space-y-6">
             {/* Export Data Card */}
@@ -1788,18 +1800,6 @@ export default function Settings() {
                   </button>
                 </div>
               </div>
-            </div>
-          )}
-
-          {/* BILL HISTORY SECTION — owner/admin only */}
-          {(isOwner || isAdmin) && (
-            <TabBillHistory cardCls={cardCls} labelCls={labelCls} inputCls={inputCls} />
-          )}
-
-          {/* DATA IMPORT SECTION — owner only */}
-          {isOwner && (
-            <div id="import" className={cardCls}>
-              <TabDataImport />
             </div>
           )}
 
