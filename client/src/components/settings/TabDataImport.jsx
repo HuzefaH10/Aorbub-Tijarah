@@ -42,7 +42,7 @@ export default function TabDataImport() {
   const { user } = useAuth();
   const { activeBusinessId } = useBusiness();
   const { role } = useRole();
-  const { toast } = useToast();
+  const { toast, showToast, hideToast } = useToast();
   
   const [importTab, setImportTab] = useState('products'); // 'products' | 'sales'
   const [step, setStep] = useState(STEPS.UPLOAD);
@@ -80,7 +80,7 @@ export default function TabDataImport() {
     const f = e.target.files[0];
     if (!f) return;
     if (f.size > 10 * 1024 * 1024) {
-      toast('File is too large. Max 10MB.', 'error');
+      showToast('File is too large. Max 10MB.', 'error');
       return;
     }
     setFile(f);
@@ -103,12 +103,12 @@ export default function TabDataImport() {
         if (data.length > 0) {
           processParsedData(data, Object.keys(data[0]));
         } else {
-          toast('Spreadsheet is empty', 'error');
+          showToast('Spreadsheet is empty', 'error');
         }
       };
       reader.readAsBinaryString(f);
     } else {
-      toast('Invalid file type. Please upload CSV or Excel.', 'error');
+      showToast('Invalid file type. Please upload CSV or Excel.', 'error');
     }
   };
 
@@ -157,7 +157,7 @@ export default function TabDataImport() {
 
   const proceedFromMapping = () => {
     if (!Object.values(columnMap).includes('productName')) {
-      toast('Product Name is required. Please map a column to it.', 'error');
+      showToast('Product Name is required. Please map a column to it.', 'error');
       return;
     }
     setStep(STEPS.CATEGORIES);
@@ -215,7 +215,7 @@ export default function TabDataImport() {
     const groups = groupByNameSimilarity(unassignedProducts);
     
     if (groups.length === 0) {
-      toast('Could not find obvious similarities to auto-group.', 'info');
+      showToast('Could not find obvious similarities to auto-group.', 'info');
       return;
     }
     
@@ -229,13 +229,13 @@ export default function TabDataImport() {
       });
       return next;
     });
-    toast(`Auto-grouped items into ${groups.length} categories!`, 'success');
+    showToast(`Auto-grouped items into ${groups.length} categories!`, 'success');
   };
 
   const proceedFromCategories = () => {
     const unassignedCount = missingCategories.filter(m => !categoryAssignments[m.index]).length;
     if (unassignedCount > 0) {
-      toast(`Please assign categories to the remaining ${unassignedCount} products`, 'error');
+      showToast(`Please assign categories to the remaining ${unassignedCount} products`, 'error');
       return;
     }
     setStep(STEPS.UNITS);
@@ -263,7 +263,7 @@ export default function TabDataImport() {
   const proceedFromUnits = () => {
     const unassignedCount = unrecognizedUnits.filter(u => !unitAssignments[u]).length;
     if (unassignedCount > 0) {
-      toast(`Please map all unrecognized units`, 'error');
+      showToast(`Please map all unrecognized units`, 'error');
       return;
     }
     const nameCol = Object.keys(columnMap).find(k => columnMap[k] === 'productName');
@@ -295,7 +295,7 @@ export default function TabDataImport() {
   };
 
   const proceedFromReview = () => {
-    if (reviewProducts.length === 0) { toast('No products to import', 'error'); return; }
+    if (reviewProducts.length === 0) { showToast('No products to import', 'error'); return; }
     const cats = new Set(reviewProducts.map(p => p.category).filter(Boolean));
     const noPrice = reviewProducts.filter(p => !p.price || p.price <= 0).length;
     const skipped = columns.filter(c => columnMap[c] === 'skip');
@@ -359,7 +359,7 @@ export default function TabDataImport() {
       setStep(STEPS.SUCCESS);
     } catch (err) {
       console.error(err);
-      toast('An error occurred during import. Check console.', 'error');
+      showToast('An error occurred during import. Check console.', 'error');
       setStep(STEPS.CONFIRM);
     }
   };
@@ -372,6 +372,7 @@ export default function TabDataImport() {
 
   return (
     <div className="w-full max-w-4xl mx-auto py-6 animate-fadeIn">
+      {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
       {/* HEADER */}
       <div className="mb-6">
         <h2 className="text-xl font-bold text-white font-heading">Data Import</h2>
@@ -655,7 +656,7 @@ export default function TabDataImport() {
               </div>
               <div className="flex items-center gap-2 ml-auto">
                 <input type="number" min="0" value={bulkThreshold} onChange={e => setBulkThreshold(e.target.value)} placeholder="Threshold" className="bg-gray-950 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none w-24" />
-                <button onClick={() => { if (!bulkThreshold) return; setReviewProducts(prev => prev.map(p => ({ ...p, threshold: Number(bulkThreshold) }))); toast(`Set threshold to ${bulkThreshold} for all`); }} className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-lg transition-colors">Apply to All</button>
+                <button onClick={() => { if (!bulkThreshold) return; setReviewProducts(prev => prev.map(p => ({ ...p, threshold: Number(bulkThreshold) }))); showToast(`Set threshold to ${bulkThreshold} for all`); }} className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-lg transition-colors">Apply to All</button>
               </div>
             </div>
 
