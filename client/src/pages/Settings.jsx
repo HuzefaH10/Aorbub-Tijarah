@@ -14,8 +14,10 @@ import TabDataImport from '../components/settings/TabDataImport';
 import Pagination from '../components/ui/Pagination';
 import ProBadge from '../components/ProBadge';
 import { useProGate } from '../hooks/useProGate';
-import { db } from '../services/firebase';
+import { useBusiness } from '../context/BusinessContext';
+import { db, storage } from '../services/firebase';
 import { doc, getDoc, setDoc, collection, query, where, getDocs, addDoc, deleteDoc, writeBatch } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 
 const TABS = [
@@ -143,10 +145,11 @@ export default function Settings() {
   });
   const [profileSaving, setProfileSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [profileInitialized, setProfileInitialized] = useState(false);
 
-  // Sync profile when userProfile updates (e.g. initial load or cross-tab updates)
+  // Sync profile when userProfile updates (e.g. initial load)
   useEffect(() => {
-    if (userProfile) {
+    if (userProfile && !profileInitialized) {
       setProfile(prev => ({
         ...prev,
         name: userProfile.fullName || userProfile.displayName || prev.name,
@@ -161,8 +164,9 @@ export default function Settings() {
       if (userProfile.notificationPreferences) {
         setNotifications(prev => ({ ...prev, ...userProfile.notificationPreferences }));
       }
+      setProfileInitialized(true);
     }
-  }, [userProfile]);
+  }, [userProfile, profileInitialized]);
 
 
   // ── Business state ──
@@ -175,10 +179,11 @@ export default function Settings() {
   });
   const [businessSaving, setBusinessSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [businessInitialized, setBusinessInitialized] = useState(false);
 
   // Sync business when businessData updates
   useEffect(() => {
-    if (businessData) {
+    if (businessData && !businessInitialized) {
       setBusiness(prev => ({ ...prev, ...businessData }));
       if (businessData.businessHours) {
         setHoursEnabled(businessData.businessHours.enabled || false);
@@ -186,8 +191,9 @@ export default function Settings() {
           setBusinessHours(prev => ({ ...prev, ...businessData.businessHours.hours }));
         }
       }
+      setBusinessInitialized(true);
     }
-  }, [businessData]);
+  }, [businessData, businessInitialized]);
 
   const DAYS = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
   const DAY_LABELS = { monday:'Monday', tuesday:'Tuesday', wednesday:'Wednesday', thursday:'Thursday', friday:'Friday', saturday:'Saturday', sunday:'Sunday' };
@@ -471,14 +477,22 @@ export default function Settings() {
     setUploadingPhoto(true);
     try {
       const dataUrl = await compressImage(file, 200, 200, 0.85);
-      setProfile(p => ({ ...p, photoURL: dataUrl }));
-      await setDoc(doc(db, 'users', user.uid), { photoURL: dataUrl }, { merge: true });
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      
+      const fileRef = ref(storage, `users/${user.uid}/profile_${Date.now()}.jpg`);
+      await uploadBytes(fileRef, blob);
+      const downloadURL = await getDownloadURL(fileRef);
+
+      setProfile(p => ({ ...p, photoURL: downloadURL }));
+      await setDoc(doc(db, 'users', user.uid), { photoURL: downloadURL }, { merge: true });
       showToast('Profile photo updated');
     } catch (err) {
       console.error(err);
-      showToast('Failed to upload photo', 'error');
+      showToast(err.message || 'Failed to upload photo', 'error');
     } finally {
       setUploadingPhoto(false);
+      e.target.value = '';
     }
   };
 
@@ -516,14 +530,22 @@ export default function Settings() {
     setUploadingLogo(true);
     try {
       const dataUrl = await compressImage(file, 400, 120, 0.9);
-      setBusiness(p => ({ ...p, logoURL: dataUrl }));
-      await setDoc(doc(db, 'businesses', user.uid), { logoURL: dataUrl }, { merge: true });
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      
+      const fileRef = ref(storage, `businesses/${user.uid}/logo_${Date.now()}.jpg`);
+      await uploadBytes(fileRef, blob);
+      const downloadURL = await getDownloadURL(fileRef);
+
+      setBusiness(p => ({ ...p, logoURL: downloadURL }));
+      await setDoc(doc(db, 'businesses', user.uid), { logoURL: downloadURL }, { merge: true });
       showToast('Business logo updated');
     } catch (err) {
       console.error(err);
-      showToast('Failed to upload logo', 'error');
+      showToast(err.message || 'Failed to upload logo', 'error');
     } finally {
       setUploadingLogo(false);
+      e.target.value = '';
     }
   };
 
