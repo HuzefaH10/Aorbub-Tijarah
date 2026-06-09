@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import Toast, { useToast } from '../ui/Toast';
 import { db } from '../../services/firebase';
-import { collection, getDocs, writeBatch, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where, writeBatch, doc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../../context/AuthContext';
 import { useBusiness } from '../../context/BusinessContext';
 import { writeAuditLog } from '../../hooks/useAuditLog';
@@ -79,10 +79,6 @@ export default function TabDataImport() {
   const handleFileUpload = (e) => {
     const f = e.target.files[0];
     if (!f) return;
-    if (f.size > 10 * 1024 * 1024) {
-      showToast('File is too large. Max 10MB.', 'error');
-      return;
-    }
     setFile(f);
     
     const ext = f.name.split('.').pop().toLowerCase();
@@ -112,18 +108,21 @@ export default function TabDataImport() {
     }
   };
 
+  // processParsedData receives the data directly — avoids stale state closure
   const processParsedData = (data, cols) => {
     setRawRows(data);
     setColumns(cols);
-    autoDetectColumns(cols);
+    autoDetectColumns(cols, data); // pass data directly, don't read from state
     setShowModeModal(true);
   };
 
-  const autoDetectColumns = (cols) => {
+  // Accept sampleRows directly to avoid the React stale-state closure problem
+  // (rawRows state won't be updated yet when this function runs)
+  const autoDetectColumns = (cols, sampleRows) => {
     const map = {};
     const conf = {};
     
-    const mappings = detectColumns(cols, rawRows.slice(0, 5));
+    const mappings = detectColumns(cols, (sampleRows || []).slice(0, 5));
     mappings.forEach(m => {
       map[m.originalColumn] = m.mappedTo;
       conf[m.originalColumn] = m.confidence;
@@ -156,10 +155,21 @@ export default function TabDataImport() {
   };
 
   const proceedFromMapping = () => {
-    if (!Object.values(columnMap).includes('productName')) {
-      showToast('Product Name is required. Please map a column to it.', 'error');
+    const mappedValues = Object.values(columnMap);
+    const missingFields = [];
+    
+    console.log('[DataImport] Proceeding from mapping. columnMap:', columnMap);
+    
+    if (!mappedValues.includes('productName')) {
+      missingFields.push('Product Name');
+    }
+    
+    if (missingFields.length > 0) {
+      showToast(`Please map the required fields: ${missingFields.join(', ')}`, 'error');
       return;
     }
+    
+    console.log('[DataImport] Validation passed. Advancing to CATEGORIES step.');
     setStep(STEPS.CATEGORIES);
   };
 
@@ -358,8 +368,9 @@ export default function TabDataImport() {
       await writeAuditLog(user, role, `Bulk Import (${mode})`, `Imported ${newProducts.length} products and ${newCategories.size} categories.`, 'System', activeBusinessId);
       setStep(STEPS.SUCCESS);
     } catch (err) {
-      console.error(err);
-      showToast('An error occurred during import. Check console.', 'error');
+      console.error('[DataImport] Import failed:', err);
+      const errorMsg = err?.message || 'Unknown error';
+      showToast(`Import failed: ${errorMsg}`, 'error');
       setStep(STEPS.CONFIRM);
     }
   };
@@ -403,7 +414,7 @@ export default function TabDataImport() {
           <UploadCloud size={64} className="text-primary-500 mb-6" />
           <h3 className="text-xl font-bold text-white mb-2">Drag & drop your file here</h3>
           <p className="text-sm text-gray-400 mb-6 text-center max-w-md">
-            Upload your existing product list (.csv, .xlsx, .xls) and we'll automatically map your fields. Max file size 10MB.
+            Upload your existing product list (.csv, .xlsx, .xls). No size limit.
           </p>
           <button className="px-6 py-2.5 bg-primary-600 text-white text-sm font-bold rounded-xl shadow-lg shadow-primary-600/20">
             Browse Files

@@ -40,7 +40,6 @@ export default function SalesHistoryImport() {
   const handleFile = (e) => {
     const f = e.target.files[0];
     if (!f) return;
-    if (f.size > 10 * 1024 * 1024) { setError('File too large (max 10MB)'); return; }
     setFile(f);
     const ext = f.name.split('.').pop().toLowerCase();
     if (ext === 'csv') {
