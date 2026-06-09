@@ -16,7 +16,7 @@ import ProBadge from '../components/ProBadge';
 import { useProGate } from '../hooks/useProGate';
 import { useBusiness } from '../context/BusinessContext';
 import { db, storage } from '../services/firebase';
-import { doc, getDoc, setDoc, collection, query, where, getDocs, addDoc, deleteDoc, writeBatch } from 'firebase/firestore';
+import { doc, setDoc, collection, query, where, getDocs, addDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 
@@ -95,7 +95,7 @@ const compressImage = (file, maxWidth, maxHeight, quality = 0.8) => {
 
 export default function Settings() {
   const { requirePro, UpgradeModalRenderer } = useProGate();
-  const { user, logout } = useAuth();
+  const { user, logout, updateUserProfile } = useAuth();
   const { toast, showToast, hideToast } = useToast();
   const { settings, updateSettings } = useSettings();
   const { role, hasPermission, isOwner, isAdmin } = useRole();
@@ -147,7 +147,17 @@ export default function Settings() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [profileInitialized, setProfileInitialized] = useState(false);
 
-  // Sync profile when userProfile updates (e.g. initial load)
+  // ALWAYS sync photoURL from the live Firestore snapshot — independent of profileInitialized
+  // This ensures the photo persists across theme changes and page navigations without re-upload.
+  useEffect(() => {
+    if (userProfile?.photoURL !== undefined) {
+      setProfile(prev => ({ ...prev, photoURL: userProfile.photoURL || '' }));
+    }
+  }, [userProfile?.photoURL]);
+
+  // Sync all OTHER profile fields only once on initial load.
+  // profileInitialized prevents theme-change onSnapshot re-fires from overwriting
+  // unsaved form edits the user is actively typing.
   useEffect(() => {
     if (userProfile && !profileInitialized) {
       setProfile(prev => ({
@@ -159,7 +169,6 @@ export default function Settings() {
         emailBackup: userProfile.emailBackup || '',
         language: userProfile.language || 'en',
         bio: userProfile.bio || '',
-        photoURL: userProfile.photoURL || prev.photoURL
       }));
       if (userProfile.notificationPreferences) {
         setNotifications(prev => ({ ...prev, ...userProfile.notificationPreferences }));
@@ -471,25 +480,41 @@ export default function Settings() {
   const handlePhotoUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
-    if (file.size > 10 * 1024 * 1024) return showToast('File must be less than 10MB', 'error');
-    if (!file.type.startsWith('image/')) return showToast('Must be an image', 'error');
-    
+    // No hardcoded size limit — canvas compression handles output size
+    if (!file.type.startsWith('image/')) return showToast('Must be an image file', 'error');
+
+    const previousURL = profile.photoURL;
     setUploadingPhoto(true);
     try {
-      const dataUrl = await compressImage(file, 200, 200, 0.85);
+      // Compress to max 400x400, JPEG 0.8 quality — keeps output under ~50KB
+      const dataUrl = await compressImage(file, 400, 400, 0.8);
       const res = await fetch(dataUrl);
       const blob = await res.blob();
-      
-      const fileRef = ref(storage, `users/${user.uid}/profile_${Date.now()}.jpg`);
-      await uploadBytes(fileRef, blob);
+
+      // Use a STABLE path (overwrites in place) so no orphaned files accumulate
+      // and the URL returned is always the same after the first upload.
+      const fileRef = ref(storage, `users/${user.uid}/profile-photo/photo.jpg`);
+      await uploadBytes(fileRef, blob, { contentType: 'image/jpeg' });
       const downloadURL = await getDownloadURL(fileRef);
 
+      // 1. Update local state immediately so UI reflects the new photo
       setProfile(p => ({ ...p, photoURL: downloadURL }));
+
+      // 2. Persist to Firestore users/{uid}.photoURL — BusinessContext onSnapshot
+      //    will pick this up and broadcast to Topbar and all other consumers
       await setDoc(doc(db, 'users', user.uid), { photoURL: downloadURL }, { merge: true });
-      showToast('Profile photo updated');
+
+      // 3. Also update Firebase Auth profile so currentUser.photoURL is always in sync
+      if (updateUserProfile) {
+        await updateUserProfile({ photoURL: downloadURL });
+      }
+
+      showToast('Profile photo updated successfully');
     } catch (err) {
-      console.error(err);
-      showToast(err.message || 'Failed to upload photo', 'error');
+      console.error('Photo upload failed:', err);
+      // Revert local state to previous photo on failure
+      setProfile(p => ({ ...p, photoURL: previousURL }));
+      showToast('Failed to upload photo. Please try again.', 'error');
     } finally {
       setUploadingPhoto(false);
       e.target.value = '';
@@ -789,7 +814,7 @@ export default function Settings() {
                 </div>
                 <div>
                   <h4 className="text-sm font-bold text-gray-800 dark:text-white">Profile Photo</h4>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">JPG or PNG. Max size 2MB.</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">JPG or PNG. Auto-compressed on upload.</p>
                 </div>
               </div>
 
