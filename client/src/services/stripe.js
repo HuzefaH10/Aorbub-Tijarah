@@ -6,6 +6,8 @@ import { API_BASE_URL, STRIPE_PRICE_ID } from '../constants/pricing';
  * then redirects the user to the Stripe hosted checkout page.
  */
 export async function startCheckout(businessId) {
+  // TODO: Re-enable when Stripe integration is deployed
+  /*
   const user = auth.currentUser;
   if (!user) throw new Error('User not authenticated');
 
@@ -33,12 +35,16 @@ export async function startCheckout(businessId) {
 
   // Redirect to Stripe hosted checkout
   window.location.href = url;
+  */
+  throw new Error('Stripe integration is currently disabled.');
 }
 
 /**
  * Fetches billing history (Stripe invoices) from the backend.
  */
 export async function fetchBillingHistory(businessId) {
+  // TODO: Re-enable when Stripe integration is deployed
+  /*
   const user = auth.currentUser;
   if (!user) throw new Error('User not authenticated');
 
@@ -60,4 +66,6 @@ export async function fetchBillingHistory(businessId) {
 
   const data = await res.json();
   return data.invoices || [];
+  */
+  return []; // Return empty history for now
 }
