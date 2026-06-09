@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { usePlan } from '../../hooks/usePlan';
 import { useBusiness } from '../../context/BusinessContext';
 import { useRole } from '../../hooks/useRole';
-import { Crown, Check, Receipt, Loader2, ExternalLink, Download } from 'lucide-react';
-import { startCheckout, fetchBillingHistory } from '../../services/stripe';
+import { Crown, Check, Receipt, Loader2, ExternalLink, Download, FlaskConical } from 'lucide-react';
+import { fetchBillingHistory } from '../../services/stripe';
+import { activateProNow, switchPlan } from '../../services/planUtils';
 import { PRO_PRICE_DISPLAY } from '../../constants/pricing';
 import Toast, { useToast } from '../ui/Toast';
 import { useSearchParams } from 'react-router-dom';
@@ -16,6 +17,7 @@ export default function TabBillHistory({ cardCls }) {
   const [billingHistory, setBillingHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [upgradeLoading, setUpgradeLoading] = useState(false);
+  const [planToggling, setPlanToggling] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Handle return from Stripe
@@ -53,11 +55,27 @@ export default function TabBillHistory({ cardCls }) {
   const handleUpgradeClick = async () => {
     setUpgradeLoading(true);
     try {
-      await startCheckout(activeBusinessId);
+      await activateProNow(activeBusinessId);
+      // BusinessContext onSnapshot fires within ~500ms and flips isPro → true
+      showToast('🎉 Pro access activated! All features are now unlocked.', 'success');
     } catch (err) {
-      console.error('Checkout error:', err);
+      console.error('Activation error:', err);
       showToast(err.message || 'Something went wrong. Please try again.', 'error');
+    } finally {
       setUpgradeLoading(false);
+    }
+  };
+
+  const handlePlanToggle = async (targetPlan) => {
+    setPlanToggling(true);
+    try {
+      await switchPlan(activeBusinessId, targetPlan);
+      showToast(`Plan switched to ${targetPlan === 'pro' ? 'Pro' : 'Free'} successfully.`, 'success');
+    } catch (err) {
+      console.error('Plan toggle error:', err);
+      showToast(err.message || 'Failed to switch plan.', 'error');
+    } finally {
+      setPlanToggling(false);
     }
   };
 
@@ -348,6 +366,43 @@ export default function TabBillHistory({ cardCls }) {
           </div>
         </div>
       )}
+
+      {/* ── DEV PLAN TOGGLE (remove before production) ── */}
+      <div className="border-2 border-dashed border-red-500/40 rounded-2xl p-6 bg-red-500/5">
+        <div className="flex items-center gap-2 mb-4">
+          <FlaskConical size={18} className="text-red-400" />
+          <span className="text-sm font-bold text-red-400 uppercase tracking-wider">
+            ⚙️ Plan Testing
+          </span>
+          <span className="ml-auto text-[10px] font-bold text-red-400/60 uppercase tracking-widest bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20">
+            Remove before production
+          </span>
+        </div>
+        <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">
+          Current plan: <span className={`font-bold ${plan === 'pro' ? 'text-amber-400' : 'text-gray-300'}`}>{plan}</span>
+          {businessData?.planExpiresAt === null && plan === 'pro' && (
+            <span className="ml-2 text-green-400 font-semibold">(permanent)</span>
+          )}
+        </p>
+        <div className="flex gap-3">
+          <button
+            onClick={() => handlePlanToggle('free')}
+            disabled={planToggling || plan === 'free'}
+            className="flex-1 py-2.5 px-4 rounded-xl text-sm font-bold border border-gray-600 text-gray-300 hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+          >
+            {planToggling ? <Loader2 size={14} className="animate-spin" /> : null}
+            Switch to Free
+          </button>
+          <button
+            onClick={() => handlePlanToggle('pro')}
+            disabled={planToggling || (plan === 'pro' && !businessData?.planExpiresAt)}
+            className="flex-1 py-2.5 px-4 rounded-xl text-sm font-bold bg-amber-500/20 border border-amber-500/40 text-amber-400 hover:bg-amber-500/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+          >
+            {planToggling ? <Loader2 size={14} className="animate-spin" /> : null}
+            Switch to Pro
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

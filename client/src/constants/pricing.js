@@ -14,7 +14,7 @@
 export const STRIPE_PRICE_ID = 'price_REPLACE_ME';
 
 // Display string used across the app — update after deciding pricing
-export const PRO_PRICE_DISPLAY = 'AED 49 / month';
+export const PRO_PRICE_DISPLAY = 'Contact us for pricing';
 
 // The backend API base URL for Stripe operations
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';

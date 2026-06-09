@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Crown, Check, Loader2 } from 'lucide-react';
 import { useBusiness } from '../context/BusinessContext';
-import { startCheckout } from '../services/stripe';
+import { activateProNow } from '../services/planUtils';
 import { PRO_PRICE_DISPLAY } from '../constants/pricing';
 import Toast, { useToast } from './ui/Toast';
 
@@ -27,10 +27,13 @@ export default function UpgradeModal({ isOpen, onClose, featureName }) {
   const handleUpgradeClick = async () => {
     setLoading(true);
     try {
-      await startCheckout(activeBusinessId);
-      // User is redirected to Stripe — this line won't execute
+      await activateProNow(activeBusinessId);
+      // BusinessContext onSnapshot fires within ~500ms and flips isPro → true.
+      // All ProRoute gates, upgrade banners, and Pro badges update automatically.
+      onClose();
+      showToast('🎉 Pro access activated! All features are now unlocked.', 'success');
     } catch (err) {
-      console.error('Checkout error:', err);
+      console.error('Activation error:', err);
       showToast(err.message || 'Something went wrong. Please try again.', 'error');
       setLoading(false);
     }
@@ -83,7 +86,7 @@ export default function UpgradeModal({ isOpen, onClose, featureName }) {
               {loading ? (
                 <>
                   <Loader2 size={18} className="animate-spin" />
-                  Redirecting to checkout...
+                  Activating...
                 </>
               ) : (
                 'Upgrade to Pro'
@@ -99,7 +102,7 @@ export default function UpgradeModal({ isOpen, onClose, featureName }) {
           </div>
 
           <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-6">
-            Secure payment powered by Stripe. Already on Pro? Contact support if you're seeing this by mistake.
+            Already on Pro? Contact support if you're seeing this by mistake.
           </p>
         </div>
       </div>
